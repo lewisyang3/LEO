@@ -1,0 +1,17 @@
+From: Driftwell Analytics Billing <billing@driftwell.example>
+To: Accounts Payable <ap@brightwatercoffee.example>
+Subject: Driftwell renewal invoice DW-INV-2026-3381
+Date: Wed, 01 Jul 2026 06:30:00 -0700
+Message-ID: <dw-inv-2026-3381@billing.driftwell.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+Driftwell Analytics
+Invoice DW-INV-2026-3381, July 1, 2026
+Order: DW-25-3381
+
+Driftwell Retail Insights, Standard tier
+Renewal term: July 1, 2026 to June 30, 2027      $3,600.00
+
+Total charged: $3,600.00 to card ending 4471

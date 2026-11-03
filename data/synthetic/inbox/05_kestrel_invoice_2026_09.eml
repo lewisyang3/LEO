@@ -1,0 +1,22 @@
+From: Kestrel Cloud Hosting Billing <billing@kestrelcloud.example>
+To: Accounts Payable <ap@brightwatercoffee.example>
+Subject: Kestrel Cloud Hosting invoice INV-KCH-260901
+Date: Tue, 01 Sep 2026 06:00:00 -0700
+Message-ID: <inv-kch-260901@billing.kestrelcloud.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+Kestrel Cloud Hosting, LLC
+Invoice: INV-KCH-260901
+Invoice date: September 1, 2026
+Billing period: September 1, 2026 - September 30, 2026
+Customer: Brightwater Coffee Co.
+MSA: KCH-MSA-2209
+
+Managed Hosting - Standard (renewal term pricing)    $1,308.00
+
+Total due: $1,308.00
+Paid by card on file ending 4471.
+
+Thank you for renewing with Kestrel.

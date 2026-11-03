@@ -1,0 +1,20 @@
+From: Halcyon Payroll Services <invoices@halcyonpayroll.example>
+To: Accounts Payable <ap@brightwatercoffee.example>
+Subject: Halcyon invoice HPS-2026-10-0092
+Date: Sat, 03 Oct 2026 05:00:00 -0700
+Message-ID: <hps-2026-10-0092@invoices.halcyonpayroll.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+Halcyon Payroll Services, Inc.
+Invoice HPS-2026-10-0092
+Invoice date: October 3, 2026
+Client: Brightwater Coffee Co.
+Agreement: HPS-3Y-0092
+
+Monthly Service Fee (includes 3% annual rate adjustment)    $2,472.00
+Active employees this period: 41 (no overage)
+
+Total: $2,472.00
+Auto-paid by card ending 4471.
