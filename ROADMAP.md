@@ -60,7 +60,7 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - Jev classifies items and compares new extractions with prior terms.
   - Claude Haiku 5.5 investigates ambiguous emails, extracts terms and drafts emails. A job moves to a heavier model only on eval evidence.
   - Frontend: React + Vite + TypeScript.
-- [ ] **0.2 [must] Repo skeleton.**
+- [x] **0.2 [must] Repo skeleton.**
   - Package layout: `leo/` with `db/`, `ingest/`, `pipeline/`, `reconcile/`, `actions/` and `api/`, plus `web/` for the frontend.
   - `docker-compose.yml`, and `.env.example` with `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `LEO_MODEL_INVESTIGATE`, `LEO_MODEL_EXTRACT`, `LEO_MODEL_DRAFT`, the database URL and `LEO_TODAY`.
   - Make targets or scripts for `up`, `migrate`, `seed`, `test`, `eval` and `e2e`.

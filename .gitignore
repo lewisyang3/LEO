@@ -1,3 +1,19 @@
 .DS_Store
 # Kept local only, not pushed
 LEO Design Doc.md
+
+# Secrets
+.env
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# Web
+web/node_modules/
+web/dist/
+
+# Local raw-file storage
+var/

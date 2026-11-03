@@ -1,0 +1,26 @@
+"""Settings read from the environment and `.env`. See `.env.example`."""
+
+from datetime import date
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_MODEL = "claude-haiku-5-5"
+
+
+class Settings(BaseSettings):
+    # extra="ignore": a teammate's extra .env keys must not crash every entry point.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    database_url: str = "postgresql+psycopg://leo:leo@localhost:5432/leo"
+    anthropic_api_key: str | None = None
+    jev_api_key: str | None = None
+    leo_model_investigate: str = DEFAULT_MODEL
+    leo_model_extract: str = DEFAULT_MODEL
+    leo_model_draft: str = DEFAULT_MODEL
+    leo_today: date | None = None
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

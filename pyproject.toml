@@ -1,0 +1,42 @@
+[project]
+name = "leo"
+version = "0.1.0"
+description = "LEO: checks vendor bills against contract terms and email"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic",
+    "anthropic",
+    "fastapi",
+    "psycopg[binary]>=3",
+    "pydantic>=2",
+    "pydantic-settings",
+    "sqlalchemy>=2",
+    "uvicorn[standard]",
+]
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+# The answer-key validator predates the linter; bring it in separately.
+extend-exclude = ["scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
