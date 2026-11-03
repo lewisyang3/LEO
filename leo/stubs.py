@@ -48,7 +48,9 @@ class StubValidator:
     def validate(
         self, doc: DocumentText, extraction: Extraction, prior_terms: Sequence[ExtractedTerm]
     ) -> Validated:
-        return Validated(extraction=extraction, engine=STUB)
+        return Validated(
+            extraction=extraction, engine=STUB, vendor_ok=extraction.vendor_name is not None
+        )
 
 
 class StaticTransactionSource:
@@ -66,11 +68,19 @@ def _slug(s: str) -> str:
 class StubVendorResolver:
     """Slugs the input. The same input always gives the same id."""
 
+    def __init__(self) -> None:
+        self.vendors: set[str] = set()
+
+    def find_vendor(self, name: str) -> str | None:
+        slug = _slug(name)
+        return slug if slug in self.vendors else None
+
     def vendor_for_name(self, name: str) -> str:
-        return _slug(name)
+        self.vendors.add(slug := _slug(name))
+        return slug
 
     def vendor_for_descriptor(self, descriptor: str) -> str:
-        return _slug(descriptor)
+        return self.vendor_for_name(descriptor)
 
 
 class StubReconciler:

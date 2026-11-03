@@ -122,7 +122,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
 - [ ] **A5 [must] Transactions, vendors and matching.**
   - A `TransactionSource` that reads `transactions.csv`, the same interface a Ramp connection would use later.
   - Vendors come from the data, never from the answer key:
-    - created from extracted non-noise documents, and from normalized transaction descriptors that match nothing
+    - created from extracted non-noise documents, once the vendor name passes validation, and from normalized transaction descriptors that match nothing
     - aliases grow as matches are made
   - Matching:
     - normalize descriptors by stripping processor prefixes like `PAYWAVE*`, phone numbers and store numbers
@@ -175,7 +175,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
     - every F1–F5 term extracted, including the dispute windows
     - the Lumenpost add-on kept separate from Growth
 - [ ] **B4 [must] Validator (stage 4).**
-  - Each quote must appear in the source.
+  - Each quote must appear in the source, and so must the vendor name.
   - Dates must parse, and amounts must be plausible.
   - Report quotes that aren't in the source as `quote_not_found`. A2 computes the offsets on write (per 0.4).
   - Jev compares each new extraction with the vendor's prior terms.
@@ -246,8 +246,8 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   1. ingest
   2. classify
   3. script or LLM extract
-  4. resolve the document's vendor (validate needs the vendor's prior terms)
-  5. validate
+  4. look up the document's vendor (no create; validate needs its prior terms)
+  5. validate, then create the vendor only if the vendor name checks out (`vendor_ok`)
   6. dedup link
   7. transaction match
   8. reconcile

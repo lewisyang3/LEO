@@ -51,8 +51,11 @@ def test_stub_satisfies_protocol(stub, protocol):
     assert isinstance(stub, protocol)
 
 
-def run_chain(extractor: stubs.StubExtractor) -> tuple[i.Validated, i.Reconciliation]:
-    """The worker's order (ROADMAP 2.1): classify, extract, resolve vendor, validate."""
+def run_chain(
+    extractor: stubs.StubExtractor, resolver: stubs.StubVendorResolver
+) -> tuple[i.Validated, i.Reconciliation]:
+    """The worker's order (ROADMAP 2.1): classify, extract, look up the vendor, validate,
+    then create the vendor only if its name checks out."""
     doc = doc_text()
     classification = stubs.StubClassifier().classify(doc)
     doc = doc.model_copy(
@@ -61,29 +64,49 @@ def run_chain(extractor: stubs.StubExtractor) -> tuple[i.Validated, i.Reconcilia
     extraction = extractor.extract(doc)
     assert extraction is not None
     if extraction.vendor_name is not None:
-        vendor_id = stubs.StubVendorResolver().vendor_for_name(extraction.vendor_name)
-        extraction = extraction.with_vendor(vendor_id)
+        assert resolver.find_vendor(extraction.vendor_name) is None  # unseen, so no prior terms
     validated = stubs.StubValidator().validate(doc, extraction, prior_terms=[])
+    if validated.vendor_ok:
+        vendor_id = resolver.vendor_for_name(validated.extraction.vendor_name)
+        validated = validated.model_copy(
+            update={"extraction": validated.extraction.with_vendor(vendor_id)}
+        )
     reconciliation = stubs.StubReconciler().reconcile(key_ledger(), datetime.date(2026, 11, 2))
     return validated, reconciliation
 
 
 def test_stub_chain_without_vendor():
-    validated, reconciliation = run_chain(stubs.StubExtractor())
+    resolver = stubs.StubVendorResolver()
+    validated, reconciliation = run_chain(stubs.StubExtractor(), resolver)
     assert validated.extraction.vendor_name is None
-    assert validated.issues == []
+    assert validated.vendor_ok is False
+    assert resolver.vendors == set()
     assert reconciliation == i.Reconciliation()
 
 
-def test_stub_chain_with_vendor():
-    validated, _ = run_chain(stubs.StubExtractor(vendor_name="Kestrel Cloud"))
-    assert validated.extraction.vendor_name == "Kestrel Cloud"
-
-
-def test_vendor_resolver_stub_is_stable():
+def test_stub_chain_with_vendor_and_no_items():
+    """Like the Harbor receipt: no terms or facts, but the vendor is still created."""
     resolver = stubs.StubVendorResolver()
+    validated, _ = run_chain(stubs.StubExtractor(vendor_name="Kestrel Cloud"), resolver)
+    assert validated.vendor_ok is True
+    assert validated.extraction.terms == validated.extraction.invoice_facts == []
+    assert resolver.find_vendor("Kestrel Cloud") == "kestrel_cloud"
+
+
+def test_find_vendor_never_creates():
+    resolver = stubs.StubVendorResolver()
+    assert resolver.find_vendor("Kestrel Cloud") is None
+    assert resolver.find_vendor("Kestrel Cloud") is None
+    assert resolver.vendors == set()
     assert resolver.vendor_for_name("Kestrel Cloud") == "kestrel_cloud"
-    assert resolver.vendor_for_name("Kestrel Cloud") == resolver.vendor_for_name("Kestrel Cloud")
+    assert resolver.vendor_for_name("Kestrel Cloud") == "kestrel_cloud"
+    assert resolver.find_vendor("Kestrel Cloud") == "kestrel_cloud"
+
+
+def test_vendor_from_descriptor_can_be_found():
+    resolver = stubs.StubVendorResolver()
+    vendor_id = resolver.vendor_for_descriptor("SUNRIDGE BAKERY")
+    assert resolver.find_vendor("SUNRIDGE BAKERY") == vendor_id
 
 
 def test_with_vendor_sets_vendor_only():

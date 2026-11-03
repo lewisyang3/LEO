@@ -8,10 +8,16 @@ Any change to this module needs all three teammates to agree (ROADMAP 0.7).
 Contracts on extraction output:
 - `document` on every term, invoice fact and contact is `DocumentText.document.path`.
 - Before vendor resolution, `vendor` on terms and invoice facts holds `Extraction.vendor_name`
-  as written in the document (for a forward, from the forwarded header block). The worker
-  resolves it with `VendorResolver.vendor_for_name` and calls `Extraction.with_vendor`.
-- When `vendor_name` is None, the worker skips resolution and validates with `prior_terms=[]`.
-  Terms and facts then carry `vendor=""`, and the Validator flags each one `vendor_missing`.
+  as written in the document (for a forward, from the forwarded header block).
+- Vendor resolution, in the worker's order:
+  1. Look up the vendor with `VendorResolver.find_vendor(vendor_name)`, which never creates one.
+     Validate with that vendor's stored terms, or `prior_terms=[]` when there is none.
+  2. If `Validated.vendor_ok`, call `VendorResolver.vendor_for_name` (get or create) and
+     `Extraction.with_vendor`. The gate is on the vendor name alone, so a document with no
+     items (a receipt) still gets its vendor.
+  3. Otherwise no vendor is created. Every term and fact gets `vendor=""` and status
+     `needs_review`, and the repository stores `""` as a NULL vendor id. The name as written stays
+     in `Extraction.vendor_name` and the raw output, never in a vendor-id field.
 - Ids are provisional, unique within one extraction. The repository (A2) replaces them with
   natural keys on write. Nothing downstream may parse an id.
 - Quote offsets, citation rows and span keys are computed by the repository (A2) from the stored
@@ -83,8 +89,10 @@ class Extraction(LeoModel):
 
 
 class ValidationIssue(LeoModel):
-    item: str  # term or invoice-fact id
-    check: str  # quote_not_found, date_unparsed, amount_implausible, conflicts_prior, ...
+    item: str  # term or invoice-fact id; "" for a vendor-level issue
+    # quote_not_found, date_unparsed, amount_implausible, conflicts_prior, vendor_missing,
+    # vendor_not_in_source, ...
+    check: str
     message: str
 
 
@@ -94,6 +102,9 @@ class Validated(LeoModel):
     extraction: Extraction
     issues: list[ValidationIssue] = []
     engine: str
+    # False when vendor_name is None (vendor_missing) or doesn't appear in the document text,
+    # case-insensitively (vendor_not_in_source). Gates vendor creation.
+    vendor_ok: bool = True
 
 
 class Ledger(LeoModel):
@@ -158,11 +169,19 @@ class TransactionSource(Protocol):
 
 @runtime_checkable
 class VendorResolver(Protocol):
-    """Both methods get or create a vendor and return its id. Aliases grow with matches (A5)."""
+    """Vendor ids from names. Aliases grow as matches are made (A5)."""
 
-    def vendor_for_name(self, name: str) -> str: ...
+    def find_vendor(self, name: str) -> str | None:
+        """Lookup only: never creates a vendor. Runs before validation."""
+        ...
 
-    def vendor_for_descriptor(self, descriptor: str) -> str: ...
+    def vendor_for_name(self, name: str) -> str:
+        """Get or create. Called only once validation passes the vendor name (`vendor_ok`)."""
+        ...
+
+    def vendor_for_descriptor(self, descriptor: str) -> str:
+        """Get or create, from a transaction descriptor that matches nothing (Sunridge, Metro)."""
+        ...
 
 
 @runtime_checkable
