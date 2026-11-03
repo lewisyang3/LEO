@@ -65,7 +65,7 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - `docker-compose.yml`, and `.env.example` with `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `LEO_MODEL_INVESTIGATE`, `LEO_MODEL_EXTRACT`, `LEO_MODEL_DRAFT`, the database URL and `LEO_TODAY`.
   - Make targets or scripts for `up`, `migrate`, `seed`, `test`, `eval` and `e2e`.
   - A README quick-start.
-- [ ] **0.3 [must] Shared types** in `leo/types.py` (Pydantic), copied from the answer key's shapes:
+- [x] **0.3 [must] Shared types** in `leo/types.py` (Pydantic), copied from the answer key's shapes:
   - **Term value models.** One per type: `price`, `price_cap`, `escalator`, `renewal`, `notice_window`, `seat_count`, `dispute_window`.
   - **`ExtractedTerm`.** Fields: `vendor`, `document`, `type`, `value`, `quotes` (a list), `plan_label`, `agreement_ref`, `effective_date`, `status`, `superseded_by`, `supersedes`, `old_value` (in the price shape) and `notes`.
   - **Records:** `Citation`, `SourceDocument` (with `DocumentClass`), `InvoiceFact` (with `invoice_date`), `Vendor` (with `contacts`) and `Transaction`.
