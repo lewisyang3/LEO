@@ -55,13 +55,14 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - Driftwell's notice deadline corrected to 2027-06-01
 
   The validator checks all of this, including the deadline arithmetic. The shapes are documented in `data/synthetic/README.md`.
-- [ ] **0.1 [must] Confirm the stack.**
-  - Proposed: Python 3.12, FastAPI, SQLAlchemy 2 and Alembic, PostgreSQL 16 with `pg_trgm` via Docker Compose, and pytest.
-  - Claude through the Anthropic API for extraction and drafting.
-  - Frontend: React with Vite, or server-rendered templates if we want less to build.
+- [x] **0.1 [must] Confirm the stack.** Confirmed: see `docs/STACK.md`.
+  - Python 3.13 with uv, FastAPI, Pydantic v2, SQLAlchemy 2 and Alembic, PostgreSQL 16 with `pg_trgm` via Docker Compose, pytest and ruff.
+  - Jev classifies items and compares new extractions with prior terms.
+  - Claude Haiku 5.5 investigates ambiguous emails, extracts terms and drafts emails. A job moves to a heavier model only on eval evidence.
+  - Frontend: React + Vite + TypeScript.
 - [ ] **0.2 [must] Repo skeleton.**
   - Package layout: `leo/` with `db/`, `ingest/`, `pipeline/`, `reconcile/`, `actions/` and `api/`, plus `web/` for the frontend.
-  - `docker-compose.yml`, and `.env.example` with the API keys, the database URL and `LEO_TODAY`.
+  - `docker-compose.yml`, and `.env.example` with `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `LEO_MODEL_INVESTIGATE`, `LEO_MODEL_EXTRACT`, `LEO_MODEL_DRAFT`, the database URL and `LEO_TODAY`.
   - Make targets or scripts for `up`, `migrate`, `seed`, `test`, `eval` and `e2e`.
   - A README quick-start.
 - [ ] **0.3 [must] Shared types** in `leo/types.py` (Pydantic), copied from the answer key's shapes:
@@ -158,13 +159,14 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
 
   It prints a per-document report. This is how B knows when it's done.
 - [ ] **B2 [must] Classifier (stage 1).**
-  - **[must]:** one `Classifier` interface with a fallback backend, a small Claude model such as Haiku.
-  - **[should]:** a Jev (TypeSafe AI) backend, because its early access is uncertain.
+  - **[must]:** a `Classifier` interface with Jev (TypeSafe AI) as the classifier.
+  - **[must]:** items below Jev's confidence threshold go to a Haiku 5.5 investigate step (`LEO_MODEL_INVESTIGATE`). If Jev is unavailable, every item takes this path.
   - Build a labeled set from the 22 documents.
   - Choose the "noise" threshold that keeps 100% recall on the planted issues, and report the false-pass rate.
   - Send a sample of the items it labels noise to the LLM as a tripwire.
 - [ ] **B3 [must] LLM extraction (stage 3).**
-  - Prompt plus structured output (tool use) that returns terms and invoice facts in the shared value shapes, each with a list of exact quotes.
+  - Haiku 5.5 by default (`LEO_MODEL_EXTRACT`; move up only on eval evidence, see `docs/STACK.md`).
+  - Prompt plus structured output (`messages.parse` with the Pydantic models, not forced tool use) that returns terms and invoice facts in the shared value shapes, each with a list of exact quotes.
   - One prompt handles contracts, price notices and invoices.
   - For forwarded email, take the vendor from the forwarded header block, not the internal sender.
   - Store the raw model output.
@@ -176,6 +178,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Each quote must appear in the source.
   - Dates must parse, and amounts must be plausible.
   - Compute quote offsets per 0.4.
+  - Jev compares each new extraction with the vendor's prior terms.
   - Failures get status `needs_review` instead of being dropped.
 - [ ] **B5 [should] Script extractors (stage 2).**
   - A registry of matcher and parser pairs.
@@ -186,6 +189,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Track tokens and dollars per run.
   - Expose these through the API for the demo's "16 emails in, N reached the LLM" screen.
 - [ ] **B7 [must] Action drafting.**
+  - Haiku 5.5 by default (`LEO_MODEL_DRAFT`; move up only on eval evidence).
   - Draft a `cancellation_notice`, `renegotiation_request`, `negotiation_email` or `billing_dispute` from a finding and its cited terms.
   - Put in the cited facts (agreement number, amounts, dates, invoice numbers) from a template, and let the LLM write only the surrounding text.
   - Check each draft against `expected_action.must_include` and retry on failure.
@@ -301,7 +305,7 @@ From the design doc's Open Questions. Owners are by track until 0.7 assigns name
 
 | Question | Owner | Decide by | Blocks |
 | --- | --- | --- | --- |
-| Triage model: Jev or fallback, and the threshold | B | During B2 | B2 |
+| Jev confidence threshold and the cutoff for the Haiku investigate step | B | During B2 | B2 |
 | Ramp data: sandbox or synthetic | A | Phase 0 | A5 (synthetic is the default) |
 | Where dedup runs: before or after triage | A | Before A6 | A6 |
 | Ambiguous vendor names (processor descriptor versus legal name) | A | During A5 | A5 |
