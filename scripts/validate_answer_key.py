@@ -111,7 +111,8 @@ def main():
             err(f"{tid}: not mapped to a known vendor")
 
     # Provenance: each quote must occur exactly once in its document.
-    texts = {p: (ROOT / p).read_text() for p in on_disk}
+    # Raw bytes with no newline translation, as in docs/DATA_MODEL.md.
+    texts = {p: (ROOT / p).read_bytes().decode("utf-8") for p in on_disk}
     for group in ("terms", "invoice_facts"):
         for item in key[group]:
             doc = item["document"]

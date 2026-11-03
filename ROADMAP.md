@@ -71,7 +71,7 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - **Records:** `Citation`, `SourceDocument` (with `DocumentClass`), `InvoiceFact` (with `invoice_date`), `Vendor` (with `contacts`) and `Transaction`.
   - **`Finding`.** Many terms, transactions and invoice facts, plus `anchor`, `deadline`, `deadline_basis`, `recommended_send_by` and `impact`. `kind` is an enum of the key's five strings: `auto_renewal_deadline`, `price_increase_notice`, `price_cap_exceeded`, `seats_over_commitment`, `escalator_applied_early`.
   - **`ActionDraft`.** Its type is one of `cancellation_notice`, `renegotiation_request`, `negotiation_email` or `billing_dispute`. It also has `to`, `pre_step` and `alternative`.
-- [ ] **0.4 [must] Data-model rules.** These settle the schema gaps from `data/synthetic/README.md`:
+- [x] **0.4 [must] Data-model rules.** Recorded in `docs/DATA_MODEL.md`, with the rules as code in `leo/rules.py`. These settle the schema gaps from `data/synthetic/README.md`:
   - `price_cap` and `dispute_window` are term types (see 0.0).
   - A term has a list of citations.
   - Invoice facts get their own table, because they record what was billed, not what was agreed.
@@ -97,12 +97,12 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
 - [ ] **A1 [must] Schema and migrations.**
   - The first Alembic migration creates:
     - every table in the design doc: `tenant`, `vendor`, `vendor_alias`, `source_document`, `contract_term`, `citation`, `transaction`, `finding`, `action`, `extractor_script`, `feedback_event` and `job`
-    - three additions: `invoice_fact`, `document_link` for duplicate links, and `finding_term` / `finding_transaction` / `finding_invoice_fact` for linking a finding to many items
+    - four additions: `invoice_fact`, `vendor_contact`, `document_link` for duplicate links, and `finding_term` / `finding_transaction` / `finding_invoice_fact` for linking a finding to many items
   - Every table has `tenant_id`, a UUIDv7 primary key, and `UNIQUE (tenant_id, natural_key)` where it has a natural key.
   - Raw model output goes in JSONB.
   - Enable `pg_trgm`.
 - [ ] **A2 [must] Keys and upserts.**
-  - Natural-key builders: `v1:gmail:…`, `v1:eml-hash:…`, `v1:file:…`, `v1:term:…`, `v1:finding:{anchor term key}:{anchor txn key or -}:{kind}`, `v1:txn:{source}:{external_id}`, `v1:job:{doc key}:{stage}` and `v1:action:{finding key}:{action type}`.
+  - Natural-key builders: `v1:gmail:…`, `v1:eml-hash:…`, `v1:file:…`, `v1:term:…`, `v1:invoice-fact:{doc key}:{first quote start}:{first quote end}`, `v1:finding:{anchor term key}:{anchor txn key or -}:{kind}`, `v1:txn:{source}:{external_id}`, `v1:job:{doc key}:{stage}` and `v1:action:{finding key}:{action type}`.
   - A repository layer where every write is an upsert.
   - Tests:
     - Running the seed twice gives the same rows and IDs.
