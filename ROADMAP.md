@@ -1,6 +1,6 @@
 # LEO Roadmap
 
-How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who builds what. Three people (**Lewis, Erik, Omar**) work in parallel on three tracks after a short shared start.
+How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who builds what. Three people (**Lewis, Erik, Omar**) share the work. After a short shared start, Lewis and Omar build Track B together and finish it first. Owners for Tracks A and C are decided after that.
 
 **The demo bar.** On the Brightwater synthetic dataset (`data/synthetic/`), LEO runs the full pipeline and:
 - flags all five planted issues (F1–F5)
@@ -17,11 +17,19 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 | Track | Owner | Owns | Stages |
 | --- | --- | --- | --- |
-| **A. Data and platform** | _TBD (0.7)_ | Postgres schema, keys and upserts, ingestion, job queue and worker, vendor and transaction matching, dedup | Storage, sync, stage plumbing |
-| **B. AI pipeline** | _TBD (0.7)_ | Eval harness, classifier, LLM extraction and cache, validator, script extractors, action drafting, cost and funnel numbers | 1–4, drafting in 5 |
-| **C. Findings and UI** | _TBD (0.7)_ | Reconciliation rules, deadlines, API, review and approval UI, export | Reconcile in 5, the human gate |
+| **A. Data and platform** | _TBD (after B)_ | Postgres schema, keys and upserts, ingestion, job queue and worker, vendor and transaction matching, dedup | Storage, sync, stage plumbing |
+| **B. AI pipeline** | Lewis and Omar (first) | Eval harness, classifier, LLM extraction and cache, validator, script extractors, action drafting, cost and funnel numbers | 1–4, drafting in 5 |
+| **C. Findings and UI** | _TBD (after B)_ | Reconciliation rules, deadlines, API, review and approval UI, export | Reconcile in 5, the human gate |
 
-The tracks can run at the same time because of two decisions made in Phase 0:
+### Working agreements
+
+- **One branch per task**, named `<task-id>-<slug>` (for example `0.6-fixture-loader` or `A1-schema`).
+- **Each PR is reviewed by one teammate** before it merges.
+- **Any change to `leo/types.py` or `leo/interfaces.py` needs all three to agree.**
+
+**Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
+
+The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
 1. **Shared types first.** All three tracks code against one set of Python types (`leo/types.py`). Term values have one fixed shape per type, taken from the answer key.
 2. **The answer key is a fixture.** A loader turns `expected.json` into those types with no field mapping.
@@ -30,9 +38,8 @@ The tracks can run at the same time because of two decisions made in Phase 0:
    - When Track A's repository lands, B and C swap the fixture for it behind the same interface.
 
 ```
-Phase 0 (all) ──► Phase 1: A ─┐
-                           B ─┼─► Phase 2: integrate (all) ──► Phase 3: demo (all) ──► Phase 4: stretch
-                           C ─┘
+Phase 0 (all) ──► Phase 1: B (Lewis + Omar) ──► A ─┬─► Phase 2: integrate (all) ──► Phase 3: demo (all) ──► Phase 4: stretch
+                                                 C ─┘
 ```
 
 Priority tags:
@@ -78,13 +85,10 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - A deadline shows the contract date, plus `recommended_send_by` (moved back to Friday when the deadline falls on a weekend).
   - **Citation location** is character offsets into the raw stored file text, the same offsets `validate_answer_key.py --offsets` prints. A term's natural key uses the span of its first quote.
 - [x] **0.5 [must] Interfaces between tracks.** Signatures and stubs for `Classifier`, `Extractor`, `Validator`, `TransactionSource`, `VendorResolver`, `Reconciler` and `Drafter`, plus a `Clock` that returns `LEO_TODAY`. The protocols, their input and output models and the contracts between tracks are in `leo/interfaces.py`, the stubs in `leo/stubs.py` and the clock in `leo/clock.py`.
-- [x] **0.6 [must] Fixture loader** `leo/fixtures.py`. It reads `expected.json`, `transactions.csv` and the documents straight into the shared types.
+- [x] **0.6 [must] Fixture loader** `leo/fixtures.py`. It reads `expected.json`, `transactions.csv` and the documents straight into the shared types. Owner: Lewis (done).
   - `load_fixture()` returns a `Fixture` with every key section, `ledger()`, `document_text(path)` and `clock()`. The key-only finding fields (`expected_action`, `days_until_deadline`, `why_planted`) are split into `ExpectedFinding`.
   - Fixture-backed stages (`FixtureClassifier`, `FixtureExtractor`, `FixtureVendorResolver`, `FixtureReconciler`, `FixtureDrafter`) return the key's answers through the 0.5 interfaces. Use `StaticTransactionSource(fixture.transactions)` for transactions.
-- [ ] **0.7 [must] Owners and working agreements.**
-  - Assign Lewis, Erik and Omar to tracks A, B and C, and name an owner for 0.6 and for each open question (see the end of this file).
-  - One branch per task, and each PR is reviewed by one teammate.
-  - Any change to `leo/types.py` or the interfaces needs all three to agree.
+- [x] **0.7 [must] Owners and working agreements.** Lewis and Omar build Track B together first. Owners for Tracks A and C are decided once B is done. See the track table, "Working agreements" under "How the work is split", and the owners in the open-questions table.
 
 **Exit:** `make up && make test` runs on all three laptops, and the stubs and fixture loader are merged.
 
@@ -92,9 +96,9 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
 
 ## Phase 1: Parallel build
 
-Each track's tasks are in order. Items marked ⇄ are handoff points another track waits on.
+Track B goes first. Each track's tasks are in order. Items marked ⇄ are handoff points another track waits on.
 
-### Track A: Data and platform
+### Track A: Data and platform (owner TBD after B)
 
 - [ ] **A1 [must] Schema and migrations.**
   - The first Alembic migration creates:
@@ -152,7 +156,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Tokens encrypted at rest.
   - The `.eml` path stays as the fallback, so the demo never depends on this.
 
-### Track B: AI pipeline (stages 1–4 and drafting)
+### Track B: AI pipeline (stages 1–4 and drafting) (Lewis and Omar, first)
 
 - [ ] **B1 [must] Eval harness first.** `make eval` scores against `expected.json`:
   - classification accuracy, and recall on the documents that matter
@@ -199,7 +203,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Never redraft an action that already exists (`v1:action:…` key).
   - Drafts are saved with state `draft`.
 
-### Track C: Findings and UI (reconcile and the human gate)
+### Track C: Findings and UI (reconcile and the human gate) (owner TBD after B)
 
 - [ ] **C1 [must] Reconciliation rules.** Built and tested on the fixture's correct terms, so it doesn't wait on B. One rule per finding kind:
   - `auto_renewal_deadline` (F1): a notice deadline inside the 60-day lookahead.
@@ -304,17 +308,17 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
 
 ## Open questions: who decides and by when
 
-From the design doc's Open Questions. Owners are by track until 0.7 assigns names.
+From the design doc's Open Questions. Track B questions belong to Lewis and Omar. Track A questions go to the Track A owner once one is chosen.
 
 | Question | Owner | Decide by | Blocks |
 | --- | --- | --- | --- |
-| Jev confidence threshold and the cutoff for the Haiku investigate step | B | During B2 | B2 |
-| Ramp data: sandbox or synthetic | A | Phase 0 | A5 (synthetic is the default) |
-| Where dedup runs: before or after triage | A | Before A6 | A6 |
-| Ambiguous vendor names (processor descriptor versus legal name) | A | During A5 | A5 |
+| Jev confidence threshold and the cutoff for the Haiku investigate step | Lewis and Omar | During B2 | B2 |
+| Ramp data: sandbox or synthetic | Lewis | Phase 0 | A5 (synthetic is the default) |
+| Where dedup runs: before or after triage | A owner (TBD) | Before A6 | A6 |
+| Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | During A5 | A5 |
 | Accuracy bar | All | Phase 2 start | 2.4 |
-| Inbox scopes and retention we promise | A | Before A8 | A8, pitch |
-| Script generation threshold and testing | B | Phase 4 | Stretch |
-| Corrections: prompts and scripts only, or also kept for fine-tuning | B | Phase 4 | Stretch |
+| Inbox scopes and retention we promise | A owner (TBD) | Before A8 | A8, pitch |
+| Script generation threshold and testing | Lewis and Omar | Phase 4 | Stretch |
+| Corrections: prompts and scripts only, or also kept for fine-tuning | Lewis and Omar | Phase 4 | Stretch |
 | ~~Price change by email versus the signed contract: which wins~~ | Closed | — | The key settles it in F2: a properly noticed email change is a legitimate new price term that supersedes the old one, and the finding is about acting before it takes effect. |
 | ~~Demo data: which five issues~~ | Closed | — | Answered by `data/synthetic/` |
