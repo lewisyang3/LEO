@@ -97,7 +97,32 @@ def first_span(item):
 
 
 def test_span_keys_are_unique():
+    spans = [first_span(x) for x in KEY["terms"] + KEY["invoice_facts"]]
+    assert None not in spans
     term_keys = Counter((x["document"], x["type"], first_span(x)) for x in KEY["terms"])
     fact_keys = Counter((x["document"], first_span(x)) for x in KEY["invoice_facts"])
     assert max(term_keys.values()) == 1
     assert max(fact_keys.values()) == 1
+
+
+def test_span_key():
+    assert rules.span_key("ab cd", "cd") == "3:5"
+    missing = rules.span_key("ab", "zz")
+    assert missing.startswith("q") and len(missing) == 17
+    assert rules.span_key("other text", "zz") == missing
+    assert rules.span_key("ab", "yy") != missing
+
+
+def test_notice_deadline_rejects_other_reference_points():
+    notice = TERMS["lp_price_change_notice_rule"]["value"]
+    renewal = t.RenewalValue(**TERMS["crv_renewal"]["value"])
+    with pytest.raises(ValueError):
+        rules.notice_deadline(t.NoticeWindowValue(**notice), renewal)
+    with pytest.raises(ValueError):
+        rules.notice_deadline(t.NoticeWindowValue(**{**notice, "relative_to": None}), renewal)
+
+
+def test_dispute_deadline_rejects_other_reference_points():
+    window = {**TERMS["kch_dispute"]["value"], "relative_to": "term_end"}
+    with pytest.raises(ValueError):
+        rules.dispute_deadline(t.DisputeWindowValue(**window), datetime.date(2026, 9, 1))

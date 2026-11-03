@@ -29,10 +29,10 @@ Every quote is one `citation` row:
 - `document_id`, `quote`, `start_offset` and `end_offset`
 - `ordinal`, the quote's position in its owner's quote list. Ordinal 0 is the first quote.
 - Its owner is exactly one of `term_id`, `invoice_fact_id` or `vendor_contact_id`, enforced with a CHECK.
-- `UNIQUE (owner, ordinal)`.
-- CHECK `end_offset - start_offset = length(quote)`.
+- Each owner's ordinals are unique, with one partial unique index per owner column: `(term_id, ordinal) WHERE term_id IS NOT NULL`, and the same for `invoice_fact_id` and `vendor_contact_id`. A plain `UNIQUE (term_id, invoice_fact_id, vendor_contact_id, ordinal)` would not work, because Postgres treats NULLs as distinct.
+- `start_offset` and `end_offset` are null when the quote wasn't found in the document. CHECK that both are null, or both are set and `end_offset - start_offset = length(quote)`.
 
-A term, an invoice fact or a contact can have several quotes. Extra quotes, such as invoice-date lines and notice addresses, come after the first.
+A term or an invoice fact can have several quotes, and a contact has exactly one. Extra quotes, such as invoice-date lines and notice addresses, come after the first.
 
 ### Citation offsets
 
@@ -44,7 +44,7 @@ A term, an invoice fact or a contact can have several quotes. Extra quotes, such
 
 ## Natural keys built from spans
 
-The span is the first quote's (ordinal 0) `start:end`.
+The span is the first quote's (ordinal 0) `start:end`. When that quote isn't found in the document, the span is `q` plus the first 16 hex digits of the quote's SHA-256, for example `v1:term:{document key}:{term type}:q3f9a…`. The key still reproduces on a rerun, because B3's cache returns the same quote, and the item stays `needs_review`. `leo.rules.span_key` builds the span either way.
 
 | Row | Natural key |
 | --- | --- |
@@ -63,6 +63,7 @@ A finding's `deadline` is the contract date. The rule depends on its `deadline_b
 | Dispute window and invoice fact | `invoice_date` + `days` | `dispute_deadline` |
 | A single price term | the day before `effective_date` | `price_change_deadline` |
 
+- `notice_deadline` accepts only notice windows `relative_to` `term_end` or `renewal_date`, and `dispute_deadline` only `invoice_date`. Any other value raises an error instead of returning a wrong date. A `price_change` notice window (such as Lumenpost's) has no deadline of its own: F2's deadline comes from the price term's `effective_date`.
 - `recommended_send_by` is the deadline moved back to Friday when it falls on a Saturday or Sunday (`recommended_send_by`). Holidays are ignored.
 - All deadlines are plain dates, with no time zones.
 - A finding stores `deadline`, `recommended_send_by`, `deadline_notes`, `anchor_term_id` and a nullable `anchor_transaction_id`.
