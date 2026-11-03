@@ -12,6 +12,7 @@ Contracts on extraction output:
 - Vendor resolution, in the worker's order:
   1. Look up the vendor with `VendorResolver.find_vendor(vendor_name)`, which never creates one.
      Validate with that vendor's stored terms, or `prior_terms=[]` when there is none.
+     Skip the lookup when `vendor_name` is None, and validate with `prior_terms=[]`.
   2. If `Validated.vendor_ok`, call `VendorResolver.vendor_for_name` (get or create) and
      `Extraction.with_vendor`. The gate is on the vendor name alone, so a document with no
      items (a receipt) still gets its vendor.
@@ -36,7 +37,7 @@ import datetime
 from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from leo.types import (
     ActionDraft,
@@ -103,8 +104,15 @@ class Validated(LeoModel):
     issues: list[ValidationIssue] = []
     engine: str
     # False when vendor_name is None (vendor_missing) or doesn't appear in the document text,
-    # case-insensitively (vendor_not_in_source). Gates vendor creation.
-    vendor_ok: bool = True
+    # case-insensitively (vendor_not_in_source). Gates vendor creation, so it fails closed:
+    # a validator must set it to True on purpose, and True needs a vendor_name.
+    vendor_ok: bool = False
+
+    @model_validator(mode="after")
+    def _vendor_ok_needs_name(self) -> "Validated":
+        if self.vendor_ok and self.extraction.vendor_name is None:
+            raise ValueError("vendor_ok requires vendor_name")
+        return self
 
 
 class Ledger(LeoModel):

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from leo import interfaces as i
 from leo import stubs
@@ -158,3 +159,10 @@ def test_clock_falls_back_to_system_date(monkeypatch):
     monkeypatch.delenv("LEO_TODAY", raising=False)
     clock = get_clock(Settings(_env_file=None))
     assert isinstance(clock, SystemClock)
+
+
+def test_vendor_ok_fails_closed():
+    extraction = i.Extraction(vendor_name=None, engine="x")
+    assert i.Validated(extraction=extraction, engine="x").vendor_ok is False
+    with pytest.raises(ValidationError, match="vendor_ok requires vendor_name"):
+        i.Validated(extraction=extraction, engine="x", vendor_ok=True)
