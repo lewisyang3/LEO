@@ -53,6 +53,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `leo/interfaces.py` | Stage protocols and the models passed between tracks | Shared |
 | `leo/stubs.py` | Placeholder stage implementations until the tracks plug in | Shared |
 | `leo/clock.py` | `Clock`: `LEO_TODAY`, or the system date | Shared |
+| `leo/fixtures.py` | The answer key as typed fixtures, plus fixture-backed stages | Shared |
 | `leo/db/` | Engine, models, Alembic migrations (`leo/db/migrations/`), repositories | A |
 | `leo/ingest/` | `.eml` parser, contracts loader, `ingest()`, Gmail sync | A |
 | `leo/pipeline/` | Classify, extract, validate, eval | B |

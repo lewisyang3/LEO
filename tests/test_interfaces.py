@@ -1,9 +1,6 @@
 """The interfaces, stubs and clock between tracks (ROADMAP 0.5)."""
 
-import csv
 import datetime
-import json
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -13,25 +10,14 @@ from leo import stubs
 from leo import types as t
 from leo.clock import FixedClock, SystemClock, get_clock
 from leo.config import Settings
-from leo.rules import read_source_text
+from leo.fixtures import load_fixture
 
-DATA = Path(__file__).resolve().parent.parent / "data" / "synthetic"
-KEY = json.loads((DATA / "expected.json").read_text())
-KEY_ONLY_FINDING_FIELDS = {"days_until_deadline", "why_planted", "expected_action"}
+FX = load_fixture()
 DOC_PATH = "inbox/05_kestrel_invoice_2026_09.eml"
 
 
-def key_ledger() -> i.Ledger:
-    with (DATA / "transactions.csv").open(newline="") as f:
-        transactions = list(csv.DictReader(f))
-    fields = ("vendors", "documents", "terms", "invoice_facts")
-    fields += ("transaction_vendor_map", "transaction_plan_map")
-    return i.Ledger.model_validate({k: KEY[k] for k in fields} | {"transactions": transactions})
-
-
 def doc_text(path: str = DOC_PATH) -> i.DocumentText:
-    document = t.SourceDocument(path=path, doc_class=None, vendor=None)
-    return i.DocumentText(document=document, text=read_source_text(DATA / path))
+    return FX.document_text(path)
 
 
 @pytest.mark.parametrize(
@@ -72,7 +58,7 @@ def run_chain(
         validated = validated.model_copy(
             update={"extraction": validated.extraction.with_vendor(vendor_id)}
         )
-    reconciliation = stubs.StubReconciler().reconcile(key_ledger(), datetime.date(2026, 11, 2))
+    reconciliation = stubs.StubReconciler().reconcile(FX.ledger(), datetime.date(2026, 11, 2))
     return validated, reconciliation
 
 
@@ -111,8 +97,7 @@ def test_vendor_from_descriptor_can_be_found():
 
 
 def test_with_vendor_sets_vendor_only():
-    term = t.extracted_term_adapter.validate_python(KEY["terms"][0])
-    fact = t.InvoiceFact.model_validate(KEY["invoice_facts"][0])
+    term, fact = FX.terms[0], FX.invoice_facts[0]
     extraction = i.Extraction(
         vendor_name="Name As Written",
         terms=[term.model_copy(update={"vendor": "Name As Written"})],
@@ -127,23 +112,19 @@ def test_with_vendor_sets_vendor_only():
 
 
 def test_ledger_builds_from_the_key():
-    ledger = key_ledger()
+    ledger = FX.ledger()
     assert len(ledger.terms) == 29
     assert len(ledger.transactions) == 39
     assert ledger.transaction_plan_map["txn_0032"] == "Growth"
 
 
 def test_invoice_fact_status_defaults_to_current():
-    facts = [t.InvoiceFact.model_validate(x) for x in KEY["invoice_facts"]]
-    assert {f.status for f in facts} == {t.TermStatus.current}
+    assert {f.status for f in FX.invoice_facts} == {t.TermStatus.current}
 
 
 def test_stub_drafter_uses_vendor_contact():
-    raw = next(f for f in KEY["findings"] if f["id"] == "F4")
-    finding = t.finding_adapter.validate_python(
-        {k: v for k, v in raw.items() if k not in KEY_ONLY_FINDING_FIELDS}
-    )
-    draft = stubs.StubDrafter().draft(finding, key_ledger())
+    finding = next(f for f in FX.findings if f.id == "F4")
+    draft = stubs.StubDrafter().draft(finding, FX.ledger())
     assert draft.to == "billing@quillstack.example"
     assert draft.state is t.ActionState.draft
 

@@ -78,7 +78,9 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - A deadline shows the contract date, plus `recommended_send_by` (moved back to Friday when the deadline falls on a weekend).
   - **Citation location** is character offsets into the raw stored file text, the same offsets `validate_answer_key.py --offsets` prints. A term's natural key uses the span of its first quote.
 - [x] **0.5 [must] Interfaces between tracks.** Signatures and stubs for `Classifier`, `Extractor`, `Validator`, `TransactionSource`, `VendorResolver`, `Reconciler` and `Drafter`, plus a `Clock` that returns `LEO_TODAY`. The protocols, their input and output models and the contracts between tracks are in `leo/interfaces.py`, the stubs in `leo/stubs.py` and the clock in `leo/clock.py`.
-- [ ] **0.6 [must] Fixture loader** `leo/fixtures.py`. It reads `expected.json`, `transactions.csv` and the documents straight into the shared types.
+- [x] **0.6 [must] Fixture loader** `leo/fixtures.py`. It reads `expected.json`, `transactions.csv` and the documents straight into the shared types.
+  - `load_fixture()` returns a `Fixture` with every key section, `ledger()`, `document_text(path)` and `clock()`. The key-only finding fields (`expected_action`, `days_until_deadline`, `why_planted`) are split into `ExpectedFinding`.
+  - Fixture-backed stages (`FixtureClassifier`, `FixtureExtractor`, `FixtureVendorResolver`, `FixtureReconciler`, `FixtureDrafter`) return the key's answers through the 0.5 interfaces. Use `StaticTransactionSource(fixture.transactions)` for transactions.
 - [ ] **0.7 [must] Owners and working agreements.**
   - Assign Lewis, Erik and Omar to tracks A, B and C, and name an owner for 0.6 and for each open question (see the end of this file).
   - One branch per task, and each PR is reviewed by one teammate.
