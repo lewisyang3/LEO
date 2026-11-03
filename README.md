@@ -50,6 +50,9 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | Path | Contents | Track |
 | --- | --- | --- |
 | `leo/config.py` | Settings from the environment and `.env` | Shared |
+| `leo/interfaces.py` | Stage protocols and the models passed between tracks | Shared |
+| `leo/stubs.py` | Placeholder stage implementations until the tracks plug in | Shared |
+| `leo/clock.py` | `Clock`: `LEO_TODAY`, or the system date | Shared |
 | `leo/db/` | Engine, models, Alembic migrations (`leo/db/migrations/`), repositories | A |
 | `leo/ingest/` | `.eml` parser, contracts loader, `ingest()`, Gmail sync | A |
 | `leo/pipeline/` | Classify, extract, validate, eval | B |

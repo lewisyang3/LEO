@@ -77,7 +77,7 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - Invoice facts get their own table, because they record what was billed, not what was agreed.
   - A deadline shows the contract date, plus `recommended_send_by` (moved back to Friday when the deadline falls on a weekend).
   - **Citation location** is character offsets into the raw stored file text, the same offsets `validate_answer_key.py --offsets` prints. A term's natural key uses the span of its first quote.
-- [ ] **0.5 [must] Interfaces between tracks.** Signatures and stubs for `Classifier`, `Extractor`, `Validator`, `TransactionSource`, `VendorResolver`, `Reconciler` and `Drafter`, plus a `Clock` that returns `LEO_TODAY`.
+- [x] **0.5 [must] Interfaces between tracks.** Signatures and stubs for `Classifier`, `Extractor`, `Validator`, `TransactionSource`, `VendorResolver`, `Reconciler` and `Drafter`, plus a `Clock` that returns `LEO_TODAY`. The protocols, their input and output models and the contracts between tracks are in `leo/interfaces.py`, the stubs in `leo/stubs.py` and the clock in `leo/clock.py`.
 - [ ] **0.6 [must] Fixture loader** `leo/fixtures.py`. It reads `expected.json`, `transactions.csv` and the documents straight into the shared types.
 - [ ] **0.7 [must] Owners and working agreements.**
   - Assign Lewis, Erik and Omar to tracks A, B and C, and name an owner for 0.6 and for each open question (see the end of this file).
@@ -117,7 +117,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - `Message-ID`, `threadId` and similar headers are attributes, never part of a key.
 - [ ] **A4 [must] Job queue and worker.**
   - Jobs are rows claimed with `FOR UPDATE SKIP LOCKED`.
-  - The worker runs each item through the stage interfaces from 0.5, which are stubs until B and C plug in.
+  - The worker runs each item through the stage interfaces in `leo/interfaces.py`, using `leo/stubs.py` until B and C plug in.
   - It records which stage handled each item (`processed_by`) and retries or parks failures.
 - [ ] **A5 [must] Transactions, vendors and matching.**
   - A `TransactionSource` that reads `transactions.csv`, the same interface a Ramp connection would use later.
@@ -177,7 +177,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
 - [ ] **B4 [must] Validator (stage 4).**
   - Each quote must appear in the source.
   - Dates must parse, and amounts must be plausible.
-  - Compute quote offsets per 0.4.
+  - Report quotes that aren't in the source as `quote_not_found`. A2 computes the offsets on write (per 0.4).
   - Jev compares each new extraction with the vendor's prior terms.
   - Failures get status `needs_review` instead of being dropped.
 - [ ] **B5 [should] Script extractors (stage 2).**
@@ -246,11 +246,12 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   1. ingest
   2. classify
   3. script or LLM extract
-  4. validate
-  5. dedup link
-  6. vendor and transaction match
-  7. reconcile
-  8. draft
+  4. resolve the document's vendor (validate needs the vendor's prior terms)
+  5. validate
+  6. dedup link
+  7. transaction match
+  8. reconcile
+  9. draft
 - [ ] **2.2 [must] End-to-end test** (`make e2e`):
   - reset and seed, then run the pipeline on the synthetic set
   - assert F1–F5 are found, N1–N8 are not, and D1–D5 pass
