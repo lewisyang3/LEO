@@ -23,7 +23,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 ### Working agreements
 
-- **One branch per task**, named `<task-id>-<slug>` (for example `0.6-fixture-loader` or `A1-schema`).
+- **One branch per task**, named `<name>/<task-id>-<slug>` with the owner's first name in lowercase (for example `lewis/b1-eval-harness` or `erik/c1-reconcile`).
 - **Each PR is reviewed by one teammate** before it merges.
 - **Any change to `leo/types.py` or `leo/interfaces.py` needs all three to agree.**
 
