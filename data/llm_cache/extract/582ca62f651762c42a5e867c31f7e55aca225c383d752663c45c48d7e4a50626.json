@@ -1,0 +1,31 @@
+{
+  "doc_hash": "43ee187056da62ea27ab43ad5beba7d618e37498e14b6ade0b83ebb447210583",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [],
+    "price_caps": [],
+    "seat_counts": [],
+    "vendor_name": "Ferrolink Networks"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieeiDKYUWwy3bobrsw3",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5125,
+    "inference_geo": "global",
+    "input_tokens": 372,
+    "output_tokens": 206,
+    "output_tokens_details": {
+      "thinking_tokens": 161
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

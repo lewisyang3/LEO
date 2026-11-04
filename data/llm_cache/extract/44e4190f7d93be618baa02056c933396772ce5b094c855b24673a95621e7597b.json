@@ -1,0 +1,30 @@
+{
+  "doc_hash": "e99df0019f5de42f1fe71b2daafb9d2161a74e7173271c1e9539ad114cdb622d",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [],
+    "renewals": [],
+    "vendor_name": "Quillstack Inc."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgiedMDVaVMVUcg9c8fxp",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 372,
+    "output_tokens": 235,
+    "output_tokens_details": {
+      "thinking_tokens": 201
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "doc_hash": "df6e4e5fd0a1d77779c3babc345f886cb4d0e02f105474822ddec1dd5bf689e2",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [
+      {
+        "agreement_ref": null,
+        "effective_date": "2025-08-01",
+        "plan_label": null,
+        "quotes": [
+          "The Monthly Recurring Charge increases by four percent (4%) on each anniversary of the Service Start Date.",
+          "Service Start Date: August 1, 2025."
+        ],
+        "value": {
+          "anniversary_base_date": "2025-08-01",
+          "first_application": null,
+          "pct": 4,
+          "schedule": "each anniversary of the Service Start Date"
+        }
+      }
+    ],
+    "price_caps": [],
+    "seat_counts": [],
+    "vendor_name": "FERROLINK NETWORKS"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieYivKDqcjbsKcRRe8P",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5125,
+    "inference_geo": "global",
+    "input_tokens": 454,
+    "output_tokens": 818,
+    "output_tokens_details": {
+      "thinking_tokens": 622
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

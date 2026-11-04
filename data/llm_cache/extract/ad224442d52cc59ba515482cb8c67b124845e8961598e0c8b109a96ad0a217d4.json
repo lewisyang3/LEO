@@ -1,0 +1,63 @@
+{
+  "doc_hash": "2ae8d585753d1c8573f53f25303612fb3d733deda3dc760115993c54303d3978",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [
+      {
+        "agreement_ref": "HPS-3Y-0092",
+        "effective_date": "2026-01-01",
+        "plan_label": null,
+        "quotes": [
+          "On each anniversary of the Effective Date, the Monthly Service Fee will increase by three percent (3%).",
+          "This Agreement is effective January 1, 2026 (the \"Effective Date\")."
+        ],
+        "value": {
+          "anniversary_base_date": "2026-01-01",
+          "first_application": null,
+          "pct": 3,
+          "schedule": "each anniversary of the Effective Date"
+        }
+      }
+    ],
+    "price_caps": [],
+    "seat_counts": [
+      {
+        "agreement_ref": "HPS-3Y-0092",
+        "effective_date": "2026-01-01",
+        "plan_label": null,
+        "quotes": [
+          "Halcyon will provide payroll processing, tax filing and benefits administration for up to 50 Client employees across all Client locations.",
+          "Each employee above 50 is billed at $45.00 per employee per month."
+        ],
+        "value": {
+          "included": 50,
+          "increase_requires": null,
+          "overage_per_unit_month": 45.0,
+          "unit": "employees"
+        }
+      }
+    ],
+    "vendor_name": "Halcyon Payroll Services, Inc."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieXghb3qYaBsHbCttwf",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5125,
+    "inference_geo": "global",
+    "input_tokens": 617,
+    "output_tokens": 1154,
+    "output_tokens_details": {
+      "thinking_tokens": 781
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

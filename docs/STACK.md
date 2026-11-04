@@ -39,6 +39,8 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 - **Request rules:**
   - Set `effort` explicitly. Haiku 5.5 defaults to `medium`. Start every job at `medium` and tune it with the eval.
   - Get structured data with structured outputs (`client.messages.parse` or `output_config.format` with the Pydantic models), not with a forced `tool_choice`.
+    - Use `output_config.format` through `leo.llm.structured_call`, not `client.messages.parse`, which raises before you can read `stop_reason`.
+    - A schema is capped at 16 nullable fields, 24 optional fields and a total grammar size (checked 2026-11-04). Over the cap, the API returns 400 "compiled grammar is too large". Split the output into parts, as B3 does.
   - Check `stop_reason` before reading the content, and handle `refusal`. Haiku 5.5 has no server-side fallback, so a refused item goes to `needs_review`.
   - Cache responses (B3) keyed by document hash, job, model and prompt version. Reruns then reproduce the same quotes and keys, and the demo can run offline.
 - **Secrets.** `ANTHROPIC_API_KEY` and `JEV_API_KEY` live in `.env`, which is never committed. `.env.example` lists the variable names without values.

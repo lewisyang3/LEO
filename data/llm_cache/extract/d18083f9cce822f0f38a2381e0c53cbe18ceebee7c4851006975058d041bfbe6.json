@@ -1,0 +1,48 @@
+{
+  "doc_hash": "233ed53a953f42925a8a431d8daa714f4ad8315003cfd815b1a63aecbc62a8fc",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [],
+    "notice_windows": [
+      {
+        "agreement_ref": "DW-25-3381",
+        "effective_date": "2025-07-01",
+        "plan_label": null,
+        "quotes": [
+          "unless Customer cancels by written notice at least 30 days before the renewal date",
+          "Cancellation notices: cancel@driftwell.example"
+        ],
+        "value": {
+          "applies_to": "non_renewal",
+          "days": 30,
+          "deliver_to": "cancel@driftwell.example",
+          "relative_to": "renewal_date"
+        }
+      }
+    ],
+    "vendor_name": "DRIFTWELL ANALYTICS"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieZaeWuxm3QtNJS7MsM",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 317,
+    "output_tokens": 994,
+    "output_tokens_details": {
+      "thinking_tokens": 788
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

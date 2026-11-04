@@ -174,9 +174,9 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Build a labeled set from the 22 documents.
   - Choose the "noise" threshold that keeps 100% recall on the planted issues, and report the false-pass rate.
   - Send a sample of the items it labels noise to the LLM as a tripwire.
-- [ ] **B3 [must] LLM extraction (stage 3).**
+- [x] **B3 [must] LLM extraction (stage 3).**
   - Haiku 5.5 by default (`LEO_MODEL_EXTRACT`; move up only on eval evidence, see `docs/STACK.md`).
-  - Prompt plus structured output (`messages.parse` with the Pydantic models, not forced tool use) that returns terms and invoice facts in the shared value shapes, each with a list of exact quotes.
+  - Prompt plus structured output (`output_config.format` with a JSON schema built from Pydantic models, not forced tool use) that returns terms and invoice facts in the shared value shapes, each with a list of exact quotes.
   - One prompt handles contracts, price notices and invoices.
   - For forwarded email, take the vendor from the forwarded header block, not the internal sender.
   - Store the raw model output.
@@ -184,6 +184,19 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Target:
     - every F1–F5 term extracted, including the dispute windows
     - the Lumenpost add-on kept separate from Growth
+
+  Done, in `leo/pipeline/extract_llm.py` (extractor, prompt, mapping), `leo/pipeline/extract_schema.py` (output models) and `leo/llm.py` (structured call and cache; B7 reuses it):
+  - **Three requests per document.** The API caps a structured-output schema (16 nullable fields, 24 optional, and a total grammar size). The output is split into three tested parts (`EXTRACTION_PARTS`), sent with the same system prompt and merged. If any part has no complete answer, the extraction is empty with no vendor, so validation fails closed.
+  - **The model extracts what is written, and code computes the rest:** an initial term end from a start date and length, the current term end rolled forward to today, notice deadlines (`leo.rules.notice_deadline`) and an escalator's first anniversary. A few fields are set to the key's conventions: no plan label except on price and seat terms, no effective date on notice or dispute windows, one-month billing periods as `YYYY-MM`, `$` as `USD`.
+  - **Cache:** `data/llm_cache/extract/`, committed, one file per answer. The key covers the document hash, stage, model, prompt version, effort and a hash of the whole request (system prompt, user prompt and schema). `LEO_LLM_OFFLINE=1` turns a miss into an error instead of an API call.
+  - **Eval** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --extractor llm`, prompt `extract-v3`, Haiku 5.5 at `medium`):
+    - F1–F5 all covered
+    - terms: precision and recall 100% (31/31)
+    - invoice facts: recall 100%, precision 7/8 (it also records the Harbor supply receipt)
+    - contacts: 3/3
+    - every quote found
+    - the one wrong field is Ferrolink's early-termination fee, where the key drops a "the" the document has
+    - a full run costs about $0.02
 - [ ] **B4 [must] Validator (stage 4).**
   - Each quote must appear in the source, and so must the vendor name.
   - Dates must parse, and amounts must be plausible.

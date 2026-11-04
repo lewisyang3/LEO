@@ -1,0 +1,67 @@
+{
+  "doc_hash": "d82f9e37579726ae739534b0aa8b92754a94db96d748dc66e8c09f900e57b0de",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [
+      {
+        "agreement_ref": "KCH-MSA-2209",
+        "effective_date": "2024-09-01",
+        "old_value": null,
+        "plan_label": "Managed Hosting - Standard",
+        "quotes": [
+          "Managed Hosting - Standard: $1,200.00 per month, billed on the first day of each month.",
+          "Service Start Date: September 1, 2024."
+        ],
+        "value": {
+          "amount": 1200.0,
+          "currency": "USD",
+          "per": "month"
+        }
+      }
+    ],
+    "renewals": [
+      {
+        "agreement_ref": "KCH-MSA-2209",
+        "effective_date": "2024-09-01",
+        "plan_label": null,
+        "quotes": [
+          "This Master Services Agreement",
+          "3.2 Renewal. After the initial term, this Agreement renews automatically for successive twelve (12) month renewal terms unless either party provides sixty (60) days' written notice of non-renewal.",
+          "1.2 Service Start Date: September 1, 2024.",
+          "3.1 Initial Term. The initial term is twenty-four (24) months from the Service Start Date."
+        ],
+        "value": {
+          "auto_renew": true,
+          "early_termination_fee": null,
+          "initial_term_end": null,
+          "initial_term_months": 24,
+          "renewal_length_months": 12,
+          "renewal_pricing": null,
+          "term_start": "2024-09-01"
+        }
+      }
+    ],
+    "vendor_name": "KESTREL CLOUD HOSTING, LLC"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieVHy3hoiBtDvupgLkd",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 623,
+    "output_tokens": 1205,
+    "output_tokens_details": {
+      "thinking_tokens": 766
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

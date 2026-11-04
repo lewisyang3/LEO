@@ -1,0 +1,45 @@
+{
+  "doc_hash": "18c2bcf37d701e153f85dd507a0c5850c1f6ed6d0aae441ca21dc1cf2dfe4cb7",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [
+      {
+        "amount": 2472.0,
+        "billing_period": "2026-10",
+        "invoice_date": "2026-10-03",
+        "invoice_number": "HPS-2026-10-0092",
+        "quotes": [
+          "Total: $2,472.00",
+          "Invoice date: October 3, 2026",
+          "Invoice HPS-2026-10-0092"
+        ],
+        "seats_billed": null
+      }
+    ],
+    "notice_windows": [],
+    "vendor_name": "Halcyon Payroll Services, Inc."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieeFF6gJKLrEHEF3sfe",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 432,
+    "output_tokens": 617,
+    "output_tokens_details": {
+      "thinking_tokens": 443
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

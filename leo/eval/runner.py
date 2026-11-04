@@ -1,12 +1,13 @@
 """Run stage engines over the synthetic dataset and report the scores (ROADMAP B1).
 
-Engines are chosen by name from `CLASSIFIERS` and `EXTRACTORS`. B2 and B3 register theirs
-(`jev`, `llm`) here. Each factory takes the `Fixture`.
+Engines are chosen by name from `CLASSIFIERS` and `EXTRACTORS`. B3 registers `llm`, and B2
+registers `jev`. Each factory takes the `Fixture`.
 """
 
 import datetime
 from collections.abc import Callable, Sequence
 
+from leo.config import get_settings
 from leo.eval.scoring import (
     KINDS,
     ClassificationSummary,
@@ -24,6 +25,8 @@ from leo.eval.scoring import (
 )
 from leo.fixtures import Fixture, FixtureClassifier, FixtureExtractor
 from leo.interfaces import Classifier, DocumentText, Extraction, Extractor
+from leo.llm import ResponseCache
+from leo.pipeline.extract_llm import LLMExtractor
 from leo.stubs import StubClassifier, StubExtractor
 from leo.types import DocumentClass, LeoModel
 
@@ -63,6 +66,9 @@ CLASSIFIERS: dict[str, Callable[[Fixture], Classifier]] = {
 EXTRACTORS: dict[str, Callable[[Fixture], Extractor]] = {
     "fixture": EvalFixtureExtractor,
     "stub": lambda fixture: StubExtractor(),
+    "llm": lambda fixture: LLMExtractor(
+        clock=fixture.clock(), cache=ResponseCache(get_settings().leo_llm_cache_dir)
+    ),
 }
 DEFAULT_CLASSIFIER = "fixture"
 DEFAULT_EXTRACTOR = "fixture"

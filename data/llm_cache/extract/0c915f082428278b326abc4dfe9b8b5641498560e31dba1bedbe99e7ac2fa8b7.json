@@ -1,0 +1,45 @@
+{
+  "doc_hash": "d82f9e37579726ae739534b0aa8b92754a94db96d748dc66e8c09f900e57b0de",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [],
+    "price_caps": [
+      {
+        "agreement_ref": "MSA No. KCH-MSA-2209",
+        "effective_date": "2024-09-01",
+        "plan_label": null,
+        "quotes": [
+          "Fees for any renewal term shall not exceed the fees for the immediately preceding term by more than five percent (5%)."
+        ],
+        "value": {
+          "applies_to": "renewal_term",
+          "baseline": "immediately preceding term",
+          "max_increase_pct": 5
+        }
+      }
+    ],
+    "seat_counts": [],
+    "vendor_name": "KESTREL CLOUD HOSTING, LLC"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieVpCEFVnyMJBNf4HBw",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5125,
+    "inference_geo": "global",
+    "input_tokens": 633,
+    "output_tokens": 980,
+    "output_tokens_details": {
+      "thinking_tokens": 791
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}
