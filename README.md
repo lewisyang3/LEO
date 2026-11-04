@@ -42,7 +42,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `api` | Run FastAPI with reload |
 | `web` | Run the Vite dev server |
 | `seed` | Placeholder until ROADMAP A7 (exits 1) |
-| `eval` | Placeholder until ROADMAP B1 (exits 1) |
+| `eval` | Score the classifier and extractor against the answer key (`python -m leo.eval --help`). No database or API keys needed |
 | `e2e` | Placeholder until ROADMAP 2.2 (exits 1) |
 
 ## Layout
@@ -56,7 +56,8 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `leo/fixtures.py` | The answer key as typed fixtures, plus fixture-backed stages | Shared |
 | `leo/db/` | Engine, models, Alembic migrations (`leo/db/migrations/`), repositories | A |
 | `leo/ingest/` | `.eml` parser, contracts loader, `ingest()`, Gmail sync | A |
-| `leo/pipeline/` | Classify, extract, validate, eval | B |
+| `leo/pipeline/` | Classify, extract, validate | B |
+| `leo/eval/` | Eval harness: scores stage output against `expected.json` | B |
 | `leo/actions/` | Action drafting | B |
 | `leo/reconcile/` | Reconciliation rules and deadlines | C |
 | `leo/api/` | FastAPI app | C |

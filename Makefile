@@ -31,7 +31,7 @@ seed:
 	@echo "make seed: not implemented yet, see ROADMAP A7" >&2; exit 1
 
 eval:
-	@echo "make eval: not implemented yet, see ROADMAP B1" >&2; exit 1
+	uv run python -m leo.eval
 
 e2e:
 	@echo "make e2e: not implemented yet, see ROADMAP 2.2" >&2; exit 1

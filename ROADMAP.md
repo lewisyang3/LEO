@@ -158,12 +158,16 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
 
 ### Track B: AI pipeline (stages 1–4 and drafting) (Lewis and Omar, first)
 
-- [ ] **B1 [must] Eval harness first.** `make eval` scores against `expected.json`:
+- [x] **B1 [must] Eval harness first.** `make eval` scores against `expected.json`:
   - classification accuracy, and recall on the documents that matter
   - term precision and recall on vendor, type, value, effective date and plan
-  - whether each quote matches, reusing `find_quote` from `scripts/validate_answer_key.py`
+  - whether each quote matches, using `leo.rules.locate_quote` (it agrees with `find_quote` in `scripts/validate_answer_key.py`)
 
-  It prints a per-document report. This is how B knows when it's done.
+  It prints a per-document report. This is how B knows when it's done. Done, in `leo/eval/`:
+  - `python -m leo.eval --classifier NAME --extractor NAME [--doc PATH ...] [--json PATH]`. Engines are registered by name in `leo/eval/runner.py`: `fixture` (the reference, scores 100%) and `stub` for now. B2 and B3 add theirs there.
+  - Classification and extraction are scored independently. Extraction runs on every document whose key class isn't noise.
+  - Terms, invoice facts and contacts each get precision and recall, field accuracy (each value key separately), whether every quote is in the document, and whether the first quote overlaps the key's. It also reports whether every term and invoice fact behind F1–F5 was extracted.
+  - **Duplicate rule:** a duplicate document (02, 07) is scored against its original's items, because the extractor reads what's in the document and linking duplicates is A6's job.
 - [ ] **B2 [must] Classifier (stage 1).**
   - **[must]:** a `Classifier` interface with Jev (TypeSafe AI) as the classifier.
   - **[must]:** items below Jev's confidence threshold go to a Haiku 5.5 investigate step (`LEO_MODEL_INVESTIGATE`). If Jev is unavailable, every item takes this path.
