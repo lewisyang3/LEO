@@ -1,0 +1,69 @@
+{
+  "doc_hash": "2fb0b0e706bac0eed3cf975cb00236593b021e5ab7797c15d5226b7402ea8c7e",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [
+      {
+        "agreement_ref": null,
+        "effective_date": "2026-12-01",
+        "old_value": {
+          "amount": 299,
+          "currency": "USD",
+          "per": "month"
+        },
+        "plan_label": "Growth",
+        "quotes": [
+          "the price of the Growth plan will change from $299/month to $339/month",
+          "Starting with your December 1, 2026 billing date"
+        ],
+        "value": {
+          "amount": 339,
+          "currency": "USD",
+          "per": "month"
+        }
+      },
+      {
+        "agreement_ref": null,
+        "effective_date": "2026-12-01",
+        "old_value": {
+          "amount": 49,
+          "currency": "USD",
+          "per": "month"
+        },
+        "plan_label": "Transactional Email add-on",
+        "quotes": [
+          "Your Transactional Email add-on price is not changing and will stay at $49/month.",
+          "Starting with your December 1, 2026 billing date"
+        ],
+        "value": {
+          "amount": 49,
+          "currency": "USD",
+          "per": "month"
+        }
+      }
+    ],
+    "renewals": [],
+    "vendor_name": "Lumenpost Billing"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011Cgieaetn7khJUmnAWqVWx",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 685,
+    "output_tokens": 925,
+    "output_tokens_details": {
+      "thinking_tokens": 618
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

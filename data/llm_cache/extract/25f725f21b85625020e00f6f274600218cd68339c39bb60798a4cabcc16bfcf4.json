@@ -1,0 +1,64 @@
+{
+  "doc_hash": "2ae8d585753d1c8573f53f25303612fb3d733deda3dc760115993c54303d3978",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [
+      {
+        "agreement_ref": "HPS-3Y-0092",
+        "effective_date": "2026-01-01",
+        "old_value": null,
+        "plan_label": null,
+        "quotes": [
+          "Client will pay a Monthly Service Fee of $2,400.00, billed on the 3rd day of each month."
+        ],
+        "value": {
+          "amount": 2400.0,
+          "currency": "USD",
+          "per": "month"
+        }
+      }
+    ],
+    "renewals": [
+      {
+        "agreement_ref": "HPS-3Y-0092",
+        "effective_date": "2026-01-01",
+        "plan_label": null,
+        "quotes": [
+          "This Agreement has a term of thirty-six (36) months from the Effective Date.",
+          "This Agreement is effective January 1, 2026 (the \"Effective Date\")."
+        ],
+        "value": {
+          "auto_renew": null,
+          "early_termination_fee": null,
+          "initial_term_end": null,
+          "initial_term_months": 36,
+          "renewal_length_months": null,
+          "renewal_pricing": null,
+          "term_start": "2026-01-01"
+        }
+      }
+    ],
+    "vendor_name": "Halcyon Payroll Services, Inc."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieXQfvxzCfLiSynn3do",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 607,
+    "output_tokens": 882,
+    "output_tokens_details": {
+      "thinking_tokens": 541
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

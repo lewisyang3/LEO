@@ -1,0 +1,46 @@
+{
+  "doc_hash": "e99df0019f5de42f1fe71b2daafb9d2161a74e7173271c1e9539ad114cdb622d",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [
+      {
+        "amount": 576.0,
+        "billing_period": "2026-10-05/2026-11-04",
+        "invoice_date": "2026-10-05",
+        "invoice_number": null,
+        "quotes": [
+          "Amount charged: $576.00 to card ending 4471",
+          "Quillstack Business - 32 seats x $18.00    $576.00",
+          "Service period: October 5, 2026 - November 4, 2026",
+          "Date: Mon, 05 Oct 2026 03:15:00 -0700"
+        ],
+        "seats_billed": 32
+      }
+    ],
+    "notice_windows": [],
+    "vendor_name": "Quillstack Inc."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011Cgiedi6b9JZD7XM9YPyMA",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 387,
+    "output_tokens": 756,
+    "output_tokens_details": {
+      "thinking_tokens": 540
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

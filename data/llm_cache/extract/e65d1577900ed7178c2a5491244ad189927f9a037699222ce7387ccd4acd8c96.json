@@ -1,0 +1,48 @@
+{
+  "doc_hash": "98c8565938d01b2e86227c4f9a720ab9b4f5777b1d8bb6d02feab2bbed01f9e0",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [],
+    "price_caps": [],
+    "seat_counts": [
+      {
+        "agreement_ref": "QS-OF-1187",
+        "effective_date": "2026-04-01",
+        "plan_label": "Quillstack Business",
+        "quotes": [
+          "Any increase to the Subscribed Seats requires a written order form signed by Customer.",
+          "Subscribed Seats: 25",
+          "Subscription Term: April 1, 2026 through March 31, 2027"
+        ],
+        "value": {
+          "included": 25,
+          "increase_requires": "written order form signed by Customer",
+          "overage_per_unit_month": null,
+          "unit": "seats"
+        }
+      }
+    ],
+    "vendor_name": "QUILLSTACK INC."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieWxsu6f1VRtv8yr2jp",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5125,
+    "inference_geo": "global",
+    "input_tokens": 466,
+    "output_tokens": 712,
+    "output_tokens_details": {
+      "thinking_tokens": 500
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "doc_hash": "233ed53a953f42925a8a431d8daa714f4ad8315003cfd815b1a63aecbc62a8fc",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [],
+    "price_caps": [],
+    "seat_counts": [],
+    "vendor_name": "DRIFTWELL ANALYTICS"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieZUBKWfxRaWrP4fBus",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5125,
+    "inference_geo": "global",
+    "input_tokens": 312,
+    "output_tokens": 238,
+    "output_tokens_details": {
+      "thinking_tokens": 187
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

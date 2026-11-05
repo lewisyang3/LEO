@@ -1,0 +1,44 @@
+{
+  "doc_hash": "e0912629cf75e458bce3330a4f95b5349ef1db93d112fd48ad4a1d1dedab8824",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [
+      {
+        "amount": 842.17,
+        "billing_period": "2026-10",
+        "invoice_date": "2026-10-12",
+        "invoice_number": null,
+        "quotes": [
+          "Total charged                           $842.17",
+          "Date: Mon, 12 Oct 2026 12:31:00 -0700"
+        ],
+        "seats_billed": null
+      }
+    ],
+    "notice_windows": [],
+    "vendor_name": "Harbor Restaurant Supply"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgiefXCow2Y5eQJgVvuTZ",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 421,
+    "output_tokens": 671,
+    "output_tokens_details": {
+      "thinking_tokens": 514
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

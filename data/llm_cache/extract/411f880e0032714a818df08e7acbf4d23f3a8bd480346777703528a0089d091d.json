@@ -1,0 +1,80 @@
+{
+  "doc_hash": "dc22e17eb9e50b62e2df8df3b6e6890bae68381d0106f094f36bfddead60ccd4",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [
+      {
+        "agreement_ref": null,
+        "effective_date": "2025-03-03",
+        "old_value": null,
+        "plan_label": "Growth",
+        "quotes": [
+          "Growth plan (up to 15,000 contacts): $299.00/month",
+          "Order date: March 3, 2025"
+        ],
+        "value": {
+          "amount": 299.0,
+          "currency": "USD",
+          "per": "month"
+        }
+      },
+      {
+        "agreement_ref": null,
+        "effective_date": "2025-03-03",
+        "old_value": null,
+        "plan_label": "Transactional Email add-on",
+        "quotes": [
+          "Transactional Email add-on: $49.00/month",
+          "Order date: March 3, 2025"
+        ],
+        "value": {
+          "amount": 49.0,
+          "currency": "USD",
+          "per": "month"
+        }
+      }
+    ],
+    "renewals": [
+      {
+        "agreement_ref": null,
+        "effective_date": "2025-03-03",
+        "plan_label": null,
+        "quotes": [
+          "Commitment: month-to-month. Cancel anytime from Settings > Billing.",
+          "Order date: March 3, 2025"
+        ],
+        "value": {
+          "auto_renew": true,
+          "early_termination_fee": null,
+          "initial_term_end": null,
+          "initial_term_months": null,
+          "renewal_length_months": 1,
+          "renewal_pricing": null,
+          "term_start": "2025-03-03"
+        }
+      }
+    ],
+    "vendor_name": "Lumenpost"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgiebT5QgMipcWXZP6mSF",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 422,
+    "output_tokens": 1162,
+    "output_tokens_details": {
+      "thinking_tokens": 754
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "doc_hash": "80bffe891ddcc6d3b1cf5797eb289b61a6087c9a5df67fe556e276eeeef0bd10",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [],
+    "price_caps": [],
+    "seat_counts": [
+      {
+        "agreement_ref": "CRV-2025-0418",
+        "effective_date": "2025-12-16",
+        "plan_label": "Professional",
+        "quotes": [
+          "Corvana will provide Customer access to the Corvana CRM platform, Professional plan, for up to 12 named users."
+        ],
+        "value": {
+          "included": 12,
+          "increase_requires": null,
+          "overage_per_unit_month": null,
+          "unit": "users"
+        }
+      }
+    ],
+    "vendor_name": "CORVANA, INC."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieUmRH3Sqrz5FpjkW3o",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 5125
+    },
+    "cache_creation_input_tokens": 5125,
+    "cache_read_input_tokens": 0,
+    "inference_geo": "global",
+    "input_tokens": 688,
+    "output_tokens": 565,
+    "output_tokens_details": {
+      "thinking_tokens": 395
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "doc_hash": "d82f9e37579726ae739534b0aa8b92754a94db96d748dc66e8c09f900e57b0de",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [
+      {
+        "agreement_ref": "KCH-MSA-2209",
+        "effective_date": "2024-09-01",
+        "plan_label": null,
+        "quotes": [
+          "Customer may dispute any invoice in writing to billing@kestrelcloud.example within ninety (90) days of the invoice date."
+        ],
+        "value": {
+          "applies_to": "invoice",
+          "days": 90,
+          "deliver_to": "billing@kestrelcloud.example",
+          "relative_to": "invoice_date"
+        }
+      }
+    ],
+    "invoice_facts": [],
+    "notice_windows": [
+      {
+        "agreement_ref": "KCH-MSA-2209",
+        "effective_date": "2024-09-01",
+        "plan_label": null,
+        "quotes": [
+          "unless either party provides sixty (60) days' written notice of non-renewal"
+        ],
+        "value": {
+          "applies_to": "non_renewal",
+          "days": 60,
+          "deliver_to": null,
+          "relative_to": "term_end"
+        }
+      }
+    ],
+    "vendor_name": "KESTREL CLOUD HOSTING, LLC"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieWBV9diFuvNBg6W5Tk",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 638,
+    "output_tokens": 1228,
+    "output_tokens_details": {
+      "thinking_tokens": 904
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}
