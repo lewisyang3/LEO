@@ -54,12 +54,11 @@ with TypeSafeClient(model="jev-latest") as client:
 
       except Exception as e:
          print(f"Error processing {path.name}: {e}")
-         prediction = "error"
+         prediction = 0
 
-      results.append({
-         "filename": path.name,
-         "prediction": prediction,
-      })
+      if prediction > 0.65:
+         jevStrPrediction = response.choices["category"].choice
+         results.append({"filename": path.name, "prediction": jevStrPrediction,})
 
       print(f"{path.name}: {prediction}")
 
