@@ -1,0 +1,65 @@
+{
+  "doc_hash": "80bffe891ddcc6d3b1cf5797eb289b61a6087c9a5df67fe556e276eeeef0bd10",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [
+      {
+        "agreement_ref": "CRV-2025-0418",
+        "effective_date": "2025-12-16",
+        "old_value": null,
+        "plan_label": "Professional",
+        "quotes": [
+          "The Professional plan subscription fee is $14,400.00 per year, billed annually in advance."
+        ],
+        "value": {
+          "amount": 14400.0,
+          "currency": "USD",
+          "per": "year"
+        }
+      }
+    ],
+    "renewals": [
+      {
+        "agreement_ref": "CRV-2025-0418",
+        "effective_date": "2025-12-16",
+        "plan_label": null,
+        "quotes": [
+          "This Agreement will automatically renew for successive twelve (12) month terms unless either party gives written notice of non-renewal at least thirty (30) days before the end of the then-current term.",
+          "The initial term begins on the Effective Date and ends on December 15, 2026.",
+          "Renewal terms will be billed at Corvana's then-current list price for the Professional plan."
+        ],
+        "value": {
+          "auto_renew": true,
+          "early_termination_fee": null,
+          "initial_term_end": "2026-12-15",
+          "initial_term_months": null,
+          "renewal_length_months": 12,
+          "renewal_pricing": "then-current list price",
+          "term_start": "2025-12-16"
+        }
+      }
+    ],
+    "vendor_name": "CORVANA, INC."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieURg7pszuFFNNwvx2T",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 4450
+    },
+    "cache_creation_input_tokens": 4450,
+    "cache_read_input_tokens": 0,
+    "inference_geo": "global",
+    "input_tokens": 678,
+    "output_tokens": 1166,
+    "output_tokens_details": {
+      "thinking_tokens": 771
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

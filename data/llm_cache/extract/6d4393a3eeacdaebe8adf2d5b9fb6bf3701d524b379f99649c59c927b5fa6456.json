@@ -1,0 +1,46 @@
+{
+  "doc_hash": "fbdfef62004f1a61e46490f54cf35b4fdd4af27041fea550fa7b906ab481cd77",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [
+      {
+        "amount": 1308.0,
+        "billing_period": "2026-09-01/2026-09-30",
+        "invoice_date": "2026-09-01",
+        "invoice_number": "INV-KCH-260901",
+        "quotes": [
+          "Total due: $1,308.00",
+          "Invoice: INV-KCH-260901",
+          "Invoice date: September 1, 2026",
+          "Billing period: September 1, 2026 - September 30, 2026"
+        ],
+        "seats_billed": null
+      }
+    ],
+    "notice_windows": [],
+    "vendor_name": "Kestrel Cloud Hosting, LLC"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgiecXFhjKwQndwBwWdQx",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 455,
+    "output_tokens": 609,
+    "output_tokens_details": {
+      "thinking_tokens": 405
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "doc_hash": "98c8565938d01b2e86227c4f9a720ab9b4f5777b1d8bb6d02feab2bbed01f9e0",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [
+      {
+        "agreement_ref": "QS-OF-1187",
+        "effective_date": "2026-04-01",
+        "old_value": null,
+        "plan_label": "Quillstack Business",
+        "quotes": [
+          "Price: $18.00 per seat per month",
+          "Subscription Term: April 1, 2026 through March 31, 2027"
+        ],
+        "value": {
+          "amount": 18.0,
+          "currency": "USD",
+          "per": "seat_month"
+        }
+      }
+    ],
+    "renewals": [
+      {
+        "agreement_ref": "QS-OF-1187",
+        "effective_date": "2026-04-01",
+        "plan_label": null,
+        "quotes": [
+          "Subscription Term: April 1, 2026 through March 31, 2027"
+        ],
+        "value": {
+          "auto_renew": null,
+          "early_termination_fee": null,
+          "initial_term_end": "2027-03-31",
+          "initial_term_months": null,
+          "renewal_length_months": null,
+          "renewal_pricing": null,
+          "term_start": "2026-04-01"
+        }
+      }
+    ],
+    "vendor_name": "QUILLSTACK INC."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieWbz3MmhY2vxNdZFM7",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 456,
+    "output_tokens": 994,
+    "output_tokens_details": {
+      "thinking_tokens": 678
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

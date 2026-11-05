@@ -1,0 +1,30 @@
+{
+  "doc_hash": "fbdfef62004f1a61e46490f54cf35b4fdd4af27041fea550fa7b906ab481cd77",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [],
+    "renewals": [],
+    "vendor_name": "Kestrel Cloud Hosting, LLC"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgiecDg2T3aGePzMLNZdk",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 440,
+    "output_tokens": 187,
+    "output_tokens_details": {
+      "thinking_tokens": 145
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

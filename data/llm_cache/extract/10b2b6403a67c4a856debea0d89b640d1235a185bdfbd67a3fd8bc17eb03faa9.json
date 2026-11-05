@@ -1,0 +1,48 @@
+{
+  "doc_hash": "80bffe891ddcc6d3b1cf5797eb289b61a6087c9a5df67fe556e276eeeef0bd10",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [],
+    "notice_windows": [
+      {
+        "agreement_ref": "CRV-2025-0418",
+        "effective_date": "2025-12-16",
+        "plan_label": null,
+        "quotes": [
+          "at least thirty (30) days before the end of the then-current term",
+          "Notices of non-renewal must be sent in writing to notices@corvana.example"
+        ],
+        "value": {
+          "applies_to": "non_renewal",
+          "days": 30,
+          "deliver_to": "notices@corvana.example",
+          "relative_to": "term_end"
+        }
+      }
+    ],
+    "vendor_name": "CORVANA, INC."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieV1cJ6fsAek7wqtpoa",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 5098
+    },
+    "cache_creation_input_tokens": 5098,
+    "cache_read_input_tokens": 0,
+    "inference_geo": "global",
+    "input_tokens": 693,
+    "output_tokens": 752,
+    "output_tokens_details": {
+      "thinking_tokens": 553
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

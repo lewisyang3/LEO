@@ -1,0 +1,64 @@
+{
+  "doc_hash": "df6e4e5fd0a1d77779c3babc345f886cb4d0e02f105474822ddec1dd5bf689e2",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [
+      {
+        "agreement_ref": null,
+        "effective_date": "2025-08-01",
+        "old_value": null,
+        "plan_label": null,
+        "quotes": [
+          "Monthly Recurring Charge: $500.00 for all three locations combined."
+        ],
+        "value": {
+          "amount": 500.0,
+          "currency": "USD",
+          "per": "month"
+        }
+      }
+    ],
+    "renewals": [
+      {
+        "agreement_ref": null,
+        "effective_date": "2025-08-01",
+        "plan_label": null,
+        "quotes": [
+          "Term: twenty-four (24) months from the Service Start Date.",
+          "Early termination fee: 50% of the remaining Monthly Recurring Charges."
+        ],
+        "value": {
+          "auto_renew": null,
+          "early_termination_fee": "50% of the remaining Monthly Recurring Charges",
+          "initial_term_end": null,
+          "initial_term_months": 24,
+          "renewal_length_months": null,
+          "renewal_pricing": null,
+          "term_start": "2025-08-01"
+        }
+      }
+    ],
+    "vendor_name": "FERROLINK NETWORKS"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieYLFZSgcxiALP3xoE3",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 444,
+    "output_tokens": 1058,
+    "output_tokens_details": {
+      "thinking_tokens": 738
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

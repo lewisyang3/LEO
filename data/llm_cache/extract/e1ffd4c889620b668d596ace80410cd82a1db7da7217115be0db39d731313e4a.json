@@ -1,0 +1,45 @@
+{
+  "doc_hash": "49e11a1df68c3c3b324e14cd80ca1bfe7d55b29952e3d239b1ea28a336686ef8",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [
+      {
+        "amount": 3600.0,
+        "billing_period": "2026-07-01/2027-06-30",
+        "invoice_date": "2026-07-01",
+        "invoice_number": "DW-INV-2026-3381",
+        "quotes": [
+          "Total charged: $3,600.00 to card ending 4471",
+          "Renewal term: July 1, 2026 to June 30, 2027",
+          "Invoice DW-INV-2026-3381, July 1, 2026"
+        ],
+        "seats_billed": null
+      }
+    ],
+    "notice_windows": [],
+    "vendor_name": "Driftwell Analytics"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011Cgieg4bSj9183jh1pv4yV",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 388,
+    "output_tokens": 846,
+    "output_tokens_details": {
+      "thinking_tokens": 643
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

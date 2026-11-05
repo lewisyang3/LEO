@@ -1,0 +1,32 @@
+{
+  "doc_hash": "df6e4e5fd0a1d77779c3babc345f886cb4d0e02f105474822ddec1dd5bf689e2",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [],
+    "notice_windows": [],
+    "vendor_name": "FERROLINK NETWORKS"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieYz2fRWLC7U7dJYF2P",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 459,
+    "output_tokens": 243,
+    "output_tokens_details": {
+      "thinking_tokens": 183
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

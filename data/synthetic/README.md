@@ -94,6 +94,8 @@ Writing the answer key surfaced gaps in the design doc's data model. Schema v2 r
 4. **`dispute_window`** is a term type (`kch_dispute`, `hps_dispute`), so the F3 and F5 deadlines follow from cited clauses.
 5. **Weekend deadlines.** Findings keep the contract deadline and add `recommended_send_by` (F1: Sunday Nov 15, so send by Friday Nov 13).
 
+The full rules, including table columns, citation offsets and natural keys, are in `docs/DATA_MODEL.md`.
+
 ## Sources
 
 - [CloudNuro: SaaS statistics 2026 (Common Paper auto-renewal and notice-window figures)](https://www.cloudnuro.ai/blog/saas-statistics-2026)

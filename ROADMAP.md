@@ -1,6 +1,6 @@
 # LEO Roadmap
 
-How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who builds what. Three people (**Lewis, Erik, Omar**) work in parallel on three tracks after a short shared start.
+How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who builds what. Three people (**Lewis, Erik, Omar**) share the work. After a short shared start, Lewis and Omar build Track B together and finish it first. Owners for Tracks A and C are decided after that.
 
 **The demo bar.** On the Brightwater synthetic dataset (`data/synthetic/`), LEO runs the full pipeline and:
 - flags all five planted issues (F1–F5)
@@ -17,11 +17,19 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 | Track | Owner | Owns | Stages |
 | --- | --- | --- | --- |
-| **A. Data and platform** | _TBD (0.7)_ | Postgres schema, keys and upserts, ingestion, job queue and worker, vendor and transaction matching, dedup | Storage, sync, stage plumbing |
-| **B. AI pipeline** | _TBD (0.7)_ | Eval harness, classifier, LLM extraction and cache, validator, script extractors, action drafting, cost and funnel numbers | 1–4, drafting in 5 |
-| **C. Findings and UI** | _TBD (0.7)_ | Reconciliation rules, deadlines, API, review and approval UI, export | Reconcile in 5, the human gate |
+| **A. Data and platform** | _TBD (after B)_ | Postgres schema, keys and upserts, ingestion, job queue and worker, vendor and transaction matching, dedup | Storage, sync, stage plumbing |
+| **B. AI pipeline** | Lewis and Omar (first) | Eval harness, classifier, LLM extraction and cache, validator, script extractors, action drafting, cost and funnel numbers | 1–4, drafting in 5 |
+| **C. Findings and UI** | _TBD (after B)_ | Reconciliation rules, deadlines, API, review and approval UI, export | Reconcile in 5, the human gate |
 
-The tracks can run at the same time because of two decisions made in Phase 0:
+### Working agreements
+
+- **One branch per task**, named `<name>/<task-id>-<slug>` with the owner's first name in lowercase (for example `lewis/b1-eval-harness` or `erik/c1-reconcile`).
+- **Each PR is reviewed by one teammate** before it merges.
+- **Any change to `leo/types.py` or `leo/interfaces.py` needs all three to agree.**
+
+**Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
+
+The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
 1. **Shared types first.** All three tracks code against one set of Python types (`leo/types.py`). Term values have one fixed shape per type, taken from the answer key.
 2. **The answer key is a fixture.** A loader turns `expected.json` into those types with no field mapping.
@@ -30,9 +38,8 @@ The tracks can run at the same time because of two decisions made in Phase 0:
    - When Track A's repository lands, B and C swap the fixture for it behind the same interface.
 
 ```
-Phase 0 (all) ──► Phase 1: A ─┐
-                           B ─┼─► Phase 2: integrate (all) ──► Phase 3: demo (all) ──► Phase 4: stretch
-                           C ─┘
+Phase 0 (all) ──► Phase 1: B (Lewis + Omar) ──► A ─┬─► Phase 2: integrate (all) ──► Phase 3: demo (all) ──► Phase 4: stretch
+                                                 C ─┘
 ```
 
 Priority tags:
@@ -55,33 +62,33 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
   - Driftwell's notice deadline corrected to 2027-06-01
 
   The validator checks all of this, including the deadline arithmetic. The shapes are documented in `data/synthetic/README.md`.
-- [ ] **0.1 [must] Confirm the stack.**
-  - Proposed: Python 3.12, FastAPI, SQLAlchemy 2 and Alembic, PostgreSQL 16 with `pg_trgm` via Docker Compose, and pytest.
-  - Claude through the Anthropic API for extraction and drafting.
-  - Frontend: React with Vite, or server-rendered templates if we want less to build.
-- [ ] **0.2 [must] Repo skeleton.**
+- [x] **0.1 [must] Confirm the stack.** Confirmed: see `docs/STACK.md`.
+  - Python 3.13 with uv, FastAPI, Pydantic v2, SQLAlchemy 2 and Alembic, PostgreSQL 16 with `pg_trgm` via Docker Compose, pytest and ruff.
+  - Jev classifies items and compares new extractions with prior terms.
+  - Claude Haiku 5.5 investigates ambiguous emails, extracts terms and drafts emails. A job moves to a heavier model only on eval evidence.
+  - Frontend: React + Vite + TypeScript.
+- [x] **0.2 [must] Repo skeleton.**
   - Package layout: `leo/` with `db/`, `ingest/`, `pipeline/`, `reconcile/`, `actions/` and `api/`, plus `web/` for the frontend.
-  - `docker-compose.yml`, and `.env.example` with the API keys, the database URL and `LEO_TODAY`.
+  - `docker-compose.yml`, and `.env.example` with `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `LEO_MODEL_INVESTIGATE`, `LEO_MODEL_EXTRACT`, `LEO_MODEL_DRAFT`, the database URL and `LEO_TODAY`.
   - Make targets or scripts for `up`, `migrate`, `seed`, `test`, `eval` and `e2e`.
   - A README quick-start.
-- [ ] **0.3 [must] Shared types** in `leo/types.py` (Pydantic), copied from the answer key's shapes:
+- [x] **0.3 [must] Shared types** in `leo/types.py` (Pydantic), copied from the answer key's shapes:
   - **Term value models.** One per type: `price`, `price_cap`, `escalator`, `renewal`, `notice_window`, `seat_count`, `dispute_window`.
   - **`ExtractedTerm`.** Fields: `vendor`, `document`, `type`, `value`, `quotes` (a list), `plan_label`, `agreement_ref`, `effective_date`, `status`, `superseded_by`, `supersedes`, `old_value` (in the price shape) and `notes`.
   - **Records:** `Citation`, `SourceDocument` (with `DocumentClass`), `InvoiceFact` (with `invoice_date`), `Vendor` (with `contacts`) and `Transaction`.
   - **`Finding`.** Many terms, transactions and invoice facts, plus `anchor`, `deadline`, `deadline_basis`, `recommended_send_by` and `impact`. `kind` is an enum of the key's five strings: `auto_renewal_deadline`, `price_increase_notice`, `price_cap_exceeded`, `seats_over_commitment`, `escalator_applied_early`.
   - **`ActionDraft`.** Its type is one of `cancellation_notice`, `renegotiation_request`, `negotiation_email` or `billing_dispute`. It also has `to`, `pre_step` and `alternative`.
-- [ ] **0.4 [must] Data-model rules.** These settle the schema gaps from `data/synthetic/README.md`:
+- [x] **0.4 [must] Data-model rules.** Recorded in `docs/DATA_MODEL.md`, with the rules as code in `leo/rules.py`. These settle the schema gaps from `data/synthetic/README.md`:
   - `price_cap` and `dispute_window` are term types (see 0.0).
   - A term has a list of citations.
   - Invoice facts get their own table, because they record what was billed, not what was agreed.
   - A deadline shows the contract date, plus `recommended_send_by` (moved back to Friday when the deadline falls on a weekend).
   - **Citation location** is character offsets into the raw stored file text, the same offsets `validate_answer_key.py --offsets` prints. A term's natural key uses the span of its first quote.
-- [ ] **0.5 [must] Interfaces between tracks.** Signatures and stubs for `Classifier`, `Extractor`, `Validator`, `TransactionSource`, `VendorResolver`, `Reconciler` and `Drafter`, plus a `Clock` that returns `LEO_TODAY`.
-- [ ] **0.6 [must] Fixture loader** `leo/fixtures.py`. It reads `expected.json`, `transactions.csv` and the documents straight into the shared types.
-- [ ] **0.7 [must] Owners and working agreements.**
-  - Assign Lewis, Erik and Omar to tracks A, B and C, and name an owner for 0.6 and for each open question (see the end of this file).
-  - One branch per task, and each PR is reviewed by one teammate.
-  - Any change to `leo/types.py` or the interfaces needs all three to agree.
+- [x] **0.5 [must] Interfaces between tracks.** Signatures and stubs for `Classifier`, `Extractor`, `Validator`, `TransactionSource`, `VendorResolver`, `Reconciler` and `Drafter`, plus a `Clock` that returns `LEO_TODAY`. The protocols, their input and output models and the contracts between tracks are in `leo/interfaces.py`, the stubs in `leo/stubs.py` and the clock in `leo/clock.py`.
+- [x] **0.6 [must] Fixture loader** `leo/fixtures.py`. It reads `expected.json`, `transactions.csv` and the documents straight into the shared types. Owner: Lewis (done).
+  - `load_fixture()` returns a `Fixture` with every key section, `ledger()`, `document_text(path)` and `clock()`. The key-only finding fields (`expected_action`, `days_until_deadline`, `why_planted`) are split into `ExpectedFinding`.
+  - Fixture-backed stages (`FixtureClassifier`, `FixtureExtractor`, `FixtureVendorResolver`, `FixtureReconciler`, `FixtureDrafter`) return the key's answers through the 0.5 interfaces. Use `StaticTransactionSource(fixture.transactions)` for transactions.
+- [x] **0.7 [must] Owners and working agreements.** Lewis and Omar build Track B together first. Owners for Tracks A and C are decided once B is done. See the track table, "Working agreements" under "How the work is split", and the owners in the open-questions table.
 
 **Exit:** `make up && make test` runs on all three laptops, and the stubs and fixture loader are merged.
 
@@ -89,19 +96,19 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
 
 ## Phase 1: Parallel build
 
-Each track's tasks are in order. Items marked ⇄ are handoff points another track waits on.
+Track B goes first. Each track's tasks are in order. Items marked ⇄ are handoff points another track waits on.
 
-### Track A: Data and platform
+### Track A: Data and platform (owner TBD after B)
 
 - [ ] **A1 [must] Schema and migrations.**
   - The first Alembic migration creates:
     - every table in the design doc: `tenant`, `vendor`, `vendor_alias`, `source_document`, `contract_term`, `citation`, `transaction`, `finding`, `action`, `extractor_script`, `feedback_event` and `job`
-    - three additions: `invoice_fact`, `document_link` for duplicate links, and `finding_term` / `finding_transaction` / `finding_invoice_fact` for linking a finding to many items
+    - four additions: `invoice_fact`, `vendor_contact`, `document_link` for duplicate links, and `finding_term` / `finding_transaction` / `finding_invoice_fact` for linking a finding to many items
   - Every table has `tenant_id`, a UUIDv7 primary key, and `UNIQUE (tenant_id, natural_key)` where it has a natural key.
   - Raw model output goes in JSONB.
   - Enable `pg_trgm`.
 - [ ] **A2 [must] Keys and upserts.**
-  - Natural-key builders: `v1:gmail:…`, `v1:eml-hash:…`, `v1:file:…`, `v1:term:…`, `v1:finding:{anchor term key}:{anchor txn key or -}:{kind}`, `v1:txn:{source}:{external_id}`, `v1:job:{doc key}:{stage}` and `v1:action:{finding key}:{action type}`.
+  - Natural-key builders: `v1:gmail:…`, `v1:eml-hash:…`, `v1:file:…`, `v1:term:…`, `v1:invoice-fact:{doc key}:{first quote start}:{first quote end}`, `v1:finding:{anchor term key}:{anchor txn key or -}:{kind}`, `v1:txn:{source}:{external_id}`, `v1:job:{doc key}:{stage}` and `v1:action:{finding key}:{action type}`.
   - A repository layer where every write is an upsert.
   - Tests:
     - Running the seed twice gives the same rows and IDs.
@@ -116,12 +123,12 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - `Message-ID`, `threadId` and similar headers are attributes, never part of a key.
 - [ ] **A4 [must] Job queue and worker.**
   - Jobs are rows claimed with `FOR UPDATE SKIP LOCKED`.
-  - The worker runs each item through the stage interfaces from 0.5, which are stubs until B and C plug in.
+  - The worker runs each item through the stage interfaces in `leo/interfaces.py`, using `leo/stubs.py` until B and C plug in.
   - It records which stage handled each item (`processed_by`) and retries or parks failures.
 - [ ] **A5 [must] Transactions, vendors and matching.**
   - A `TransactionSource` that reads `transactions.csv`, the same interface a Ramp connection would use later.
   - Vendors come from the data, never from the answer key:
-    - created from extracted non-noise documents, and from normalized transaction descriptors that match nothing
+    - created from extracted non-noise documents, once the vendor name passes validation, and from normalized transaction descriptors that match nothing
     - aliases grow as matches are made
   - Matching:
     - normalize descriptors by stripping processor prefixes like `PAYWAVE*`, phone numbers and store numbers
@@ -149,22 +156,27 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Tokens encrypted at rest.
   - The `.eml` path stays as the fallback, so the demo never depends on this.
 
-### Track B: AI pipeline (stages 1–4 and drafting)
+### Track B: AI pipeline (stages 1–4 and drafting) (Lewis and Omar, first)
 
-- [ ] **B1 [must] Eval harness first.** `make eval` scores against `expected.json`:
+- [x] **B1 [must] Eval harness first.** `make eval` scores against `expected.json`:
   - classification accuracy, and recall on the documents that matter
   - term precision and recall on vendor, type, value, effective date and plan
-  - whether each quote matches, reusing `find_quote` from `scripts/validate_answer_key.py`
+  - whether each quote matches, using `leo.rules.locate_quote` (it agrees with `find_quote` in `scripts/validate_answer_key.py`)
 
-  It prints a per-document report. This is how B knows when it's done.
+  It prints a per-document report. This is how B knows when it's done. Done, in `leo/eval/`:
+  - `python -m leo.eval --classifier NAME --extractor NAME [--doc PATH ...] [--json PATH]`. Engines are registered by name in `leo/eval/runner.py`: `fixture` (the reference, scores 100%) and `stub` for now. B2 and B3 add theirs there.
+  - Classification and extraction are scored independently. Extraction runs on every document whose key class isn't noise.
+  - Terms, invoice facts and contacts each get precision and recall, field accuracy (each value key separately), whether every quote is in the document, and whether the first quote overlaps the key's. It also reports whether every term and invoice fact behind F1–F5 was extracted.
+  - **Duplicate rule:** a duplicate document (02, 07) is scored against its original's items, because the extractor reads what's in the document and linking duplicates is A6's job.
 - [ ] **B2 [must] Classifier (stage 1).**
-  - **[must]:** one `Classifier` interface with a fallback backend, a small Claude model such as Haiku.
-  - **[should]:** a Jev (TypeSafe AI) backend, because its early access is uncertain.
+  - **[must]:** a `Classifier` interface with Jev (TypeSafe AI) as the classifier.
+  - **[must]:** items below Jev's confidence threshold go to a Haiku 5.5 investigate step (`LEO_MODEL_INVESTIGATE`). If Jev is unavailable, every item takes this path.
   - Build a labeled set from the 22 documents.
   - Choose the "noise" threshold that keeps 100% recall on the planted issues, and report the false-pass rate.
   - Send a sample of the items it labels noise to the LLM as a tripwire.
-- [ ] **B3 [must] LLM extraction (stage 3).**
-  - Prompt plus structured output (tool use) that returns terms and invoice facts in the shared value shapes, each with a list of exact quotes.
+- [x] **B3 [must] LLM extraction (stage 3).**
+  - Haiku 5.5 by default (`LEO_MODEL_EXTRACT`; move up only on eval evidence, see `docs/STACK.md`).
+  - Prompt plus structured output (`output_config.format` with a JSON schema built from Pydantic models, not forced tool use) that returns terms and invoice facts in the shared value shapes, each with a list of exact quotes.
   - One prompt handles contracts, price notices and invoices.
   - For forwarded email, take the vendor from the forwarded header block, not the internal sender.
   - Store the raw model output.
@@ -172,10 +184,24 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Target:
     - every F1–F5 term extracted, including the dispute windows
     - the Lumenpost add-on kept separate from Growth
+
+  Done, in `leo/pipeline/extract_llm.py` (extractor, prompt, mapping), `leo/pipeline/extract_schema.py` (output models) and `leo/llm.py` (structured call and cache; B7 reuses it):
+  - **Three requests per document.** The API caps a structured-output schema (16 nullable fields, 24 optional, and a total grammar size). The output is split into three tested parts (`EXTRACTION_PARTS`), sent with the same system prompt and merged. If any part has no complete answer, the extraction is empty with no vendor, so validation fails closed.
+  - **The model extracts what is written, and code computes the rest:** an initial term end from a start date and length, the current term end rolled forward to today, notice deadlines (`leo.rules.notice_deadline`) and an escalator's first anniversary. A few fields are set to the key's conventions: no plan label except on price and seat terms, no effective date on notice or dispute windows, one-month billing periods as `YYYY-MM`, `$` as `USD`.
+  - **Cache:** `data/llm_cache/extract/`, committed, one file per answer. The key covers the document hash, stage, model, prompt version, effort and a hash of the whole request (system prompt, user prompt and schema). `LEO_LLM_OFFLINE=1` turns a miss into an error instead of an API call.
+  - **Eval** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --extractor llm`, prompt `extract-v3`, Haiku 5.5 at `medium`):
+    - F1–F5 all covered
+    - terms: precision and recall 100% (31/31)
+    - invoice facts: recall 100%, precision 7/8 (it also records the Harbor supply receipt)
+    - contacts: 3/3
+    - every quote found
+    - the one wrong field is Ferrolink's early-termination fee, where the key drops a "the" the document has
+    - a full run costs about $0.02
 - [ ] **B4 [must] Validator (stage 4).**
-  - Each quote must appear in the source.
+  - Each quote must appear in the source, and so must the vendor name.
   - Dates must parse, and amounts must be plausible.
-  - Compute quote offsets per 0.4.
+  - Report quotes that aren't in the source as `quote_not_found`. A2 computes the offsets on write (per 0.4).
+  - Jev compares each new extraction with the vendor's prior terms.
   - Failures get status `needs_review` instead of being dropped.
 - [ ] **B5 [should] Script extractors (stage 2).**
   - A registry of matcher and parser pairs.
@@ -186,6 +212,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Track tokens and dollars per run.
   - Expose these through the API for the demo's "16 emails in, N reached the LLM" screen.
 - [ ] **B7 [must] Action drafting.**
+  - Haiku 5.5 by default (`LEO_MODEL_DRAFT`; move up only on eval evidence).
   - Draft a `cancellation_notice`, `renegotiation_request`, `negotiation_email` or `billing_dispute` from a finding and its cited terms.
   - Put in the cited facts (agreement number, amounts, dates, invoice numbers) from a template, and let the LLM write only the surrounding text.
   - Check each draft against `expected_action.must_include` and retry on failure.
@@ -193,7 +220,7 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   - Never redraft an action that already exists (`v1:action:…` key).
   - Drafts are saved with state `draft`.
 
-### Track C: Findings and UI (reconcile and the human gate)
+### Track C: Findings and UI (reconcile and the human gate) (owner TBD after B)
 
 - [ ] **C1 [must] Reconciliation rules.** Built and tested on the fixture's correct terms, so it doesn't wait on B. One rule per finding kind:
   - `auto_renewal_deadline` (F1): a notice deadline inside the 60-day lookahead.
@@ -242,11 +269,12 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
   1. ingest
   2. classify
   3. script or LLM extract
-  4. validate
-  5. dedup link
-  6. vendor and transaction match
-  7. reconcile
-  8. draft
+  4. look up the document's vendor (no create; validate needs its prior terms)
+  5. validate, then create the vendor only if the vendor name checks out (`vendor_ok`)
+  6. dedup link
+  7. transaction match
+  8. reconcile
+  9. draft
 - [ ] **2.2 [must] End-to-end test** (`make e2e`):
   - reset and seed, then run the pipeline on the synthetic set
   - assert F1–F5 are found, N1–N8 are not, and D1–D5 pass
@@ -297,17 +325,17 @@ Each track's tasks are in order. Items marked ⇄ are handoff points another tra
 
 ## Open questions: who decides and by when
 
-From the design doc's Open Questions. Owners are by track until 0.7 assigns names.
+From the design doc's Open Questions. Track B questions belong to Lewis and Omar. Track A questions go to the Track A owner once one is chosen.
 
 | Question | Owner | Decide by | Blocks |
 | --- | --- | --- | --- |
-| Triage model: Jev or fallback, and the threshold | B | During B2 | B2 |
-| Ramp data: sandbox or synthetic | A | Phase 0 | A5 (synthetic is the default) |
-| Where dedup runs: before or after triage | A | Before A6 | A6 |
-| Ambiguous vendor names (processor descriptor versus legal name) | A | During A5 | A5 |
+| Jev confidence threshold and the cutoff for the Haiku investigate step | Lewis and Omar | During B2 | B2 |
+| Ramp data: sandbox or synthetic | Lewis | Phase 0 | A5 (synthetic is the default) |
+| Where dedup runs: before or after triage | A owner (TBD) | Before A6 | A6 |
+| Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | During A5 | A5 |
 | Accuracy bar | All | Phase 2 start | 2.4 |
-| Inbox scopes and retention we promise | A | Before A8 | A8, pitch |
-| Script generation threshold and testing | B | Phase 4 | Stretch |
-| Corrections: prompts and scripts only, or also kept for fine-tuning | B | Phase 4 | Stretch |
+| Inbox scopes and retention we promise | A owner (TBD) | Before A8 | A8, pitch |
+| Script generation threshold and testing | Lewis and Omar | Phase 4 | Stretch |
+| Corrections: prompts and scripts only, or also kept for fine-tuning | Lewis and Omar | Phase 4 | Stretch |
 | ~~Price change by email versus the signed contract: which wins~~ | Closed | — | The key settles it in F2: a properly noticed email change is a legitimate new price term that supersedes the old one, and the finding is about acting before it takes effect. |
 | ~~Demo data: which five issues~~ | Closed | — | Answered by `data/synthetic/` |

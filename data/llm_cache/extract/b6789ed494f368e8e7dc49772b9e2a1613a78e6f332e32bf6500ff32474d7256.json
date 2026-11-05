@@ -1,0 +1,47 @@
+{
+  "doc_hash": "2ae8d585753d1c8573f53f25303612fb3d733deda3dc760115993c54303d3978",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [
+      {
+        "agreement_ref": "HPS-3Y-0092",
+        "effective_date": "2026-01-01",
+        "plan_label": null,
+        "quotes": [
+          "Client must notify Halcyon of any disputed charge at support@halcyonpayroll.example within sixty (60) days of the invoice date."
+        ],
+        "value": {
+          "applies_to": "invoice",
+          "days": 60,
+          "deliver_to": "support@halcyonpayroll.example",
+          "relative_to": "invoice_date"
+        }
+      }
+    ],
+    "invoice_facts": [],
+    "notice_windows": [],
+    "vendor_name": "HALCYON PAYROLL SERVICES, INC."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgieY3yGEmV2CYtnnLWj2",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 622,
+    "output_tokens": 671,
+    "output_tokens_details": {
+      "thinking_tokens": 456
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}
