@@ -11,17 +11,26 @@ from leo.eval.runner import (
     CLASSIFIERS,
     DEFAULT_CLASSIFIER,
     DEFAULT_EXTRACTOR,
+    DEFAULT_VALIDATOR,
     EXTRACTORS,
+    VALIDATORS,
     format_report,
     run,
 )
 from leo.fixtures import load_fixture
+from leo.jev import JevUnavailable
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m leo.eval", description=__doc__)
     parser.add_argument("--classifier", choices=sorted(CLASSIFIERS), default=DEFAULT_CLASSIFIER)
     parser.add_argument("--extractor", choices=sorted(EXTRACTORS), default=DEFAULT_EXTRACTOR)
+    parser.add_argument(
+        "--validator",
+        choices=sorted(VALIDATORS),
+        default=DEFAULT_VALIDATOR,
+        help="validate each extraction before scoring (B4); jev needs JEV_API_KEY",
+    )
     parser.add_argument(
         "--doc",
         action="append",
@@ -37,7 +46,10 @@ def main(argv: list[str] | None = None) -> int:
         if path not in known:
             parser.error(f"unknown document {path!r}")
 
-    result = run(fixture, args.classifier, args.extractor, args.doc)
+    try:
+        result = run(fixture, args.classifier, args.extractor, args.doc, args.validator)
+    except JevUnavailable as e:
+        parser.error(str(e))
     sys.stdout.write(format_report(result))
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
