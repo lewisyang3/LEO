@@ -65,11 +65,11 @@ Keep this short. Its job is to freeze the interfaces so the tracks don't block e
 - [x] **0.1 [must] Confirm the stack.** Confirmed: see `docs/STACK.md`.
   - Python 3.13 with uv, FastAPI, Pydantic v2, SQLAlchemy 2 and Alembic, PostgreSQL 16 with `pg_trgm` via Docker Compose, pytest and ruff.
   - Jev classifies items and compares new extractions with prior terms.
-  - Claude Haiku 5.5 investigates ambiguous emails, extracts terms and drafts emails. A job moves to a heavier model only on eval evidence.
+  - Claude Haiku 5.5 extracts terms and drafts emails. A job moves to a heavier model only on eval evidence.
   - Frontend: React + Vite + TypeScript.
 - [x] **0.2 [must] Repo skeleton.**
   - Package layout: `leo/` with `db/`, `ingest/`, `pipeline/`, `reconcile/`, `actions/` and `api/`, plus `web/` for the frontend.
-  - `docker-compose.yml`, and `.env.example` with `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `LEO_MODEL_INVESTIGATE`, `LEO_MODEL_EXTRACT`, `LEO_MODEL_DRAFT`, the database URL and `LEO_TODAY`.
+  - `docker-compose.yml`, and `.env.example` with `ANTHROPIC_API_KEY`, `JEV_API_KEY`, `LEO_MODEL_EXTRACT`, `LEO_MODEL_DRAFT`, the database URL and `LEO_TODAY`.
   - Make targets or scripts for `up`, `migrate`, `seed`, `test`, `eval` and `e2e`.
   - A README quick-start.
 - [x] **0.3 [must] Shared types** in `leo/types.py` (Pydantic), copied from the answer key's shapes:
@@ -168,12 +168,26 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Classification and extraction are scored independently. Extraction runs on every document whose key class isn't noise.
   - Terms, invoice facts and contacts each get precision and recall, field accuracy (each value key separately), whether every quote is in the document, and whether the first quote overlaps the key's. It also reports whether every term and invoice fact behind F1–F5 was extracted.
   - **Duplicate rule:** a duplicate document (02, 07) is scored against its original's items, because the extractor reads what's in the document and linking duplicates is A6's job.
-- [ ] **B2 [must] Classifier (stage 1).**
-  - **[must]:** a `Classifier` interface with Jev (TypeSafe AI) as the classifier.
-  - **[must]:** items below Jev's confidence threshold go to a Haiku 5.5 investigate step (`LEO_MODEL_INVESTIGATE`). If Jev is unavailable, every item takes this path.
-  - Build a labeled set from the 22 documents.
+- [x] **B2 [must] Classifier (stage 1).**
+  - **[must]:** a `Classifier` interface with Jev (TypeSafe AI) as the classifier. There is no LLM step.
+  - **[must]:** Jev's P(noise) alone decides noise. Below the threshold, a document is kept with its most probable non-noise class.
+  - **[must]:** a Jev error is raised and the document stays unclassified for review. It never becomes noise.
+  - Build a labeled set from the 22 documents (the answer key's classes).
   - Choose the "noise" threshold that keeps 100% recall on the planted issues, and report the false-pass rate.
-  - Send a sample of the items it labels noise to the LLM as a tripwire.
+  - Keep Jev's probabilities on every label, and list the noise-labeled documents in the eval for a spot check. This replaces the LLM tripwire.
+
+  Done, in `leo/pipeline/classify.py` (`JevClassifier`), built from Omar's prototype (PR #4), with the threshold sweep in `leo/eval/scoring.py`:
+  - **One Jev call per document,** a choice over the six `DocumentClass` labels, with the raw stored text (`DocumentText.text`, the same text extraction sees) as state. The client is `leo.jev.jev_client`.
+  - **Noise rule:** noise when P(noise) ≥ `NOISE_THRESHOLD` (0.5). Otherwise, the most probable non-noise class.
+  - **Errors:** a Jev error or an unusable answer raises `ClassificationFailed`, which the eval records as an error (never noise). A missing `JEV_API_KEY` stops the run at startup.
+  - **Evidence:** `Classification.reason` holds Jev's probabilities. The eval prints P(noise) per document, the noise-labeled documents and a threshold sweep with the lowest threshold that keeps full recall.
+  - **Eval** (`uv run python -m leo.eval --classifier jev`, 2026-11-05):
+    - recall on the documents that matter: 9/9
+    - noise false-pass: 0/5
+    - accuracy: 21/22
+    - Every document that matters scored P(noise) ≈ 0.00. The five noise documents scored 0.84–1.00, so any threshold from 0.5 to 0.84 gives the same result.
+    - The one miss is 08 (Quillstack), which the key calls an invoice and Jev calls a receipt (0.94). The email calls itself a receipt for a card charge. Noise isn't affected.
+    - There is no Jev cache. A run is 22 calls.
 - [x] **B3 [must] LLM extraction (stage 3).**
   - Haiku 5.5 by default (`LEO_MODEL_EXTRACT`; move up only on eval evidence, see `docs/STACK.md`).
   - Prompt plus structured output (`output_config.format` with a JSON schema built from Pydantic models, not forced tool use) that returns terms and invoice facts in the shared value shapes, each with a list of exact quotes.
@@ -376,7 +390,7 @@ From the design doc's Open Questions. Track B questions belong to Lewis and Omar
 
 | Question | Owner | Decide by | Blocks |
 | --- | --- | --- | --- |
-| Jev confidence threshold and the cutoff for the Haiku investigate step | Lewis and Omar | During B2 | B2 |
+| Jev noise threshold | Lewis and Omar | Resolved 2026-11-05: 0.5, see B2 | B2 |
 | Ramp data: sandbox or synthetic | Lewis | Phase 0 | A5 (synthetic is the default) |
 | Where dedup runs: before or after triage | A owner (TBD) | Before A6 | A6 |
 | Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | During A5 | A5 |

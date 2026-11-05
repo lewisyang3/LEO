@@ -23,7 +23,6 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 | Pipeline step | Engine |
 | --- | --- |
 | 1. Classify (contract, order form, price notice, invoice, receipt, noise) | Jev |
-| 1b. Investigate items Jev isn't sure about | Haiku 5.5 (`LEO_MODEL_INVESTIGATE`) |
 | 2. Script extraction for known formats | Deterministic code |
 | 3. LLM extraction of terms and invoice facts | Haiku 5.5 (`LEO_MODEL_EXTRACT`) |
 | 4. Validate | Deterministic rules check that quotes appear in the source, dates parse and amounts are plausible. A rule comparison and Jev both compare the new extraction with prior terms, and either one can flag a conflict |
@@ -32,7 +31,7 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 
 ## LLM policy
 
-- **Efficiency first.** All three Haiku jobs default to `claude-haiku-5-5` ($0.10 input / $0.50 output per million tokens, for prompts up to 100K tokens). Each job reads its model from its own environment variable: `LEO_MODEL_INVESTIGATE`, `LEO_MODEL_EXTRACT` or `LEO_MODEL_DRAFT`.
+- **Efficiency first.** Both Haiku jobs default to `claude-haiku-5-5` ($0.10 input / $0.50 output per million tokens, for prompts up to 100K tokens). Each job reads its model from its own environment variable: `LEO_MODEL_EXTRACT` or `LEO_MODEL_DRAFT`. Classification (B2) is Jev only.
 - **Moving a job to a heavier model needs evidence.** Move a job only when `make eval` (B1) shows Haiku missing the accuracy bar for that job.
   - The next step up is `claude-sonnet-5-5` ($2 / $10), then `claude-opus-5-5` ($4 / $20).
   - Record each move in the table below, with the eval numbers before and after.
@@ -55,8 +54,8 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 
 The design doc lists the risks: access is early, rate limits are unknown, and its speed, cost and accuracy claims haven't been verified.
 
-- **Fallback.** If Jev is unavailable, every item goes to the Haiku investigate path. The demo still runs, at a higher LLM cost.
-- **Threshold.** Pick the confidence threshold below which an item counts as "unsure" in B2, against the labeled set. The threshold must keep 100% recall on the planted issues, and the noise tripwire stays in place.
+- **No LLM fallback.** Classification is Jev only. With no `JEV_API_KEY`, the Jev classifier stops at startup. A failed Jev call leaves that document unclassified for review, never noise.
+- **Threshold.** Jev's P(noise) alone decides noise (B2). The threshold is chosen from the eval's sweep over the labeled set, to keep 100% recall on the planted issues with the lowest false-pass. It is 0.5, which leaves margin on both sides. Every label keeps Jev's probabilities, and the eval lists the noise-labeled documents for a spot check.
 
 ## Local environment (checked 2026-11-02)
 

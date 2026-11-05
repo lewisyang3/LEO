@@ -2,7 +2,7 @@
 
 Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS`, `VALIDATORS` and `DRAFTERS`. B3
 registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `llm` drafters, and
-B2 registers its classifier. Each factory takes the `Fixture`.
+B2 registers the `jev` classifier. Each factory takes the `Fixture`.
 
 Drafters run on the key's findings and `fixture.ledger()`, because reconciliation (C1) isn't
 built yet.
@@ -36,6 +36,7 @@ from leo.fixtures import Fixture, FixtureClassifier, FixtureDrafter, FixtureExtr
 from leo.interfaces import Classifier, DocumentText, Drafter, Extraction, Extractor, Validator
 from leo.jev import jev_client
 from leo.llm import ResponseCache
+from leo.pipeline.classify import JevClassifier
 from leo.pipeline.extract_llm import LLMExtractor
 from leo.pipeline.validate import JevPriorComparer, RuleValidator
 from leo.stubs import StubClassifier, StubDrafter, StubExtractor, StubValidator
@@ -73,6 +74,7 @@ class EvalFixtureExtractor:
 CLASSIFIERS: dict[str, Callable[[Fixture], Classifier]] = {
     "fixture": FixtureClassifier,
     "stub": lambda fixture: StubClassifier(),
+    "jev": lambda fixture: JevClassifier(jev_client(get_settings())),
 }
 EXTRACTORS: dict[str, Callable[[Fixture], Extractor]] = {
     "fixture": EvalFixtureExtractor,
@@ -145,12 +147,15 @@ def run(
     paths = list(docs) if docs is not None else [d.path for d in fixture.documents]
 
     classification = []
+    records = getattr(clf, "records", {})  # Jev's probabilities, for the threshold sweep
     for path in paths:
         try:
             result, error = clf.classify(fixture.document_text(path)), None
         except Exception as e:
             result, error = None, _error(e)
-        classification.append(score_classification(fixture, path, result, error))
+        scored = score_classification(fixture, path, result, error)
+        scored.probabilities = records.get(path) if result is not None else None
+        classification.append(scored)
 
     extracted: list[tuple[DocumentText, Extraction | None, str | None]] = []
     for path in paths:
@@ -289,14 +294,20 @@ def format_report(result: EvalResult) -> str:
         f"== Classification ({len(result.classification)} documents) ==",
     ]
     width = max((len(d.path) for d in result.classification), default=0)
-    out.append(f"   {'path':<{width}}  {'key':<12}   {'predicted':<12}  conf")
+    has_p = any(d.p_noise is not None for d in result.classification)
+    p_head = "  p(noise)" if has_p else ""
+    out.append(f"   {'path':<{width}}  {'key':<12}   {'predicted':<12}  conf{p_head}")
     for d in result.classification:
         mark = "✓" if d.ok else "✗"
         predicted = d.predicted.value if d.predicted else "ERROR"
         conf = f"{d.confidence:.2f}" if d.confidence is not None else "  - "
+        p_noise = ""
+        if has_p:
+            p_noise = f"  {d.p_noise:8.2f}" if d.p_noise is not None else f"  {'-':>8}"
         star = "  *" if d.matters else ""
         out.append(
-            f" {mark} {d.path:<{width}}  {d.expected.value:<12} → {predicted:<12}  {conf}{star}"
+            f" {mark} {d.path:<{width}}  {d.expected.value:<12} → {predicted:<12}  {conf}"
+            f"{p_noise}{star}"
         )
         if d.error:
             out.append(f"     error: {d.error}")
@@ -313,6 +324,8 @@ def format_report(result: EvalResult) -> str:
     ]
     for key, row in cs.confusion.items():
         out.append(f"  {key:<13} " + "  ".join(f"{k}: {v}" for k, v in sorted(row.items())))
+    if cs.threshold_sweep:
+        out += _sweep_report(result.classification, cs)
 
     out += [
         "",
@@ -384,6 +397,26 @@ def format_report(result: EvalResult) -> str:
     if result.drafts:
         out += _draft_report(result.drafts)
     return "\n".join(out) + "\n"
+
+
+def _sweep_report(docs: list[DocClassification], cs: ClassificationSummary) -> list[str]:
+    noise = [d for d in docs if d.predicted == DocumentClass.noise]
+    out = ["", f"noise-labeled documents, for a spot check ({len(noise)})"]
+    for d in sorted(noise, key=lambda d: d.p_noise or 0.0):
+        p = f"{d.p_noise:.2f}" if d.p_noise is not None else "-"
+        out.append(f"  {d.path:<48} p(noise) {p}  key {d.expected.value}")
+    out += ["noise threshold sweep (noise when p(noise) >= threshold)"]
+    out.append(f"  {'threshold':<10} {'matters recall':<18} noise false-pass")
+    for p in cs.threshold_sweep:
+        out.append(
+            f"  {p.threshold:<10.3f} {_rate(p.matters_recall):<18} {_rate(p.noise_false_pass)}"
+        )
+    rec = cs.recommended_threshold
+    out.append(
+        "lowest threshold with full matters recall: "
+        + (f"{rec:.3f}" if rec is not None else "none in the sweep")
+    )
+    return out
 
 
 def _draft_report(drafts: list[DraftScore]) -> list[str]:
