@@ -13,7 +13,7 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 | Database | PostgreSQL 16 (`postgres:16` image) with `pg_trgm` | Run locally with Docker Compose |
 | ORM and migrations | SQLAlchemy 2 + Alembic, psycopg 3 driver | |
 | Tests and lint | pytest, ruff | |
-| Classification and prior-term comparison | Jev (TypeSafe AI) | Behind the `Classifier` and `Validator` interfaces; key in `JEV_API_KEY` |
+| Classification and prior-term comparison | Jev (TypeSafe AI), `typesafe_sdk` | Behind the `Classifier` and `Validator` interfaces. The key is in `JEV_API_KEY`, and `leo.jev.jev_client` passes it to the SDK explicitly, because the SDK's own variable is `TYPESAFE_API_KEY` |
 | LLM | `anthropic` (official Python SDK), `claude-haiku-5-5` | No other LLM providers |
 | Frontend | React + Vite + TypeScript, npm, in `web/` | Node 22 or later; Vite's dev server proxies `/api` to FastAPI |
 | Gmail (A8, [should]) | `google-api-python-client`, read-only scope | |
@@ -26,7 +26,7 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 | 1b. Investigate items Jev isn't sure about | Haiku 5.5 (`LEO_MODEL_INVESTIGATE`) |
 | 2. Script extraction for known formats | Deterministic code |
 | 3. LLM extraction of terms and invoice facts | Haiku 5.5 (`LEO_MODEL_EXTRACT`) |
-| 4. Validate | Jev compares the new extraction with prior terms; deterministic rules check that quotes appear in the source, dates parse and amounts are plausible |
+| 4. Validate | Deterministic rules check that quotes appear in the source, dates parse and amounts are plausible. A rule comparison and Jev both compare the new extraction with prior terms, and either one can flag a conflict |
 | 5. Reconcile against transactions | Code |
 | 5. Draft the action (cancellation, negotiation, dispute) | Haiku 5.5 (`LEO_MODEL_DRAFT`) |
 

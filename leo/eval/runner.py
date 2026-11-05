@@ -1,10 +1,12 @@
 """Run stage engines over the synthetic dataset and report the scores (ROADMAP B1).
 
-Engines are chosen by name from `CLASSIFIERS` and `EXTRACTORS`. B3 registers `llm`, and B2
-registers `jev`. Each factory takes the `Fixture`.
+Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS` and `VALIDATORS`. B3 registers
+`llm`, B4 registers `rules` and `jev`, and B2 registers its classifier. Each factory takes the
+`Fixture`.
 """
 
 import datetime
+from collections import Counter
 from collections.abc import Callable, Sequence
 
 from leo.config import get_settings
@@ -13,6 +15,7 @@ from leo.eval.scoring import (
     ClassificationSummary,
     DocClassification,
     DocExtraction,
+    DocValidation,
     ExtractionSummary,
     KindSummary,
     PrecisionRecall,
@@ -24,11 +27,13 @@ from leo.eval.scoring import (
     summarize_extraction,
 )
 from leo.fixtures import Fixture, FixtureClassifier, FixtureExtractor
-from leo.interfaces import Classifier, DocumentText, Extraction, Extractor
+from leo.interfaces import Classifier, DocumentText, Extraction, Extractor, Validator
+from leo.jev import jev_client
 from leo.llm import ResponseCache
 from leo.pipeline.extract_llm import LLMExtractor
-from leo.stubs import StubClassifier, StubExtractor
-from leo.types import DocumentClass, LeoModel
+from leo.pipeline.validate import JevPriorComparer, RuleValidator
+from leo.stubs import StubClassifier, StubExtractor, StubValidator
+from leo.types import DocumentClass, ExtractedTerm, LeoModel, TermStatus
 
 
 class EvalFixtureExtractor:
@@ -70,13 +75,24 @@ EXTRACTORS: dict[str, Callable[[Fixture], Extractor]] = {
         clock=fixture.clock(), cache=ResponseCache(get_settings().leo_llm_cache_dir)
     ),
 }
+# "none" skips validation (B1's behavior).
+VALIDATORS: dict[str, Callable[[Fixture], Validator] | None] = {
+    "none": None,
+    "stub": lambda fixture: StubValidator(),
+    "rules": lambda fixture: RuleValidator(fixture.clock()),
+    "jev": lambda fixture: RuleValidator(
+        fixture.clock(), extra=[JevPriorComparer(jev_client(get_settings()))]
+    ),
+}
 DEFAULT_CLASSIFIER = "fixture"
 DEFAULT_EXTRACTOR = "fixture"
+DEFAULT_VALIDATOR = "none"
 
 
 class EvalResult(LeoModel):
     classifier: str
     extractor: str
+    validator: str = DEFAULT_VALIDATOR
     dataset: str
     run_at: datetime.datetime
     classification: list[DocClassification]
@@ -94,11 +110,18 @@ def run(
     classifier: str = DEFAULT_CLASSIFIER,
     extractor: str = DEFAULT_EXTRACTOR,
     docs: Sequence[str] | None = None,
+    validator: str = DEFAULT_VALIDATOR,
 ) -> EvalResult:
     """Classify every document, and extract from every document whose key class isn't noise.
-    An engine that raises on a document is recorded as an error for it, and the run goes on."""
+    An engine that raises on a document is recorded as an error for it, and the run goes on.
+
+    With a validator, every extraction is made first, then each is validated before scoring.
+    Its `prior_terms` are the terms extracted from every other document of the same key vendor,
+    so the result doesn't depend on processing order (the worker passes only earlier ones)."""
     clf = CLASSIFIERS[classifier](fixture)
     ext = EXTRACTORS[extractor](fixture)
+    make_validator = VALIDATORS[validator]
+    val = make_validator(fixture) if make_validator else None
     paths = list(docs) if docs is not None else [d.path for d in fixture.documents]
 
     classification = []
@@ -109,7 +132,7 @@ def run(
             result, error = None, _error(e)
         classification.append(score_classification(fixture, path, result, error))
 
-    extraction = []
+    extracted: list[tuple[DocumentText, Extraction | None, str | None]] = []
     for path in paths:
         if fixture.document(path).doc_class == DocumentClass.noise:
             continue
@@ -118,11 +141,47 @@ def run(
             ex, error = ext.extract(doc), None
         except Exception as e:
             ex, error = None, _error(e)
-        extraction.append(score_extraction(fixture, path, doc.text, ex, error))
+        extracted.append((doc, ex, error))
+
+    extraction = []
+    for doc, ex, error in extracted:
+        path = doc.document.path
+        validation = None
+        if val is not None and ex is not None:
+            vendor = fixture.document(path).vendor
+            prior: list[ExtractedTerm] = [
+                t
+                for other, other_ex, _ in extracted
+                if other_ex is not None
+                and other.document.path != path
+                and vendor is not None
+                and fixture.document(other.document.path).vendor == vendor
+                for t in other_ex.terms
+            ]
+            try:
+                v = val.validate(doc, ex, prior)
+            except Exception as e:
+                validation = DocValidation(error=_error(e))
+            else:
+                ex = v.extraction
+                validation = DocValidation(
+                    engine=v.engine,
+                    vendor_ok=v.vendor_ok,
+                    issues=v.issues,
+                    needs_review=[
+                        x.id
+                        for x in (*ex.terms, *ex.invoice_facts)
+                        if x.status == TermStatus.needs_review
+                    ],
+                )
+        scored = score_extraction(fixture, path, doc.text, ex, error)
+        scored.validation = validation
+        extraction.append(scored)
 
     return EvalResult(
         classifier=classifier,
         extractor=extractor,
+        validator=validator,
         dataset=fixture.dataset,
         run_at=datetime.datetime.now(datetime.UTC).replace(microsecond=0),
         classification=classification,
@@ -182,6 +241,7 @@ def _kind_summary(name: str, s: KindSummary) -> list[str]:
 def format_report(result: EvalResult) -> str:
     out = [
         f"LEO eval  classifier={result.classifier}  extractor={result.extractor}"
+        f"  validator={result.validator}"
         f"  dataset={result.dataset}  {result.run_at.isoformat()}",
         "",
         f"== Classification ({len(result.classification)} documents) ==",
@@ -228,6 +288,15 @@ def format_report(result: EvalResult) -> str:
         )
         if d.error:
             out.append(f"     error: {d.error}")
+        if v := d.validation:
+            if v.error:
+                out.append(f"     validator error: {v.error}")
+            elif not v.vendor_ok:
+                out.append("     vendor not ok")
+            for i in v.issues:
+                out.append(f"     issue  {i.check} {i.item or '-'}: {i.message}")
+            if v.needs_review:
+                out.append(f"     needs_review: {', '.join(v.needs_review)}")
         for kind in KINDS:
             s = d.kind(kind)
             for miss in s.missed:
@@ -251,7 +320,22 @@ def format_report(result: EvalResult) -> str:
     out += _kind_summary("terms", es.terms)
     out += _kind_summary("invoice facts", es.invoice_facts)
     out += _kind_summary("contacts", es.contacts)
-    out.append("finding coverage (every cited term and invoice fact extracted, all fields right)")
+    validated = [d.validation for d in result.extraction if d.validation is not None]
+    if validated:
+        engines = sorted({v.engine for v in validated if v.engine})
+        checks = Counter(i.check for v in validated for i in v.issues)
+        out.append(f"validation ({', '.join(engines) or 'error'})")
+        out.append(f"  {'vendor ok':<32} {sum(v.vendor_ok for v in validated)}/{len(validated)}")
+        out.append(
+            f"  {'items set to needs_review':<32} {sum(len(v.needs_review) for v in validated)}"
+        )
+        out.append(f"  {'validator errors':<32} {sum(v.error is not None for v in validated)}")
+        for check, n in sorted(checks.items()):
+            out.append(f"  issue {check:<26} {n}")
+    out.append(
+        "finding coverage (every cited term and invoice fact extracted, all fields right,"
+        " none needs_review)"
+    )
     for fid, missing in es.finding_coverage.items():
         status = "covered" if not missing else "not covered: " + ", ".join(missing)
         out.append(f"  {fid}: {status}")
