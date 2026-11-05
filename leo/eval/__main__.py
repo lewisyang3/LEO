@@ -10,8 +10,10 @@ from pathlib import Path
 from leo.eval.runner import (
     CLASSIFIERS,
     DEFAULT_CLASSIFIER,
+    DEFAULT_DRAFTER,
     DEFAULT_EXTRACTOR,
     DEFAULT_VALIDATOR,
+    DRAFTERS,
     EXTRACTORS,
     VALIDATORS,
     format_report,
@@ -32,6 +34,12 @@ def main(argv: list[str] | None = None) -> int:
         help="validate each extraction before scoring (B4); jev needs JEV_API_KEY",
     )
     parser.add_argument(
+        "--drafter",
+        choices=sorted(DRAFTERS),
+        default=DEFAULT_DRAFTER,
+        help="draft an action for each of the key's findings (B7)",
+    )
+    parser.add_argument(
         "--doc",
         action="append",
         metavar="PATH",
@@ -47,7 +55,9 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"unknown document {path!r}")
 
     try:
-        result = run(fixture, args.classifier, args.extractor, args.doc, args.validator)
+        result = run(
+            fixture, args.classifier, args.extractor, args.doc, args.validator, args.drafter
+        )
     except JevUnavailable as e:
         parser.error(str(e))
     sys.stdout.write(format_report(result))
