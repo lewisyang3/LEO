@@ -28,10 +28,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from leo.fixtures import Fixture, FixtureVendorResolver
+from leo.fixtures import ExpectedAction, Fixture, FixtureVendorResolver
 from leo.interfaces import Classification, Extraction, ValidationIssue
 from leo.rules import locate_quote
 from leo.types import (
+    ActionDraft,
     Contact,
     DocumentClass,
     ExtractedTerm,
@@ -493,4 +494,55 @@ def summarize_extraction(fixture: Fixture, docs: Sequence[DocExtraction]) -> Ext
         invoice_facts=_summarize_kind(docs, INVOICE_FACTS, by_type=False),
         contacts=_summarize_kind(docs, CONTACTS, by_type=False),
         finding_coverage=coverage,
+    )
+
+
+# --- Drafts (B7) -----------------------------------------------------------------------------
+
+
+class DraftScore(LeoModel):
+    """One finding's draft against the key's `expected_action`."""
+
+    finding: str
+    draft: ActionDraft | None = None  # None when the drafter raised
+    type_ok: bool = False
+    alternative_ok: bool = False
+    to_ok: bool = False
+    pre_step_ok: bool = False  # a pre-step exactly when the key has one
+    missing: list[str] = []  # must_include strings not in the subject or body
+    fallback: bool | None = None  # the template was used (LLM drafter only)
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return (
+            self.draft is not None
+            and self.type_ok
+            and self.alternative_ok
+            and self.to_ok
+            and self.pre_step_ok
+            and not self.missing
+        )
+
+
+def score_draft(
+    finding: str,
+    draft: ActionDraft | None,
+    expected: ExpectedAction,
+    fallback: bool | None = None,
+    error: str | None = None,
+) -> DraftScore:
+    if draft is None:
+        return DraftScore(finding=finding, missing=list(expected.must_include), error=error)
+    text = draft.subject + "\n" + draft.body
+    return DraftScore(
+        finding=finding,
+        draft=draft,
+        type_ok=draft.type == expected.type,
+        alternative_ok=draft.alternative == expected.alternative,
+        to_ok=draft.to == expected.to,
+        pre_step_ok=(draft.pre_step is None) == (expected.pre_step is None),
+        missing=[m for m in expected.must_include if m not in text],
+        fallback=fallback,
+        error=error,
     )
