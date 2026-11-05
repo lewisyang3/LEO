@@ -29,7 +29,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from leo.fixtures import Fixture, FixtureVendorResolver
-from leo.interfaces import Classification, Extraction
+from leo.interfaces import Classification, Extraction, ValidationIssue
 from leo.rules import locate_quote
 from leo.types import (
     Contact,
@@ -127,6 +127,16 @@ class ClassificationSummary(LeoModel):
     confusion: dict[str, dict[str, int]]  # key class -> predicted class ("error") -> count
 
 
+class DocValidation(LeoModel):
+    """The validator's result for one document (B4). `needs_review` holds predicted ids."""
+
+    engine: str | None = None
+    vendor_ok: bool = False
+    issues: list[ValidationIssue] = []
+    needs_review: list[str] = []
+    error: str | None = None  # the validator raised; the extraction is scored unvalidated
+
+
 class DocExtraction(LeoModel):
     path: str
     duplicate_of: str | None
@@ -134,6 +144,7 @@ class DocExtraction(LeoModel):
     invoice_facts: ItemScore
     contacts: ItemScore
     error: str | None = None
+    validation: DocValidation | None = None  # None when no validator ran
 
     def kind(self, kind: str) -> ItemScore:
         return getattr(self, kind)
@@ -152,7 +163,8 @@ class ExtractionSummary(LeoModel):
     invoice_facts: KindSummary
     contacts: KindSummary
     # finding id -> key term and invoice-fact ids it cites that were not matched in their own
-    # document with every field right. An empty list means the finding is covered.
+    # document with every field right, or whose match was set to needs_review by the
+    # validator. An empty list means the finding is covered.
     finding_coverage: dict[str, list[str]]
 
 
@@ -457,14 +469,16 @@ def _summarize_kind(docs: Sequence[DocExtraction], kind: str, by_type: bool) -> 
 
 def summarize_extraction(fixture: Fixture, docs: Sequence[DocExtraction]) -> ExtractionSummary:
     """Coverage counts a key item only when it was matched in its own document, not in a
-    duplicate of it, with every field right. It checks only the items whose documents were
-    scored, and leaves out a finding with none (a `--doc` run)."""
+    duplicate of it, with every field right, and the validator didn't set the match to
+    needs_review (that would hide the finding, ROADMAP 2.3). It checks only the items whose
+    documents were scored, and leaves out a finding with none (a `--doc` run)."""
     matched = {
         m.key_id
         for d in docs
         if d.duplicate_of is None
         for m in (*d.terms.matched, *d.invoice_facts.matched)
         if all(f.ok for f in m.fields)
+        and not (d.validation and m.pred_id in d.validation.needs_review)
     }
     scored = {d.path for d in docs}
     key_document = {x.id: x.document for x in (*fixture.terms, *fixture.invoice_facts)}
