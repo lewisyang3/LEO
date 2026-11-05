@@ -1,0 +1,28 @@
+{
+  "doc_hash": "95363b2bec274fc64ed95ed74302fdcdbb3a5723b848202ae6ea9863a9f67e8a",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear Quillstack Inc. team,\n\nWe are writing to dispute charges on our account under {agreement}. Our order covers {contracted_seats} seats, but the invoice shown in {invoices} bills us for {billed_seats} seats. The difference is {extra_seats} additional seats at {price_per_seat}, which totals {overcharge_monthly} per month.\n\nThe agreement requires a {increase_requires} before any increase in seats. We have not signed such a form for the additional seats, so we do not agree to be billed for them. To date, the overcharge is {overcharged_to_date}.\n\nPlease take the following actions:\n\n1. Issue a credit to our account for the overcharged amount of {overcharged_to_date}.\n2. Correct our billing so that future invoices reflect the {contracted_seats} seats covered by the agreement.\n3. Confirm in writing once the credit and the corrected billing are in place.\n\nIf you need to add seats in the future, we will review and sign the appropriate order form.\n\nThank you for your prompt attention to this matter.\n\nKind regards,\nBrightwater Coffee Co."
+  },
+  "prompt_version": "draft-v5",
+  "request_id": "req_011CgjRq6M6peeNc5eHCrwZY",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 758,
+    "inference_geo": "global",
+    "input_tokens": 461,
+    "output_tokens": 390,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

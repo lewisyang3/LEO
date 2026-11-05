@@ -1,14 +1,18 @@
 """Run stage engines over the synthetic dataset and report the scores (ROADMAP B1).
 
-Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS` and `VALIDATORS`. B3 registers
-`llm`, B4 registers `rules` and `jev`, and B2 registers its classifier. Each factory takes the
-`Fixture`.
+Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS`, `VALIDATORS` and `DRAFTERS`. B3
+registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `llm` drafters, and
+B2 registers its classifier. Each factory takes the `Fixture`.
+
+Drafters run on the key's findings and `fixture.ledger()`, because reconciliation (C1) isn't
+built yet.
 """
 
 import datetime
 from collections import Counter
 from collections.abc import Callable, Sequence
 
+from leo.actions.draft import LLMDrafter, TemplateDrafter
 from leo.config import get_settings
 from leo.eval.scoring import (
     KINDS,
@@ -16,23 +20,25 @@ from leo.eval.scoring import (
     DocClassification,
     DocExtraction,
     DocValidation,
+    DraftScore,
     ExtractionSummary,
     KindSummary,
     PrecisionRecall,
     Rate,
     duplicate_of,
     score_classification,
+    score_draft,
     score_extraction,
     summarize_classification,
     summarize_extraction,
 )
-from leo.fixtures import Fixture, FixtureClassifier, FixtureExtractor
-from leo.interfaces import Classifier, DocumentText, Extraction, Extractor, Validator
+from leo.fixtures import Fixture, FixtureClassifier, FixtureDrafter, FixtureExtractor
+from leo.interfaces import Classifier, DocumentText, Drafter, Extraction, Extractor, Validator
 from leo.jev import jev_client
 from leo.llm import ResponseCache
 from leo.pipeline.extract_llm import LLMExtractor
 from leo.pipeline.validate import JevPriorComparer, RuleValidator
-from leo.stubs import StubClassifier, StubExtractor, StubValidator
+from leo.stubs import StubClassifier, StubDrafter, StubExtractor, StubValidator
 from leo.types import DocumentClass, ExtractedTerm, LeoModel, TermStatus
 
 
@@ -84,21 +90,34 @@ VALIDATORS: dict[str, Callable[[Fixture], Validator] | None] = {
         fixture.clock(), extra=[JevPriorComparer(jev_client(get_settings()))]
     ),
 }
+# "none" skips drafting.
+DRAFTERS: dict[str, Callable[[Fixture], Drafter] | None] = {
+    "none": None,
+    "fixture": FixtureDrafter,
+    "stub": lambda fixture: StubDrafter(),
+    "template": lambda fixture: TemplateDrafter(sender=fixture.customer.name),
+    "llm": lambda fixture: LLMDrafter(
+        ResponseCache(get_settings().leo_llm_cache_dir), sender=fixture.customer.name
+    ),
+}
 DEFAULT_CLASSIFIER = "fixture"
 DEFAULT_EXTRACTOR = "fixture"
 DEFAULT_VALIDATOR = "none"
+DEFAULT_DRAFTER = "none"
 
 
 class EvalResult(LeoModel):
     classifier: str
     extractor: str
     validator: str = DEFAULT_VALIDATOR
+    drafter: str = DEFAULT_DRAFTER
     dataset: str
     run_at: datetime.datetime
     classification: list[DocClassification]
     classification_summary: ClassificationSummary
     extraction: list[DocExtraction]
     extraction_summary: ExtractionSummary
+    drafts: list[DraftScore] = []
 
 
 def _error(e: Exception) -> str:
@@ -111,6 +130,7 @@ def run(
     extractor: str = DEFAULT_EXTRACTOR,
     docs: Sequence[str] | None = None,
     validator: str = DEFAULT_VALIDATOR,
+    drafter: str = DEFAULT_DRAFTER,
 ) -> EvalResult:
     """Classify every document, and extract from every document whose key class isn't noise.
     An engine that raises on a document is recorded as an error for it, and the run goes on.
@@ -178,17 +198,39 @@ def run(
         scored.validation = validation
         extraction.append(scored)
 
+    make_drafter = DRAFTERS[drafter]
+    drafts = run_drafts(fixture, make_drafter(fixture)) if make_drafter else []
+
     return EvalResult(
         classifier=classifier,
         extractor=extractor,
         validator=validator,
+        drafter=drafter,
         dataset=fixture.dataset,
         run_at=datetime.datetime.now(datetime.UTC).replace(microsecond=0),
         classification=classification,
         classification_summary=summarize_classification(classification),
         extraction=extraction,
         extraction_summary=summarize_extraction(fixture, extraction),
+        drafts=drafts,
     )
+
+
+def run_drafts(fixture: Fixture, drafter: Drafter) -> list[DraftScore]:
+    """Draft every key finding against the key's ledger. A drafter that raises on a finding
+    (for example `LLMOfflineMiss`) is recorded as an error for it."""
+    ledger = fixture.ledger()
+    records = getattr(drafter, "records", {})
+    out = []
+    for x in fixture.expected_findings:
+        fid = x.finding.id
+        try:
+            draft, error = drafter.draft(x.finding, ledger), None
+        except Exception as e:
+            draft, error = None, _error(e)
+        fallback = records.get(fid, {}).get("fallback")
+        out.append(score_draft(fid, draft, x.expected_action, fallback, error))
+    return out
 
 
 # --- Report ----------------------------------------------------------------------------------
@@ -241,7 +283,7 @@ def _kind_summary(name: str, s: KindSummary) -> list[str]:
 def format_report(result: EvalResult) -> str:
     out = [
         f"LEO eval  classifier={result.classifier}  extractor={result.extractor}"
-        f"  validator={result.validator}"
+        f"  validator={result.validator}  drafter={result.drafter}"
         f"  dataset={result.dataset}  {result.run_at.isoformat()}",
         "",
         f"== Classification ({len(result.classification)} documents) ==",
@@ -339,4 +381,42 @@ def format_report(result: EvalResult) -> str:
     for fid, missing in es.finding_coverage.items():
         status = "covered" if not missing else "not covered: " + ", ".join(missing)
         out.append(f"  {fid}: {status}")
+    if result.drafts:
+        out += _draft_report(result.drafts)
     return "\n".join(out) + "\n"
+
+
+def _draft_report(drafts: list[DraftScore]) -> list[str]:
+    out = ["", f"== Drafts ({len(drafts)} findings) =="]
+    for d in drafts:
+        mark = "✓" if d.ok else "✗"
+        if d.draft is None:
+            out.append(f" {mark} {d.finding}  error: {d.error}")
+            continue
+        a = d.draft
+        flags = [
+            name
+            for name, ok in (
+                ("type", d.type_ok),
+                ("alternative", d.alternative_ok),
+                ("to", d.to_ok),
+                ("pre_step", d.pre_step_ok),
+            )
+            if not ok
+        ]
+        note = "  (template fallback)" if d.fallback else ""
+        out.append(f" {mark} {d.finding}  {a.type.value} → {a.to or '(no recipient)'}{note}")
+        if flags:
+            out.append(f"     wrong: {', '.join(flags)}")
+        if d.missing:
+            out.append(f"     missing: {', '.join(repr(m) for m in d.missing)}")
+        if a.alternative:
+            out.append(f"     alternative: {a.alternative.value}")
+        if a.pre_step:
+            out.append(f"     pre-step: {a.pre_step}")
+        out.append(f"     subject: {a.subject}")
+        out += ["     | " + line for line in a.body.splitlines()]
+    ok = sum(d.ok for d in drafts)
+    fallbacks = sum(bool(d.fallback) for d in drafts)
+    out.append(f"drafts ok {ok}/{len(drafts)}, template fallbacks {fallbacks}")
+    return out
