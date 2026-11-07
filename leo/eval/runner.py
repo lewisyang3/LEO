@@ -26,6 +26,7 @@ from leo.eval.scoring import (
 from leo.fixtures import Fixture, FixtureClassifier, FixtureExtractor
 from leo.interfaces import Classifier, DocumentText, Extraction, Extractor
 from leo.llm import ResponseCache
+from leo.pipeline.classify_jev import JevClassifier
 from leo.pipeline.extract_llm import LLMExtractor
 from leo.stubs import StubClassifier, StubExtractor
 from leo.types import DocumentClass, LeoModel
@@ -62,6 +63,7 @@ class EvalFixtureExtractor:
 CLASSIFIERS: dict[str, Callable[[Fixture], Classifier]] = {
     "fixture": FixtureClassifier,
     "stub": lambda fixture: StubClassifier(),
+    "jev": lambda fixture: JevClassifier(),
 }
 EXTRACTORS: dict[str, Callable[[Fixture], Extractor]] = {
     "fixture": EvalFixtureExtractor,
