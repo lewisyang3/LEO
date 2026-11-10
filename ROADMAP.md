@@ -199,7 +199,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - One prompt handles contracts, price notices and invoices.
   - For forwarded email, take the vendor from the forwarded header block, not the internal sender.
   - Store the raw model output.
-  - **[must] Response cache** keyed by document hash, stage and prompt version. Reruns then reproduce the same quote spans and keys (D5), and the demo can run offline.
+  - **[must] Response cache** keyed by document hash, stage and prompt version. Reruns then reproduce the same quote spans and keys (D5), and the eval reruns without API calls.
   - Target:
     - every F1–F5 term extracted, including the dispute windows
     - the Lumenpost add-on kept separate from Growth
@@ -370,7 +370,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   7. the near-misses LEO correctly ignored
 - [ ] **3.2 [must] Demo safety.**
   - Pin `LEO_TODAY`.
-  - Run from B3's response cache with no network.
+  - Run from the committed LLM caches (B3, B7) so reruns give the same terms and drafts. Jev calls (B2, B4) are live and have no cache. That's fine because the demo is a recorded video, so it doesn't need to run offline.
   - One-command reset.
   - A recorded backup video.
 - [ ] **3.3 [should] Live inbox.** If A8 is ready, show a new price-change email arriving in Gmail and becoming a finding.
