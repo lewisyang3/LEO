@@ -251,3 +251,17 @@ def test_drafters_score_against_the_key():
     stub = run(FX, docs=[CORVANA], drafter="stub")
     assert not any(d.ok for d in stub.drafts)
     assert run(FX, docs=[CORVANA]).drafts == []
+
+
+def test_script_extractor_skips_the_llm():
+    result = run(FX, extractor="script")
+    engines = {d.path: d.engine for d in result.extraction}
+    assert engines.pop("inbox/05_kestrel_invoice_2026_09.eml") == "script:kestrel-invoice@1"
+    assert engines.pop("inbox/06_kestrel_invoice_2026_10.eml") == "script:kestrel-invoice@1"
+    assert engines.pop(RESYNC) == "script:kestrel-invoice@1"
+    assert engines.pop("inbox/08_quillstack_invoice_2026_10.eml") == "script:quillstack-receipt@1"
+    assert set(engines.values()) == {None}
+    facts = result.extraction_summary.invoice_facts.overall
+    assert (facts.matched, facts.predicted) == (4, 4)
+    report = format_report(result)
+    assert "reached the LLM                  0/17 documents" in report

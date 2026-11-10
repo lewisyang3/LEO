@@ -2,7 +2,8 @@
 
 Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS`, `VALIDATORS` and `DRAFTERS`. B3
 registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `llm` drafters, and
-B2 registers the `jev` classifier. Each factory takes the `Fixture`.
+B2 registers the `jev` classifier. B5 registers the `script` extractor and `script+llm`, which
+tries the scripts first and sends the rest to the LLM. Each factory takes the `Fixture`.
 
 Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1) is wired into
 the eval in Phase 2.1.
@@ -38,6 +39,7 @@ from leo.jev import jev_client
 from leo.llm import ResponseCache
 from leo.pipeline.classify import JevClassifier
 from leo.pipeline.extract_llm import LLMExtractor
+from leo.pipeline.extract_script import ChainExtractor, script_extractor
 from leo.pipeline.validate import JevPriorComparer, RuleValidator
 from leo.stubs import StubClassifier, StubDrafter, StubExtractor, StubValidator
 from leo.types import DocumentClass, ExtractedTerm, LeoModel, TermStatus
@@ -76,12 +78,20 @@ CLASSIFIERS: dict[str, Callable[[Fixture], Classifier]] = {
     "stub": lambda fixture: StubClassifier(),
     "jev": lambda fixture: JevClassifier(jev_client(get_settings())),
 }
+
+
+def _llm_extractor(fixture: Fixture) -> LLMExtractor:
+    return LLMExtractor(
+        clock=fixture.clock(), cache=ResponseCache(get_settings().leo_llm_cache_dir)
+    )
+
+
 EXTRACTORS: dict[str, Callable[[Fixture], Extractor]] = {
     "fixture": EvalFixtureExtractor,
     "stub": lambda fixture: StubExtractor(),
-    "llm": lambda fixture: LLMExtractor(
-        clock=fixture.clock(), cache=ResponseCache(get_settings().leo_llm_cache_dir)
-    ),
+    "llm": _llm_extractor,
+    "script": lambda fixture: script_extractor(),
+    "script+llm": lambda fixture: ChainExtractor([script_extractor(), _llm_extractor(fixture)]),
 }
 # "none" skips validation (B1's behavior).
 VALIDATORS: dict[str, Callable[[Fixture], Validator] | None] = {
@@ -201,6 +211,7 @@ def run(
                 )
         scored = score_extraction(fixture, path, doc.text, ex, error)
         scored.validation = validation
+        scored.engine = ex.engine if ex is not None else None
         extraction.append(scored)
 
     make_drafter = DRAFTERS[drafter]
@@ -308,7 +319,7 @@ def format_report(result: EvalResult) -> str:
         out.append(
             f" {d.path:<{width}}  terms {_counts(d.terms)}  facts {_counts(d.invoice_facts)}"
             f"  contacts {_counts(d.contacts)}  fields {_pct(fields.rate())}"
-            f"  quotes found {_pct(quotes.rate())}{dup}"
+            f"  quotes found {_pct(quotes.rate())}  [{d.engine or 'no answer'}]{dup}"
         )
         if d.error:
             out.append(f"     error: {d.error}")
@@ -344,6 +355,7 @@ def format_report(result: EvalResult) -> str:
     out += _kind_summary("terms", es.terms)
     out += _kind_summary("invoice facts", es.invoice_facts)
     out += _kind_summary("contacts", es.contacts)
+    out += _engine_summary(result.extraction)
     validated = [d.validation for d in result.extraction if d.validation is not None]
     if validated:
         engines = sorted({v.engine for v in validated if v.engine})
@@ -366,6 +378,16 @@ def format_report(result: EvalResult) -> str:
     if result.drafts:
         out += _draft_report(result.drafts)
     return "\n".join(out) + "\n"
+
+
+def _engine_summary(docs: list[DocExtraction]) -> list[str]:
+    """Which engine answered each document, and how many reached the LLM (B5)."""
+    engines = Counter(d.engine or "no answer" for d in docs)
+    llm = sum(n for e, n in engines.items() if e.startswith("llm:"))
+    out = ["extraction engines"]
+    out += [f"  {e:<32} {n}" for e, n in sorted(engines.items())]
+    out.append(f"  {'reached the LLM':<32} {llm}/{len(docs)} documents")
+    return out
 
 
 def format_classification(

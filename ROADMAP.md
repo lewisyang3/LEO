@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** Next up is A6 (duplicate linking). A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** B5 (script extractors) is done on `lewis/b5-script-extractors`, in review against main. Next in Track A is A6 (duplicate linking). A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -309,10 +309,27 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - The answer key and the B3 cache (`--extractor llm --validator rules`) both give 0 issues and 17/17 `vendor_ok`, with F1–F5 covered.
     - In this dataset, only the forward (02) and its original (01) have comparable prior terms, so they are the only pairs Jev sees.
   - Run the end-to-end test (2.2) with the rules validator, which needs no network and gives the same result every run.
-- [ ] **B5 [should] Script extractors (stage 2).**
+- [x] **B5 [should] Script extractors (stage 2).**
   - A registry of matcher and parser pairs.
   - Hand-write one or two, for example the Kestrel and Quillstack invoice templates.
   - Show in the eval that those items skip the LLM.
+
+  Done, in `leo/pipeline/extract_script.py`:
+  - **A script** is a name, a version, a matcher and a parser. `ScriptExtractor` runs the first script whose matcher accepts the raw stored text and records `script:<name>@<version>` as the engine. No match returns None ("not mine").
+  - **A changed template falls through.** If a matched script can't parse the document (a missing line, or a line item that doesn't add up to the total), it returns None and keeps the error in `records`, so the LLM takes the document rather than a wrong extraction being stored.
+  - **Two scripts** in `SCRIPTS`:
+    - `kestrel-invoice@1` (05, 06, 07). It matches the sender `billing@kestrelcloud.example` and an `Invoice: INV-KCH-` line.
+    - `quillstack-receipt@1` (08). It matches the sender `billing@quillstack.example`, `Receipt for` and `Order Form: QS-OF-`. The invoice date comes from the `Date:` header, as the key says.
+
+    Each returns one invoice fact with the key's quotes, sliced from the text. A test checks that neither matches any other document.
+  - **`ChainExtractor`** returns the first answer that isn't None, in the same order as the worker's extract loop. Wiring the scripts into the worker is 2.1.
+  - The registry lives in code. The `extractor_script` table and script generation are Phase 4.
+  - **Eval:** `--extractor script` (scripts only, no network) and `--extractor script+llm`. The report shows each document's engine, a count per engine and "reached the LLM: N/M".
+  - **Results** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --extractor script+llm --validator rules`):
+    - 4 of 17 extracted documents go to scripts, and 13/17 reach the LLM.
+    - The script facts are all right, with every quote matching the key's.
+    - Terms 31/31, invoice-fact recall 100% (precision 7/8, the Harbor receipt as before), contacts 3/3.
+    - 17/17 `vendor_ok`, 0 items `needs_review`, and F1–F5 covered.
 - [ ] **B6 [should] Cost and funnel numbers.**
   - Count how many items stop at each stage.
   - Track tokens and dollars per run.

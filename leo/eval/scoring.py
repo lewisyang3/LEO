@@ -164,6 +164,7 @@ class DocExtraction(LeoModel):
     contacts: ItemScore
     error: str | None = None
     validation: DocValidation | None = None  # None when no validator ran
+    engine: str | None = None  # the extraction's engine; None when nothing answered
 
     def kind(self, kind: str) -> ItemScore:
         return getattr(self, kind)
