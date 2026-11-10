@@ -518,7 +518,7 @@ class Job(NaturalKeyRow):
         Index("ix_job_claim", "status", "created_at"),
     )
 
-<<<<<<< HEAD
+
 class StageExecution(Row):
     """Tracks each execution of a pipeline stage for B6 analytics."""
 
@@ -605,7 +605,7 @@ class ModelUsage(Row):
         ),
         Index("ix_model_usage_stage_execution", "stage_execution_id"),
     )
-=======
+
 
 class ConnectedAccount(Row):
     """A mailbox LEO syncs (A8). Its id, not the address, goes into document keys
@@ -640,4 +640,3 @@ class OAuthCredential(Row):
         _fk("oauth_credential", "account_id", "connected_account"),
         UniqueConstraint("tenant_id", "account_id", name="uq_oauth_credential_account"),
     )
->>>>>>> origin/main

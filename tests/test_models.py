@@ -80,7 +80,7 @@ def _finding(s: Session, t: Tenant, v: Vendor, term: ContractTerm) -> Finding:
 def test_migration_creates_every_table(session):
     tables = set(inspect(session.connection()).get_table_names()) - {"alembic_version"}
     assert tables == set(Base.metadata.tables)
-    assert len(tables) == 20
+    assert len(tables) == 22
 
 
 def test_pg_trgm_enabled(session):

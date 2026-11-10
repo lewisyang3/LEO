@@ -8,11 +8,12 @@ No prices are guessed: configure per-million token rates in the environment, or 
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, Iterator
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -78,4 +79,5 @@ def record_usage(
         return  # direct SDK usage outside a worker is not attributed to a job
     inp = _token(usage, "input_tokens") if usage is not None else None
     out = _token(usage, "output_tokens") if usage is not None else None
-    items.append(UsageCall(provider, model, inp, out, estimated_cost(provider, model, inp, out), status))
+    cost = estimated_cost(provider, model, inp, out)
+    items.append(UsageCall(provider, model, inp, out, cost, status))

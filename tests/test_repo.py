@@ -35,7 +35,9 @@ UNSEEDED = {
     "job",
     "connected_account",
     "oauth_credential",
-}  # written by A4 and later (A8: Gmail)
+    "stage_execution",
+    "model_usage",
+}  # written by A4 and later (A8: Gmail, B6: worker analytics)
 
 
 def _ids(s: Session) -> dict[str, list]:

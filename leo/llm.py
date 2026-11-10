@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any
 
 import anthropic
+from pydantic import BaseModel
 
 from leo.analytics.usage import record_usage
-from pydantic import BaseModel
 
 # --- Schema ----------------------------------------------------------------------------------
 

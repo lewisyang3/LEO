@@ -1,21 +1,20 @@
 """add B6 analytics tables
 
 Revision ID: 985708103b25
-Revises: ce73cab1a6ed
+Revises: 0f19fbbdb783
 Create Date: 2026-11-10 12:15:29.064316
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '985708103b25'
-down_revision: Union[str, Sequence[str], None] = 'ce73cab1a6ed'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = '0f19fbbdb783'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
