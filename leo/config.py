@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # LLM response cache (ROADMAP B3). Offline: a cache miss raises instead of calling the API.
     leo_llm_cache_dir: Path = Path("data/llm_cache")
     leo_llm_offline: bool = False
+    # Raw-file store (ROADMAP A3): ingested files, content-addressed. The DB holds references.
+    leo_raw_dir: Path = Path("var/raw")
 
 
 @lru_cache

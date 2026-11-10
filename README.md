@@ -28,7 +28,7 @@ make api       # FastAPI on http://localhost:8000 (check /api/health)
 make web       # Vite dev server; it proxies /api to the FastAPI app
 ```
 
-Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. The tests don't need either key.
+Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. The tests don't need either key. Ingested raw files go to `LEO_RAW_DIR` (default `var/raw`, gitignored). Tests use a temp folder instead.
 
 ## Make targets
 
@@ -56,7 +56,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `leo/clock.py` | `Clock`: `LEO_TODAY`, or the system date | Shared |
 | `leo/fixtures.py` | The answer key as typed fixtures, plus fixture-backed stages | Shared |
 | `leo/db/` | Engine, models, Alembic migrations (`leo/db/migrations/`), repositories | A |
-| `leo/ingest/` | `.eml` parser, contracts loader, `ingest()`, Gmail sync | A |
+| `leo/ingest/` | Raw-file store, `.eml` parser, `ingest()` and folder loaders. Gmail sync later (A8) | A |
 | `leo/pipeline/` | Classify, extract, validate | B |
 | `leo/eval/` | Eval harness: scores stage output against `expected.json` | B |
 | `leo/actions/` | Action drafting | B |

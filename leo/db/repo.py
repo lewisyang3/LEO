@@ -58,6 +58,7 @@ DOCUMENT_INSERT_ONLY = (
     "sender",
     "recipient",
     "subject",
+    "parent_document_id",  # an attachment's first carrier; later carriers get a document_link
 )
 ACTION_USER_OWNED = ("state", "approver", "decided_at")
 CITATION_OWNERS = ("term_id", "invoice_fact_id", "vendor_contact_id")
@@ -154,6 +155,17 @@ class Repo:
     def upsert_document(self, natural_key: str, **cols: Any) -> UUID:
         values = {"natural_key": natural_key, **cols}
         return self._put(SourceDocument, NK, values, insert_only=DOCUMENT_INSERT_ONLY)
+
+    def update_document(self, document_id: UUID, **cols: Any) -> None:
+        """Set derived columns (`doc_class`, `vendor_id`, `notes`, ...) on an ingested
+        document. Identity and provenance columns are never rewritten."""
+        if frozen := set(cols) & {*DOCUMENT_INSERT_ONLY, "id", "tenant_id", "natural_key"}:
+            raise ValueError(f"update_document never writes provenance columns: {sorted(frozen)}")
+        self.session.execute(
+            update(SourceDocument)
+            .where(SourceDocument.id == document_id, SourceDocument.tenant_id == self.tenant_id)
+            .values(**cols)
+        )
 
     def upsert_transaction(self, natural_key: str, **cols: Any) -> UUID:
         return self._put(Transaction, NK, {"natural_key": natural_key, **cols})

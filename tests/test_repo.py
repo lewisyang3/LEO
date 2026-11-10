@@ -175,3 +175,17 @@ def test_job_upsert_bumps_updated_at(session, fixture):
     job = session.get(Job, jid)
     assert job.updated_at == session.scalar(select(func.now()))
     assert job.attempts == 1
+
+
+def test_seed_stores_real_raw_copies(session, fixture, raw_store):
+    tenant = seed(session, fixture)  # the default store is LEO_RAW_DIR, the test's raw_store
+    docs = session.scalars(select(SourceDocument).where(SourceDocument.tenant_id == tenant)).all()
+    assert len(docs) == len(fixture.documents) - 1
+    for d in docs:
+        assert raw_store.read(d.storage_path) == (fixture.root / d.path).read_bytes()
+    by_path = {d.path: d for d in docs}
+    for fd in fixture.documents:
+        if fd.path in by_path:  # D1's copy has no row of its own
+            assert by_path[fd.path].doc_class == (str(fd.doc_class) if fd.doc_class else None)
+            if fd.sha256:
+                assert by_path[fd.path].content_sha256 == fd.sha256

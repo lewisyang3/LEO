@@ -40,7 +40,17 @@ A term or an invoice fact can have several quotes, and a contact has exactly one
 - Offsets index the raw stored file, headers included, decoded as UTF-8 with `errors="replace"` and **no newline translation**. A CRLF stays two characters. Use `leo.rules.read_source_text`. Don't use `Path.read_text()`, which turns CRLF into LF.
 - These are the offsets `python3 scripts/validate_answer_key.py --offsets` prints.
 - If a quote occurs more than once, the citation uses the first occurrence (`leo.rules.locate_quote`). If it doesn't occur, the item gets status `needs_review` (B4).
-- Known limit: a quoted-printable or base64 body won't match the raw text, so its quotes go to `needs_review`. Every file in the synthetic dataset is plain text. Revisit this in A3 if real mail needs it.
+- Known limit: a quoted-printable or base64 body won't match the raw text, so its quotes go to `needs_review`. Every file in the synthetic dataset is plain text. A3 left this as it is: `leo.ingest.eml` decodes the body, but only as metadata, and stages still read the raw text. Fix it in 2.3 if real mail needs it.
+
+## Source documents and raw files
+
+Set by A3 (`leo/ingest/`). Every document is written by `leo.ingest.ingest`: uploads, the folder loaders and the seed.
+
+- **Raw bytes** go to the raw store (`LEO_RAW_DIR`, default `var/raw`), under their content hash. `storage_path` is relative to that folder, and `content_sha256` is the hash of the bytes. Citation offsets index these stored bytes (`read_source_text`).
+- **`path`** is the display path: dataset-relative for folder loads (`inbox/01_….eml`, `contracts/….md`), and `uploads/{filename}` for uploads. Like the other provenance columns, it keeps its first value, so D1's re-synced copy keeps the original's path.
+- **`source_kind`** is `eml`, `file` or `attachment`.
+- **Attachments.** Each attachment is its own row. Its key comes from its bytes, so it is the same row as that file uploaded on its own. Its `path` is `{email path}#attachments/{filename}`. `parent_document_id` is the first email that carried it, and every email carrying it gets a `document_link` with `link_type = "attachment"` (`document_id` is the email, `linked_document_id` the attachment).
+- **Headers** (`sender`, `recipient`, `subject`, `message_id`, `received_at`) are decoded attributes and never part of a key. `received_at` is timezone-aware, or null when the `Date` is missing or malformed.
 
 ## Natural keys built from spans
 
