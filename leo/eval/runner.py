@@ -5,8 +5,9 @@ registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `ll
 B2 registers the `jev` classifier. B5 registers the `script` extractor and `script+llm`, which
 tries the scripts first and sends the rest to the LLM. Each factory takes the `Fixture`.
 
-Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1) runs in the
-worker (2.1), not yet in the eval (2.2).
+Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1, `RECONCILERS`)
+runs on `fixture.ledger()` at the key's today, and its findings are scored against F1-F5 (2.2).
+Its run on the pipeline's own ledger is `make e2e`.
 """
 
 import datetime
@@ -23,6 +24,7 @@ from leo.eval.scoring import (
     DocValidation,
     DraftScore,
     ExtractionSummary,
+    FindingsScore,
     KindSummary,
     PrecisionRecall,
     Rate,
@@ -30,17 +32,27 @@ from leo.eval.scoring import (
     score_classification,
     score_draft,
     score_extraction,
+    score_findings,
     summarize_classification,
     summarize_extraction,
 )
 from leo.fixtures import Fixture, FixtureClassifier, FixtureDrafter, FixtureExtractor
-from leo.interfaces import Classifier, DocumentText, Drafter, Extraction, Extractor, Validator
+from leo.interfaces import (
+    Classifier,
+    DocumentText,
+    Drafter,
+    Extraction,
+    Extractor,
+    Reconciler,
+    Validator,
+)
 from leo.jev import jev_client
 from leo.llm import ResponseCache
 from leo.pipeline.classify import JevClassifier
 from leo.pipeline.extract_llm import LLMExtractor
 from leo.pipeline.extract_script import ChainExtractor, script_extractor
 from leo.pipeline.validate import JevPriorComparer, RuleValidator
+from leo.reconcile.reconciler import RuleReconciler
 from leo.stubs import StubClassifier, StubDrafter, StubExtractor, StubValidator
 from leo.types import DocumentClass, ExtractedTerm, LeoModel, TermStatus
 
@@ -112,10 +124,16 @@ DRAFTERS: dict[str, Callable[[Fixture], Drafter] | None] = {
         ResponseCache(get_settings().leo_llm_cache_dir), sender=fixture.customer.name
     ),
 }
+# "none" skips the findings check.
+RECONCILERS: dict[str, Callable[[Fixture], Reconciler] | None] = {
+    "none": None,
+    "rule": lambda fixture: RuleReconciler(),
+}
 DEFAULT_CLASSIFIER = "fixture"
 DEFAULT_EXTRACTOR = "fixture"
 DEFAULT_VALIDATOR = "none"
 DEFAULT_DRAFTER = "none"
+DEFAULT_RECONCILER = "rule"
 
 
 class EvalResult(LeoModel):
@@ -130,6 +148,7 @@ class EvalResult(LeoModel):
     extraction: list[DocExtraction]
     extraction_summary: ExtractionSummary
     drafts: list[DraftScore] = []
+    findings: FindingsScore | None = None
 
 
 def _error(e: Exception) -> str:
@@ -143,6 +162,7 @@ def run(
     docs: Sequence[str] | None = None,
     validator: str = DEFAULT_VALIDATOR,
     drafter: str = DEFAULT_DRAFTER,
+    reconciler: str = DEFAULT_RECONCILER,
 ) -> EvalResult:
     """Classify every document, and extract from every document whose key class isn't noise.
     An engine that raises on a document is recorded as an error for it, and the run goes on.
@@ -229,6 +249,11 @@ def run(
 
     make_drafter = DRAFTERS[drafter]
     drafts = run_drafts(fixture, make_drafter(fixture)) if make_drafter else []
+    make_reconciler = RECONCILERS[reconciler]
+    findings = None
+    if make_reconciler:
+        found = make_reconciler(fixture).reconcile(fixture.ledger(), fixture.demo_today)
+        findings = score_findings(fixture, reconciler, found.findings)
 
     return EvalResult(
         classifier=classifier,
@@ -242,6 +267,7 @@ def run(
         extraction=extraction,
         extraction_summary=summarize_extraction(fixture, extraction),
         drafts=drafts,
+        findings=findings,
     )
 
 
@@ -388,6 +414,8 @@ def format_report(result: EvalResult) -> str:
     for fid, missing in es.finding_coverage.items():
         status = "covered" if not missing else "not covered: " + ", ".join(missing)
         out.append(f"  {fid}: {status}")
+    if result.findings:
+        out += _findings_report(result.findings)
     if result.drafts:
         out += _draft_report(result.drafts)
     return "\n".join(out) + "\n"
@@ -461,6 +489,26 @@ def _sweep_report(docs: list[DocClassification], cs: ClassificationSummary) -> l
         "lowest threshold with full matters recall: "
         + (f"{rec:.3f}" if rec is not None else "none in the sweep")
     )
+    return out
+
+
+def _findings_report(score: FindingsScore) -> list[str]:
+    out = ["", f"== Findings (reconciler={score.reconciler}, on the key's ledger) =="]
+    for f in score.expected:
+        wrong = [
+            name
+            for name, ok in (
+                ("deadline", f.deadline_ok),
+                ("send-by", f.send_by_ok),
+                ("impact", f.impact_ok),
+            )
+            if not ok
+        ]
+        note = "not found" if not f.found else (f"wrong: {', '.join(wrong)}" if wrong else "")
+        out.append(f" {'✓' if f.ok else '✗'} {f.finding}  {f.kind}  {note}".rstrip())
+    out += [f" ✗ extra  {x}" for x in score.extra]
+    found = sum(f.ok for f in score.expected)
+    out.append(f"findings {found}/{len(score.expected)} right, {len(score.extra)} extra")
     return out
 
 

@@ -253,6 +253,19 @@ def test_drafters_score_against_the_key():
     assert run(FX, docs=[CORVANA]).drafts == []
 
 
+def test_the_reconciler_finds_the_key_findings_and_nothing_else():
+    result = run(FX, docs=[CORVANA])
+    assert result.findings is not None
+    assert [(f.finding, f.ok) for f in result.findings.expected] == [
+        (f"F{i}", True) for i in range(1, 6)
+    ]
+    assert result.findings.extra == []
+    assert "findings 5/5 right, 0 extra" in format_report(result)
+    off = run(FX, docs=[CORVANA], reconciler="none")
+    assert off.findings is None
+    assert "== Findings" not in format_report(off)
+
+
 def test_script_extractor_skips_the_llm():
     result = run(FX, extractor="script")
     engines = {d.path: d.engine for d in result.extraction}

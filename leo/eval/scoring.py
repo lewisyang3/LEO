@@ -36,6 +36,7 @@ from leo.types import (
     Contact,
     DocumentClass,
     ExtractedTerm,
+    Finding,
     InvoiceFact,
     LeoModel,
     SourceDocument,
@@ -605,3 +606,51 @@ def score_draft(
         fallback=fallback,
         error=error,
     )
+
+
+class FindingScore(LeoModel):
+    """One key finding against the reconciler's output (2.2): found on the key's kind and
+    anchor, and whether its deadline, send-by date and headline impact agree."""
+
+    finding: str  # key id, F1-F5
+    kind: str
+    found: bool
+    deadline_ok: bool = False
+    send_by_ok: bool = False
+    impact_ok: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.found and self.deadline_ok and self.send_by_ok and self.impact_ok
+
+
+class FindingsScore(LeoModel):
+    reconciler: str
+    expected: list[FindingScore]
+    extra: list[str]  # "kind (vendor)" of each finding the key doesn't have
+
+
+def score_findings(fixture: Fixture, name: str, found: Sequence[Finding]) -> FindingsScore:
+    """Pair the reconciler's findings with the key's by kind and anchor. Both run on the key's
+    ledger, so ids line up."""
+
+    def anchor(f: Finding) -> tuple:
+        return (f.kind, f.anchor.term, f.anchor.transaction)
+
+    by_anchor = {anchor(f): f for f in found}
+    expected = []
+    for key in fixture.findings:
+        f = by_anchor.get(anchor(key))
+        expected.append(
+            FindingScore(
+                finding=key.id,
+                kind=key.kind,
+                found=f is not None,
+                deadline_ok=f is not None and f.deadline == key.deadline,
+                send_by_ok=f is not None and f.recommended_send_by == key.recommended_send_by,
+                impact_ok=f is not None and f.impact.headline_amount == key.impact.headline_amount,
+            )
+        )
+    keys = {anchor(k) for k in fixture.findings}
+    extra = [f"{f.kind} ({f.vendor})" for f in found if anchor(f) not in keys]
+    return FindingsScore(reconciler=name, expected=expected, extra=extra)

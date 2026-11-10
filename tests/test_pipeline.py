@@ -20,6 +20,14 @@ from leo.db import keys
 from leo.db import models as m
 from leo.db.read import load_findings, load_ledger
 from leo.db.repo import Repo, upsert_tenant
+from leo.e2e.checks import (
+    anchor_of,
+    check_rerun,
+    key_anchor_of,
+    run_checks,
+    snapshot,
+    stuck_jobs,
+)
 from leo.fixtures import load_fixture
 from leo.ingest import folder
 from leo.ingest.ingest import ingest
@@ -323,10 +331,7 @@ def synthetic(session, raw_store, monkeypatch):
 
 
 def _stuck(repo: Repo) -> list[tuple]:
-    q = select(m.Job.stage, m.Job.status, m.Job.last_error).where(
-        m.Job.tenant_id == repo.tenant_id, m.Job.status != "done"
-    )
-    return list(repo.session.execute(q))
+    return stuck_jobs(repo.session, repo.tenant_id)
 
 
 @needs_cache
@@ -339,8 +344,8 @@ def test_the_synthetic_set_gives_f1_to_f5_and_nothing_else(synthetic):
     found = load_findings(s, repo.tenant_id, ledger)
     # Kinds and anchors match the key's F1-F5 (by anchor term type and document, and the anchor
     # charge's date and amount); no near-miss (N1-N8) produces anything.
-    assert sorted(_anchor(f, ledger) for f in found) == sorted(
-        _key_anchor(f, fx) for f in fx.findings
+    assert sorted(anchor_of(f, ledger) for f in found) == sorted(
+        key_anchor_of(f, fx) for f in fx.findings
     )
     for f in found:
         key = next(k for k in fx.findings if k.kind == f.kind)
@@ -387,47 +392,8 @@ def test_the_synthetic_set_gives_f1_to_f5_and_nothing_else(synthetic):
     assert {"Sunridge Coffee Roasters", "Metro Water & Power"} <= names
 
 
-def _anchor(f, ledger: Ledger) -> tuple:
-    terms = {t.id: t for t in ledger.terms}
-    txns = {t.id: t for t in ledger.transactions}
-    t = terms[f.anchor.term]
-    x = txns.get(f.anchor.transaction) if f.anchor.transaction else None
-    return (str(f.kind), str(t.type), t.document, (x.date, x.amount) if x else None)
-
-
-def _key_anchor(f, fx) -> tuple:
-    t = next(t for t in fx.terms if t.id == f.anchor.term)
-    x = next((x for x in fx.transactions if x.id == f.anchor.transaction), None)
-    return (str(f.kind), str(t.type), t.document, (x.date, x.amount) if x else None)
-
-
 def _snapshot(repo: Repo) -> dict[str, list]:
-    s, t = repo.session, repo.tenant_id
-    out = {}
-    for model in (
-        m.Vendor,
-        m.VendorAlias,
-        m.ContractTerm,
-        m.InvoiceFact,
-        m.Transaction,
-        m.Finding,
-        m.FindingTerm,
-        m.FindingTransaction,
-        m.FindingInvoiceFact,
-        m.Action,
-        m.DocumentLink,
-        m.Citation,
-    ):
-        out[model.__tablename__] = sorted(
-            str(i) for i in s.scalars(select(model.id).where(model.tenant_id == t))
-        )
-    out["term_status"] = sorted(
-        (str(i), st)
-        for i, st in s.execute(
-            select(m.ContractTerm.id, m.ContractTerm.status).where(m.ContractTerm.tenant_id == t)
-        )
-    )
-    return out
+    return snapshot(repo.session, repo.tenant_id)
 
 
 def _rerun_reconcile(repo: Repo, w: Worker) -> None:
@@ -435,6 +401,64 @@ def _rerun_reconcile(repo: Repo, w: Worker) -> None:
     repo.session.commit()
     w.drain()
     assert _reconcile_job(repo).status == "done", _reconcile_job(repo).last_error
+
+
+@needs_cache
+def test_the_e2e_checks_pass_on_the_synthetic_set(synthetic):
+    """`make e2e`'s checks (2.2), offline: F1-F5, nothing extra, N1-N8 and D1-D5."""
+    repo, w = synthetic
+    s = repo.session
+    checks = run_checks(s, repo.tenant_id, load_fixture())
+
+    def rerun() -> int:
+        _, new = folder.load(s, ROOT, s.get(m.Tenant, repo.tenant_id).slug, w.raw)
+        queue.request_reconcile(s, repo.tenant_id)
+        s.commit()
+        w.drain()
+        return new
+
+    checks.append(check_rerun(s, repo.tenant_id, rerun))
+    assert [c.id for c in checks] == [
+        "jobs", *(f"F{i}" for i in range(1, 6)), "extra",
+        *(f"N{i}" for i in range(1, 9)), *(f"D{i}" for i in range(1, 6)),
+    ]  # fmt: skip
+    assert [(c.id, c.detail) for c in checks if not c.ok] == []
+
+
+@needs_cache
+def test_the_e2e_checks_catch_a_missing_finding_and_a_near_miss(synthetic):
+    repo, _ = synthetic
+    s = repo.session
+    fx = load_fixture()
+    ledger = load_ledger(s, repo.tenant_id)
+    f1 = next(
+        f for f in load_findings(s, repo.tenant_id, ledger) if f.kind == "auto_renewal_deadline"
+    )
+    s.execute(update(m.Finding).where(m.Finding.id == UUID(f1.id)).values(status="superseded"))
+    # A Halcyon seat finding the key says must not exist (N7), anchored on F5's term.
+    f5 = s.scalars(
+        select(m.Finding).where(
+            m.Finding.tenant_id == repo.tenant_id, m.Finding.kind == "escalator_applied_early"
+        )
+    ).one()
+    Repo(s, repo.tenant_id).upsert_finding(
+        keys.finding("n7-test", None, "seats_over_commitment"),
+        vendor_id=f5.vendor_id,
+        kind="seats_over_commitment",
+        title="Halcyon seats",
+        anchor_term_id=f5.anchor_term_id,
+        impact={"overcharged_to_date": 0, "annualized": 0},
+        computation={
+            "contracted_seats": 50,
+            "billed_seats": 51,
+            "extra_seats": 1,
+            "price_per_seat_month": 45,
+            "overcharge_monthly": 45,
+        },
+    )
+    s.flush()
+    failed = {c.id for c in run_checks(s, repo.tenant_id, fx) if not c.ok}
+    assert failed == {"F1", "extra", "N7"}
 
 
 @needs_cache

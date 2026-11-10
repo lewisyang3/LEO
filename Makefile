@@ -63,5 +63,6 @@ gmail-import:
 eval:
 	uv run python -m leo.eval
 
+# Reset the dev DB, run the pipeline on the synthetic set, check it (2.2). ARGS=--offline: no network.
 e2e:
-	@echo "make e2e: not implemented yet, see ROADMAP 2.2" >&2; exit 1
+	uv run python -m leo.e2e $(ARGS)

@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** 2.1 (wire the pipeline) is done: the worker takes an empty tenant to F1–F5 with drafts. Next is 2.2 (`make e2e`). A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** 2.2 (`make e2e`) is done: one command resets the database, runs the pipeline on the synthetic set and checks F1–F5, N1–N8 and D1–D5. Run it before every merge to main. 2.1 (wire the pipeline) is done too. Next is 2.3 (fix the end-to-end gaps). A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -567,7 +567,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - The migration's downgrade fails if rows were stored with no vendor or a period that doesn't parse. Delete them first.
     - A script quote that spans lines wouldn't be found in CRLF text. Both scripts quote single lines.
 
-- [ ] **2.2 [must] End-to-end test** (`make e2e`):
+- [x] **2.2 [must] End-to-end test** (`make e2e`):
   - reset and seed, then run the pipeline on the synthetic set
   - assert F1–F5 are found, N1–N8 are not, and D1–D5 pass
   - from here on, run it before every merge to main
@@ -575,6 +575,17 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - The run is `make reset && make ingest && make worker ARGS="--drain --tenant brightwater-pipeline"`. It needs no seed: the pipeline has its own tenant.
     - `tests/test_pipeline.py`'s synthetic test already runs the set offline (`--classifier fixture`, template drafts) and checks F1–F5's kinds and anchors, D2 and the supersession.
     - Left for 2.2: N1–N8 one by one, D1, D3–D5, and running C1 in `make eval`.
+  - Done, in `leo/e2e/` (`__main__.py`, `checks.py`):
+    - **Run.** `make e2e` (`python -m leo.e2e`) runs `make reset` (drop, migrate, seed), ingests the synthetic set into `brightwater-pipeline` and drains it, committed, so `make api-pipeline` shows the result. Then it checks, prints PASS/FAIL per check with each finding's draft engine and the time, and exits 1 on any failure. It's live by default: Jev classifier, scripts then the cached LLM extractor, the rules validator, the cached LLM drafter. `ARGS=--offline` uses the key's classes and `LEO_LLM_OFFLINE=1`. The clock is pinned to the key's today (2026-11-02). The pipeline is built before the reset, so a missing `JEV_API_KEY` stops the run before the database is wiped.
+    - **Checks** (20): `jobs` (none left undone); F1–F5 one by one (kind and anchor, deadline, send-by date, headline impact, a drafted action); `extra` (no finding the key doesn't have); N1–N8 one by one (the near-miss's terms are stored as the key says and no finding cites it); D1 (21 rows for 22 paths), D2 (02 → 01 linked, one F2), D3 (05 and 06 separate, each fact matched to its own charge), D4 (Growth $299 → $339 from 2026-12-01, add-on $49); D5 (a second ingest and reconcile change no ledger row). Key vendors are found through the documents the key gives them, and key charges by date, descriptor and amount.
+    - **Eval.** `make eval` runs C1 on the key's ledger (`--reconciler rule|none`, default `rule`) and reports "findings 5/5 right, 0 extra".
+    - **Tests.** `tests/test_pipeline.py` runs every check offline on the synthetic set. A negative test (F1 hidden, a Halcyon seat finding injected) fails exactly F1, `extra` and N7. `tests/test_eval.py` covers the reconciler section.
+    - **Result** (2026-11-10). Live (Jev classifying for real, run against a temporary database): 20/20 pass in 5s, with the pipeline step (54 jobs) taking 3.8s. Offline: 20/20 pass in 2s. Both give the same result, with 4 drafts from the LLM and F4 from the template.
+    - **Not done here.**
+      - F4's LLM draft fails `check_body` from the cache every time, so it uses the template (2.3). Refilling the cache wouldn't change that.
+      - Nothing enforces "run it before every merge": there's no CI.
+      - It resets the dev database, wiping local approvals and Gmail rows.
+      - `leo/pipeline/classify.py` still fails `ruff format --check` (from B6).
 - [ ] **2.3 [must] Fix the gaps** that only show up end to end:
   - vendor names from extraction not matching transactions
   - plan labels not lining up

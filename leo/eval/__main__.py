@@ -12,9 +12,11 @@ from leo.eval.runner import (
     DEFAULT_CLASSIFIER,
     DEFAULT_DRAFTER,
     DEFAULT_EXTRACTOR,
+    DEFAULT_RECONCILER,
     DEFAULT_VALIDATOR,
     DRAFTERS,
     EXTRACTORS,
+    RECONCILERS,
     VALIDATORS,
     format_report,
     run,
@@ -40,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
         help="draft an action for each of the key's findings (B7)",
     )
     parser.add_argument(
+        "--reconciler",
+        choices=sorted(RECONCILERS),
+        default=DEFAULT_RECONCILER,
+        help="run C1 on the key's ledger and score its findings against F1-F5 (2.2)",
+    )
+    parser.add_argument(
         "--doc",
         action="append",
         metavar="PATH",
@@ -56,7 +64,13 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = run(
-            fixture, args.classifier, args.extractor, args.doc, args.validator, args.drafter
+            fixture,
+            args.classifier,
+            args.extractor,
+            args.doc,
+            args.validator,
+            args.drafter,
+            args.reconciler,
         )
     except JevUnavailable as e:
         parser.error(str(e))
