@@ -3,30 +3,29 @@
 Vendors, transaction mappings and duplicate links come straight from the key, the way the
 fixture stages in `leo.fixtures` serve them. A5 and A6 replace those with matching and
 detection. Every write is an upsert on a natural key, so seeding twice changes nothing.
-A7 wires this to `make seed` and `make reset`.
+Documents go through `leo.ingest.ingest` (A3), which stores real raw copies. A7 wires this
+to `make seed` and `make reset`.
 
 Fixture ids (`lp_growth_price_v1`, `F2`, `txn_0001`) live only in this module's maps; the
 database keys rows on natural keys and UUIDs.
 """
 
-import email.parser
-import email.utils
-from pathlib import PurePath
 from typing import Any
 from uuid import UUID
 
 from pydantic_core import to_jsonable_python
 from sqlalchemy.orm import Session
 
+from leo.config import get_settings
 from leo.db import keys
 from leo.db.repo import Repo, upsert_tenant
 from leo.fixtures import Fixture, FixtureDrafter, load_fixture
+from leo.ingest.ingest import ingest
+from leo.ingest.store import RawStore
 from leo.rules import read_source_text, span_key
 
 TXN_SOURCE = "csv"
 PROBABLE_DUPLICATE = "probable_duplicate"
-EML = "eml"
-FILE = "file"
 
 
 def _jsonb(value: Any) -> Any:
@@ -34,22 +33,13 @@ def _jsonb(value: Any) -> Any:
     return None if value is None else to_jsonable_python(value)
 
 
-def _headers(raw: bytes) -> dict[str, Any]:
-    msg = email.parser.BytesHeaderParser().parsebytes(raw)
-    date = msg.get("Date")
-    return {
-        "sender": msg.get("From"),
-        "recipient": msg.get("To"),
-        "subject": msg.get("Subject"),
-        "message_id": msg.get("Message-ID"),
-        "received_at": email.utils.parsedate_to_datetime(date) if date else None,
-    }
-
-
 class _Seeder:
-    def __init__(self, session: Session, fixture: Fixture, tenant_id: UUID) -> None:
+    def __init__(
+        self, session: Session, fixture: Fixture, tenant_id: UUID, store: RawStore
+    ) -> None:
         self.fx = fixture
         self.repo = Repo(session, tenant_id)
+        self.store = store
         self.vendors: dict[str, UUID] = {}
         self.docs: dict[str, UUID] = {}  # path -> id (D1's two paths share one id)
         self.doc_keys: dict[str, str] = {}
@@ -80,28 +70,24 @@ class _Seeder:
                 self.repo.add_alias(vid, alias)
 
     def seed_documents(self) -> None:
-        seen: dict[str, UUID] = {}  # key -> id; a byte-identical copy (D1) reuses the row
+        """Every document goes through `ingest`, which stores the raw copy. The key's own
+        columns (class, vendor, notes) are set once per row: a byte-identical copy (D1)
+        reuses the original's row and doesn't overwrite them."""
+        seen: set[UUID] = set()
         for d in self.fx.documents:
             path = self.fx.root / d.path
-            raw = path.read_bytes()
-            key = keys.document_key(d.path, raw)
-            is_eml = keys.is_eml(d.path)
-            self.doc_keys[d.path] = key
+            r = ingest(self.repo, self.store, path.read_bytes(), path.name, path=d.path)
+            self.doc_keys[d.path] = r.natural_key
+            self.docs[d.path] = r.document_id
             self.texts[d.path] = read_source_text(path)
-            if key in seen:  # don't let the copy's notes or class overwrite the original's
-                self.docs[d.path] = seen[key]
+            if r.document_id in seen:
                 continue
-            seen[key] = self.docs[d.path] = self.repo.upsert_document(
-                key,
-                source_kind=EML if is_eml else FILE,
+            seen.add(r.document_id)
+            self.repo.update_document(
+                r.document_id,
                 doc_class=str(d.doc_class) if d.doc_class else None,
                 vendor_id=self._vendor(d.vendor),
-                path=d.path,
-                storage_path=d.path,  # relative to the dataset root; A3 stores real copies
-                filename=PurePath(d.path).name,
-                content_sha256=d.sha256,
                 notes=d.notes,
-                **(_headers(raw) if is_eml else {}),
             )
         for d in self.fx.documents:
             if d.probable_duplicate_of:
@@ -232,9 +218,16 @@ class _Seeder:
             )
 
 
-def seed(session: Session, fixture: Fixture | None = None, slug: str | None = None) -> UUID:
-    """Upsert the whole answer key under one tenant and return its id. Doesn't commit."""
+def seed(
+    session: Session,
+    fixture: Fixture | None = None,
+    slug: str | None = None,
+    store: RawStore | None = None,
+) -> UUID:
+    """Upsert the whole answer key under one tenant and return its id. Doesn't commit.
+    Raw copies go to `store`, by default the `LEO_RAW_DIR` store."""
     fixture = fixture or load_fixture()
+    store = store or RawStore(get_settings().leo_raw_dir)
     tenant_id = upsert_tenant(session, slug or fixture.dataset, fixture.customer.name)
-    _Seeder(session, fixture, tenant_id).run()
+    _Seeder(session, fixture, tenant_id, store).run()
     return tenant_id
