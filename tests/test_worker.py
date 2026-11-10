@@ -20,7 +20,7 @@ from leo.db.seed import seed
 from leo.db.session import get_engine
 from leo.fixtures import load_fixture
 from leo.ingest.ingest import ingest
-from leo.interfaces import Classification, DocumentText, Extraction, Reconciliation, Validated
+from leo.interfaces import Classification, DocumentText, Extraction, Validated
 from leo.llm import LLMOfflineMiss
 from leo.stubs import STUB, StubClassifier, StubExtractor
 from leo.types import DocumentClass
@@ -141,17 +141,22 @@ def test_drain_runs_every_stage_with_stubs(repo, raw_store):
     assert list(jobs) == list(queue.STAGES)
     for j in jobs.values():
         assert (j.status, j.processed_by, j.attempts, j.last_error) == ("done", STUB, 1, None)
-        assert j.document_id == doc_id
         assert j.claimed_at is not None
+    assert {s: j.document_id for s, j in jobs.items()} == {
+        "classify": doc_id,
+        "extract": doc_id,
+        "validate": doc_id,
+        "reconcile": None,  # one per tenant (2.1)
+    }
+    assert jobs["reconcile"].natural_key == keys.tenant_job(str(repo.tenant_id), "reconcile")
     Classification.model_validate(jobs["classify"].raw_model_output)
     Extraction.model_validate(jobs["extract"].raw_model_output)
     Validated.model_validate(jobs["validate"].raw_model_output)
     out = jobs["reconcile"].raw_model_output
     assert out["today"] == TODAY.isoformat()
-    assert Reconciliation.model_validate(out["reconciliation"]) == Reconciliation()
-    assert out["drafts"] == []
-    # A4 writes only jobs: the document row is untouched.
-    assert repo.session.get(SourceDocument, doc_id).doc_class is None
+    assert (out["findings"], out["supersessions"], out["drafts"]) == ([], 0, [])
+    # 2.1: classify writes the class to the row.
+    assert repo.session.get(SourceDocument, doc_id).doc_class == "contract"
 
 
 def test_noise_stops_after_classify(repo, raw_store):

@@ -1,8 +1,8 @@
 """The Postgres-backed store behind the API (ROADMAP C3).
 
 `DbStore` serves one tenant's findings, documents and actions from the database, through
-`leo.db.read`. It serves whatever findings and actions are stored: the seed's answer-key rows
-until the pipeline (2.1) writes its own. A draft's `engine` is `raw_model_output["engine"]`,
+`leo.db.read`. It serves whatever findings and actions are stored: the seed's answer-key rows,
+or the pipeline's (2.1) in its own tenant. A draft's `engine` is `raw_model_output["engine"]`,
 or `fixture` for the seed's drafts.
 
 Action decisions are rows, so they survive a restart and a reseed (`Repo.upsert_action` never
@@ -105,11 +105,13 @@ class DbStore:
         q = select(m.Action).where(m.Action.tenant_id == self.tenant_id).order_by(m.Action.id)
         return list(self.session.scalars(q))
 
-    def _action_out(self, a: m.Action, f: Finding, vendor_name: str) -> ActionOut:
+    def _action_out(self, a: m.Action, f: Finding | m.Finding, vendor_name: str) -> ActionOut:
+        """From a current finding (`Finding`) or a superseded one's row (`m.Finding`): both
+        carry the id, title and deadlines the action shows."""
         raw = a.raw_model_output or {}
         return ActionOut(
             id=str(a.id),
-            finding=f.id,
+            finding=str(f.id),
             finding_title=f.title,
             vendor=vendor_name,
             type=a.action_type,
@@ -126,22 +128,39 @@ class DbStore:
             recommended_send_by=f.recommended_send_by,
         )
 
-    def _view(self) -> tuple[Ledger, list[Finding], dict[str, ActionOut]]:
-        """The ledger, current findings, and each finding's action (finding id -> action)."""
+    def _view_all(
+        self,
+    ) -> tuple[Ledger, list[Finding], dict[str, ActionOut], list[ActionOut]]:
+        """The ledger, every current finding, each finding's primary action (its oldest; a
+        finding the pipeline hasn't drafted yet has none), and every action of a current
+        finding, oldest first. A finding can have several actions (one per action type)."""
         ledger = self._ledger()
         findings = self._findings(ledger)
-        names = {v.id: v.canonical_name for v in ledger.vendors}
+        names = self._names(ledger)
         by_id = {f.id: f for f in findings}
-        actions: dict[str, ActionOut] = {}
+        primary: dict[str, ActionOut] = {}
+        every: list[ActionOut] = []
         for a in self._action_rows():
             f = by_id.get(str(a.finding_id))
-            if f is not None and f.id not in actions:
-                actions[f.id] = self._action_out(a, f, names[f.vendor])
-        return ledger, [f for f in findings if f.id in actions], actions
+            if f is None:
+                continue
+            out = self._action_out(a, f, names[f.vendor])
+            every.append(out)
+            primary.setdefault(f.id, out)
+        return ledger, findings, primary, every
+
+    def _view(self) -> tuple[Ledger, list[Finding], dict[str, ActionOut]]:
+        """The ledger, every current finding, and each finding's primary action."""
+        ledger, findings, primary, _ = self._view_all()
+        return ledger, findings, primary
+
+    @staticmethod
+    def _names(ledger: Ledger) -> dict[str, str]:
+        return {v.id: v.canonical_name for v in ledger.vendors}
 
     # --- Reads ------------------------------------------------------------------------------
 
-    def _summary(self, f: Finding, action: ActionOut, vendor_name: str) -> FindingSummary:
+    def _summary(self, f: Finding, action: ActionOut | None, vendor_name: str) -> FindingSummary:
         due = f.recommended_send_by or f.deadline
         return FindingSummary(
             id=f.id,
@@ -154,28 +173,29 @@ class DbStore:
             recommended_send_by=f.recommended_send_by,
             days_left=(due - self.today).days if due else None,
             at_stake=f.impact.headline_amount,
-            action_id=action.id,
-            action_state=action.state,
+            action_id=action.id if action else None,
+            action_state=action.state if action else None,
         )
 
     def summaries(self) -> list[FindingSummary]:
-        _, findings, actions = self._view()
-        return self._sorted_summaries(findings, actions)
+        ledger, findings, actions = self._view()
+        return self._sorted_summaries(ledger, findings, actions)
 
     def _sorted_summaries(
-        self, findings: list[Finding], actions: dict[str, ActionOut]
+        self, ledger: Ledger, findings: list[Finding], actions: dict[str, ActionOut]
     ) -> list[FindingSummary]:
-        out = [self._summary(f, actions[f.id], actions[f.id].vendor) for f in findings]
+        names = self._names(ledger)
+        out = [self._summary(f, actions.get(f.id), names[f.vendor]) for f in findings]
         return sorted(out, key=lambda s: (s.days_left is None, s.days_left or 0, -s.at_stake, s.id))
 
     def dashboard(self) -> Dashboard:
-        _, findings, actions = self._view()
+        _, findings, _, every = self._view_all()
         return Dashboard(
             today=self.today,
             open_findings=len(findings),
             at_stake=sum((f.impact.headline_amount for f in findings), start=0),
             pending_actions=sum(
-                a.state in (ActionState.draft, ActionState.approved) for a in actions.values()
+                a.state in (ActionState.draft, ActionState.approved) for a in every
             ),
         )
 
@@ -191,7 +211,7 @@ class DbStore:
         txns = {t.id: t for t in ledger.transactions}
         docs = {d.path: d for d in ledger.documents}
         vendor = next(v for v in ledger.vendors if v.id == f.vendor)
-        action = actions[f.id]
+        action = actions.get(f.id)
         return FindingDetail(
             summary=self._summary(f, action, vendor.canonical_name),
             finding=f,
@@ -228,18 +248,40 @@ class DbStore:
         )
 
     def queue(self) -> list[ActionOut]:
-        _, _, actions = self._view()
-        return [actions[s.id] for s in self.summaries()]
+        """Every action of a current finding, in the dashboard's finding order."""
+        ledger, findings, primary, every = self._view_all()
+        order = {s.id: i for i, s in enumerate(self._sorted_summaries(ledger, findings, primary))}
+        return sorted(every, key=lambda a: order[a.finding])
+
+    def _stale_actions(self, ledger: Ledger) -> list[ActionOut]:
+        """Actions of findings that are no longer current. They are kept (with the user's
+        decisions) when a recomputed finding is superseded, and a sent one stays the record
+        that it was sent."""
+        names = self._names(ledger)
+        rows = self.session.execute(
+            select(m.Action, m.Finding)
+            .join(
+                m.Finding,
+                (m.Finding.id == m.Action.finding_id) & (m.Finding.tenant_id == m.Action.tenant_id),
+            )
+            .where(m.Action.tenant_id == self.tenant_id, m.Finding.status != "current")
+            .order_by(m.Action.id)
+        ).all()
+        return [self._action_out(a, f, names.get(str(f.vendor_id), "")) for a, f in rows]
 
     def outbox(self) -> list[ActionOut]:
-        _, _, actions = self._view()
-        sent = [a for a in actions.values() if a.state == ActionState.sent]
+        """Every sent action, including those whose finding was superseded since."""
+        ledger, _, _, every = self._view_all()
+        sent = [a for a in [*every, *self._stale_actions(ledger)] if a.state == ActionState.sent]
         never = datetime.datetime.min.replace(tzinfo=datetime.UTC)
         return sorted(sent, key=lambda a: (a.sent_at or never, a.id))
 
     def _one_action(self, action_id: str) -> ActionOut:
-        _, _, actions = self._view()
-        a = next((x for x in actions.values() if x.id == action_id), None)
+        """Any action of the tenant, not just a current finding's primary one: a transition on
+        a second action, or on one whose finding was superseded, must not commit and then 404
+        (PR #14 review, 2.1 review)."""
+        ledger, _, _, every = self._view_all()
+        a = next((x for x in [*every, *self._stale_actions(ledger)] if x.id == action_id), None)
         if a is None:
             raise NotFound(action_id)
         return a
@@ -344,7 +386,7 @@ class DbStore:
         ]
         return VendorDetail(
             vendor=vendor,
-            findings=self._sorted_summaries(mine, actions),
+            findings=self._sorted_summaries(ledger, mine, actions),
             price_history=history,
             terms=[term_out(t) for t in self._vendor_terms(ledger, vendor_id, dups)],
             transactions=transactions,
@@ -436,8 +478,8 @@ class DbStore:
 
     def export_findings(self) -> str:
         """The findings as CSV, in the dashboard's order."""
-        _, findings, actions = self._view()
-        return findings_csv(self._sorted_summaries(findings, actions), findings, actions)
+        ledger, findings, actions = self._view()
+        return findings_csv(self._sorted_summaries(ledger, findings, actions), findings, actions)
 
     # --- Upload and stats -------------------------------------------------------------------
 

@@ -24,14 +24,17 @@ import json
 import re
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic_core import to_jsonable_python
 from sqlalchemy import select
 
+from leo.db.keys import is_eml
 from leo.db.models import ContractTerm, DocumentLink, InvoiceFact, SourceDocument
 from leo.db.repo import Repo
+from leo.ingest.eml import parse_eml
 from leo.ingest.ingest import ATTACHMENT_LINK
 from leo.ingest.store import RawStore
 from leo.rules import read_source_text
@@ -39,6 +42,7 @@ from leo.rules import read_source_text
 PROBABLE_DUPLICATE = "probable_duplicate"
 
 _FWD_SUBJECT = re.compile(r"^\s*fwd?\s*:", re.IGNORECASE)
+_NUMBER = re.compile(r"-?\d+(\.\d+)?")
 _FWD_BLOCK = re.compile(
     r"^-{2,}\s*(forwarded message|original message)\s*-{2,}\s*$", re.IGNORECASE | re.MULTILINE
 )
@@ -71,6 +75,23 @@ def _norm_amount(x: Any) -> str:
     return format(x.normalize(), "f") if x is not None else "None"
 
 
+def _norm_value(v: Any) -> Any:
+    """A term value's JSON with every number in one form, so two extractors' copies agree:
+    `339`, `339.0` and `"339.00"` (how a Decimal is stored) all become `"339"`. Strings that
+    aren't numbers, and booleans, are kept."""
+    if isinstance(v, dict):
+        return {k: _norm_value(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_norm_value(x) for x in v]
+    if isinstance(v, bool) or v is None:
+        return v
+    if isinstance(v, int | float | Decimal):
+        return _norm_amount(Decimal(str(v)))
+    if isinstance(v, str) and _NUMBER.fullmatch(v):
+        return _norm_amount(Decimal(v))
+    return v
+
+
 def _fingerprints(repo: Repo) -> dict[UUID, str]:
     s, t = repo.session, repo.tenant_id
     terms: dict[UUID, list[tuple]] = defaultdict(list)
@@ -85,7 +106,8 @@ def _fingerprints(repo: Repo) -> dict[UUID, str]:
             ContractTerm.effective_date,
         ).where(ContractTerm.tenant_id == t)
     ):
-        terms[r[0]].append((str(r[1]), *r[2:]))
+        doc, vendor, ttype, value, *rest = r
+        terms[doc].append((str(vendor), ttype, _norm_value(value), *rest))
     facts: dict[UUID, list[tuple]] = defaultdict(list)
     for r in s.execute(
         select(
@@ -156,4 +178,9 @@ def link_duplicates(repo: Repo, store: RawStore) -> dict[UUID, UUID]:
 
 
 def _text(store: RawStore, d: SourceDocument) -> str:
-    return read_source_text(store.path(d.storage_path))
+    """For the forward check: an email's decoded body text (a base64 or quoted-printable body
+    hides its forwarded block in the raw bytes), else the stored text."""
+    path = store.path(d.storage_path)
+    if is_eml(d.path):
+        return parse_eml(path.read_bytes()).body_text
+    return read_source_text(path)

@@ -45,6 +45,9 @@ class Script:
         return f"script:{self.name}@{self.version}"
 
 
+MAX_RECORDS = 100
+
+
 class ScriptExtractor:
     """Stage 2. The first matching script parses the document."""
 
@@ -52,19 +55,28 @@ class ScriptExtractor:
 
     def __init__(self, scripts: Sequence[Script]) -> None:
         self.scripts = list(scripts)
-        self.records: dict[str, dict[str, Any]] = {}  # path -> parse failure
+        # path -> parse failure, the latest MAX_RECORDS (a long-running worker sees many)
+        self.records: dict[str, dict[str, Any]] = {}
 
     def extract(self, doc: DocumentText) -> Extraction | None:
+        """Matched and parsed on the text with CRLF line ends as LF (mail synced from Gmail is
+        CRLF; the templates split on blank lines). Every quote is one line, so it is still a
+        substring of the stored text."""
+        if "\r\n" in doc.text:
+            doc = doc.model_copy(update={"text": doc.text.replace("\r\n", "\n")})
         for script in self.scripts:
             if not script.matches(doc):
                 continue
             try:
                 ex = script.parse(doc)
             except (ParseError, ValueError, ArithmeticError) as e:
+                self.records.pop(doc.document.path, None)
                 self.records[doc.document.path] = {
                     "script": script.engine,
                     "error": f"{type(e).__name__}: {e}",
                 }
+                while len(self.records) > MAX_RECORDS:
+                    del self.records[next(iter(self.records))]
                 return None
             raw = {**(ex.raw_output or {}), "script": script.name, "version": script.version}
             return ex.model_copy(update={"engine": script.engine, "raw_output": raw})

@@ -233,6 +233,11 @@ def _first_span(text: str, quotes: Sequence[str]) -> tuple[int, int] | None:
     return _locate(text, quotes[0]) if quotes else None
 
 
+# Scored, but not needed for a finding to fire: the reconciler only needs a vendor's terms to
+# agree with each other on agreement_ref, which `tests/test_extract_llm.py` checks.
+COVERAGE_IGNORES = frozenset({"agreement_ref"})
+
+
 def _overlaps(a: tuple[int, int] | None, b: tuple[int, int] | None) -> bool:
     return a is not None and b is not None and a[0] < b[1] and b[0] < a[1]
 
@@ -437,6 +442,8 @@ def score_extraction(
         fs += _model_fields("value", key.value, pred.value)
         fs.append(_field("effective_date", key.effective_date, pred.effective_date))
         fs.append(_field("plan_label", key.plan_label, pred.plan_label))
+        # The reconciler joins terms on an exact agreement_ref (F3's cap and renewal; 2.1).
+        fs.append(_field("agreement_ref", key.agreement_ref, pred.agreement_ref))
         if key.old_value is not None:
             fs += _model_fields("old_value", key.old_value, pred.old_value)
         return fs
@@ -521,16 +528,17 @@ def _summarize_kind(docs: Sequence[DocExtraction], kind: str, by_type: bool) -> 
 
 def summarize_extraction(fixture: Fixture, docs: Sequence[DocExtraction]) -> ExtractionSummary:
     """Coverage counts a key item only when it was matched in its own document, not in a
-    duplicate of it, with every field right, and the validator didn't set the match to
-    needs_review (that would hide the finding, ROADMAP 2.3). A document the validator raised on
-    covers nothing, since none of its items were validated. It checks only the items whose
-    documents were scored, and leaves out a finding with none (a `--doc` run)."""
+    duplicate of it, with every field right (`COVERAGE_IGNORES` aside), and the validator
+    didn't set the match to needs_review (that would hide the finding, ROADMAP 2.3). A
+    document the validator raised on covers nothing, since none of its items were validated.
+    It checks only the items whose documents were scored, and leaves out a finding with none
+    (a `--doc` run)."""
     matched = {
         m.key_id
         for d in docs
         if d.duplicate_of is None
         for m in (*d.terms.matched, *d.invoice_facts.matched)
-        if all(f.ok for f in m.fields)
+        if all(f.ok for f in m.fields if f.field not in COVERAGE_IGNORES)
         and not (d.validation and (d.validation.error or m.pred_id in d.validation.needs_review))
     }
     scored = {d.path for d in docs}

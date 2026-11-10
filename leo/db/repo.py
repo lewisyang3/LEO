@@ -18,7 +18,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, delete, func, select, text, update
+from sqlalchemy import ColumnElement, delete, func, select, text, true, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -46,7 +46,7 @@ from leo.db.models import (
     new_uuid7,
 )
 from leo.rules import locate_quote
-from leo.types import ActionState
+from leo.types import ActionState, TermStatus
 
 NK = ("tenant_id", "natural_key")
 DOCUMENT_INSERT_ONLY = (
@@ -228,6 +228,66 @@ class Repo:
             .values(superseded_by=superseded_by, supersedes=supersedes)
         )
 
+    def reset_supersessions(self) -> None:
+        """Clear every supersession link, and set `superseded` terms back to `current`. The
+        reconcile stage (2.1) recomputes supersessions whole, then `mark_superseded`s them;
+        `needs_review` is never touched."""
+        t = ContractTerm
+        self.session.execute(
+            update(t)
+            .where(t.tenant_id == self.tenant_id, t.status == TermStatus.superseded)
+            .values(status=TermStatus.current)
+        )
+        self.session.execute(
+            update(t)
+            .where(
+                t.tenant_id == self.tenant_id,
+                (t.superseded_by.is_not(None)) | (t.supersedes.is_not(None)),
+            )
+            .values(superseded_by=None, supersedes=None)
+        )
+
+    def mark_superseded(self, old_id: UUID, new_id: UUID) -> None:
+        """`old_id` is superseded by `new_id`: both links, and the old term's status."""
+        t = ContractTerm
+        self.session.execute(
+            update(t)
+            .where(t.id == old_id, t.tenant_id == self.tenant_id)
+            .values(superseded_by=new_id, status=TermStatus.superseded)
+        )
+        self.session.execute(
+            update(t).where(t.id == new_id, t.tenant_id == self.tenant_id).values(supersedes=old_id)
+        )
+
+    def supersede_findings(self, keep: set[UUID]) -> None:
+        """Set this tenant's `current` findings other than `keep` to `superseded`: the
+        reconciler no longer produces them. Their actions stay, with the user's decisions."""
+        self.session.execute(
+            update(Finding)
+            .where(
+                Finding.tenant_id == self.tenant_id,
+                Finding.status == "current",
+                Finding.id.not_in(keep) if keep else true(),
+            )
+            .values(status="superseded")
+        )
+
+    def action_pairs(self) -> set[tuple[str, str]]:
+        """(finding natural key, action type) for every action that must not be redrafted: one
+        the user decided (approved, sent, rejected) or edited. An unedited draft is redrafted on
+        each reconcile, so it follows its finding's current figures (2.1 review)."""
+        rows = self.session.execute(
+            select(Finding.natural_key, Action.action_type)
+            .join(
+                Finding, (Finding.id == Action.finding_id) & (Finding.tenant_id == Action.tenant_id)
+            )
+            .where(
+                Action.tenant_id == self.tenant_id,
+                (Action.state != ActionState.draft) | Action.edited_at.is_not(None),
+            )
+        )
+        return {(nk, t) for nk, t in rows}
+
     # --- Citations ---------------------------------------------------------------------------
 
     def set_citations(
@@ -291,6 +351,32 @@ class Repo:
             "is_deadline_basis": is_deadline_basis,
         }
         return self._put(FindingInvoiceFact, ("tenant_id", "finding_id", "invoice_fact_id"), values)
+
+    def set_finding_links(
+        self,
+        finding_id: UUID,
+        terms: Mapping[UUID, bool],
+        transactions: Iterable[UUID],
+        invoice_facts: Mapping[UUID, bool],
+    ) -> None:
+        """Make the finding's links exactly these (item -> is_deadline_basis): upsert each,
+        delete the rest. A recomputed finding can drop an item it cited before."""
+        txns = list(transactions)
+        for tid, basis in terms.items():
+            self.link_finding_term(finding_id, tid, basis)
+        for xid in txns:
+            self.link_finding_transaction(finding_id, xid)
+        for fid, basis in invoice_facts.items():
+            self.link_finding_invoice_fact(finding_id, fid, basis)
+        for model, col, keep in (
+            (FindingTerm, FindingTerm.term_id, list(terms)),
+            (FindingTransaction, FindingTransaction.transaction_id, txns),
+            (FindingInvoiceFact, FindingInvoiceFact.invoice_fact_id, list(invoice_facts)),
+        ):
+            stale = [model.tenant_id == self.tenant_id, model.finding_id == finding_id]
+            if keep:
+                stale.append(col.not_in(keep))
+            self.session.execute(delete(model).where(*stale))
 
     def link_documents(
         self,

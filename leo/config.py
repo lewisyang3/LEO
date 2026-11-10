@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     leo_raw_dir: Path = Path("var/raw")
     # The API's tenant (ROADMAP C3): the seed's slug is the dataset name.
     leo_tenant: str = "brightwater-v1"
+    # The pipeline's tenant (ROADMAP 2.1): `make ingest` loads the dataset's documents here
+    # and the worker fills it, so it never mixes with the seed's key-backed rows.
+    leo_pipeline_tenant: str = "brightwater-pipeline"
     # Recorded as `action.approver` (no login yet; the schema requires an approver).
     leo_approver: str = "reviewer"
     # Gmail sync (ROADMAP A8). The key encrypts OAuth tokens at rest (Fernet); the synced

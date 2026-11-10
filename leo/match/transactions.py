@@ -110,7 +110,8 @@ def match_plans(repo: Repo) -> None:
 def match_invoice_facts(repo: Repo) -> None:
     """Match each invoice fact to a charge of the same vendor and amount, at most
     `INVOICE_MATCH_DAYS` from the invoice date. The nearest wins, and a charge matches at
-    most one fact. Facts are matched in invoice-date order."""
+    most one fact. Facts are matched in invoice-date order. A fact with no vendor (its
+    vendor name failed validation) matches nothing."""
     s, t = repo.session, repo.tenant_id
     txns = s.execute(
         select(TxnRow.id, TxnRow.vendor_id, TxnRow.date, TxnRow.amount)
@@ -128,6 +129,7 @@ def match_invoice_facts(repo: Repo) -> None:
             (abs((x.date - f.invoice_date).days), x.date, x.id)
             for x in txns
             if x.id not in claimed
+            and f.vendor_id is not None  # a failed-closed fact has no vendor (2.1)
             and x.vendor_id == f.vendor_id
             and x.amount == f.amount
             and abs((x.date - f.invoice_date).days) <= INVOICE_MATCH_DAYS

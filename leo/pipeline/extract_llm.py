@@ -16,6 +16,7 @@ The cache holds the model's answer from before this step, so a new "today" never
 import calendar
 import datetime
 import hashlib
+import re
 from collections import Counter
 from decimal import Decimal
 from typing import Any
@@ -200,6 +201,22 @@ def merge_parts(outputs: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], lis
     vendor = max(names, key=lambda n: (counts[n], -names.index(n))) if names else None
     merged = {"vendor_name": vendor, "terms": terms, "invoice_facts": facts, "contacts": contacts}
     return merged, sorted(counts)
+
+
+# --- Field normalization ---------------------------------------------------------------------
+
+_REF_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*")
+
+
+def agreement_ref(ref: str | None) -> str | None:
+    """The agreement's identifier alone: "MSA No. KCH-MSA-2209" becomes "KCH-MSA-2209". The
+    reconciler joins terms on an exact `agreement_ref` (F3's cap and renewal), so a label the
+    model sometimes writes would split one agreement in two (2.1 review). The last token with
+    a digit is the identifier; a ref with none is kept as written, stripped."""
+    if ref is None:
+        return None
+    ids = [tok for tok in _REF_TOKEN.findall(ref) if any(c.isdigit() for c in tok)]
+    return ids[-1] if ids else (ref.strip() or None)
 
 
 # --- Date helpers ----------------------------------------------------------------------------
@@ -407,7 +424,7 @@ class LLMExtractor:
                         "value": _term_value(t),
                         "quotes": t.quotes,
                         "plan_label": t.plan_label if ttype in PLAN_LABEL_TYPES else None,
-                        "agreement_ref": t.agreement_ref,
+                        "agreement_ref": agreement_ref(t.agreement_ref),
                         "effective_date": (
                             None if ttype in NO_EFFECTIVE_DATE_TYPES else t.effective_date
                         ),

@@ -1,7 +1,7 @@
 """add B6 analytics tables
 
 Revision ID: 985708103b25
-Revises: 0f19fbbdb783
+Revises: b21a9e0c4d17
 Create Date: 2026-11-10 12:15:29.064316
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '985708103b25'
-down_revision: str | Sequence[str] | None = '0f19fbbdb783'
+down_revision: str | Sequence[str] | None = "b21a9e0c4d17"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

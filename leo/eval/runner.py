@@ -5,8 +5,8 @@ registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `ll
 B2 registers the `jev` classifier. B5 registers the `script` extractor and `script+llm`, which
 tries the scripts first and sends the rest to the LLM. Each factory takes the `Fixture`.
 
-Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1) is wired into
-the eval in Phase 2.1.
+Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1) runs in the
+worker (2.1), not yet in the eval (2.2).
 """
 
 import datetime
@@ -149,7 +149,9 @@ def run(
 
     With a validator, every extraction is made first, then each is validated before scoring.
     Its `prior_terms` are the terms extracted from every other document of the same key vendor,
-    so the result doesn't depend on processing order (the worker passes only earlier ones)."""
+    so the result doesn't depend on processing order (the worker passes only earlier ones).
+    As in the worker, a prior carries its own validated status and a `needs_review` one isn't
+    compared: each extraction is first validated with no priors to get that status (2.1)."""
     clf = CLASSIFIERS[classifier](fixture)
     ext = EXTRACTORS[extractor](fixture)
     make_validator = VALIDATORS[validator]
@@ -178,6 +180,17 @@ def run(
             ex, error = None, _error(e)
         extracted.append((doc, ex, error))
 
+    own: dict[str, list[ExtractedTerm]] = {}  # path -> its terms, validated with no priors
+    if val is not None:
+        for doc, ex, _ in extracted:
+            if ex is None:
+                continue
+            try:
+                checked = val.validate(doc, ex, []).extraction.terms
+            except Exception:
+                checked = []  # the main pass below records the error
+            own[doc.document.path] = [t for t in checked if t.status != TermStatus.needs_review]
+
     extraction = []
     for doc, ex, error in extracted:
         path = doc.document.path
@@ -191,7 +204,7 @@ def run(
                 and other.document.path != path
                 and vendor is not None
                 and fixture.document(other.document.path).vendor == vendor
-                for t in other_ex.terms
+                for t in own.get(other.document.path, [])
             ]
             try:
                 v = val.validate(doc, ex, prior)

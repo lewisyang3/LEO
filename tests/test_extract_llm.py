@@ -16,6 +16,7 @@ from leo.pipeline.extract_llm import (
     SCHEMAS,
     LLMExtractor,
     add_months,
+    agreement_ref,
     merge_parts,
     normalize_billing_period,
 )
@@ -471,6 +472,37 @@ def test_cached_extraction_covers_every_planted_finding():
     assert es.finding_coverage == {f"F{i}": [] for i in range(1, 6)}
     assert es.terms.quote_found.rate() == 1.0
     assert es.invoice_facts.quote_found.rate() == 1.0
+
+
+def test_agreement_ref_keeps_the_identifier_alone():
+    assert agreement_ref("MSA No. KCH-MSA-2209") == "KCH-MSA-2209"
+    assert agreement_ref("KCH-MSA-2209") == "KCH-MSA-2209"
+    assert agreement_ref("Order Form QS-OF-1187") == "QS-OF-1187"
+    assert agreement_ref("FL-77310-B") == "FL-77310-B"
+    assert agreement_ref("Master Agreement") == "Master Agreement"
+    assert agreement_ref("  ") is None
+    assert agreement_ref(None) is None
+
+
+def test_cached_terms_of_a_vendor_agree_on_their_agreement_ref():
+    """The reconciler joins a vendor's terms on an exact agreement_ref (F3: the Kestrel cap and
+    renewal). The model once wrote the cap's as "MSA No. KCH-MSA-2209" (2.1 review)."""
+    settings = Settings(_env_file=None, leo_llm_offline=True)
+    if not list((settings.leo_llm_cache_dir / "extract").glob("*.json")):
+        pytest.skip("no committed extraction cache")
+    ext = LLMExtractor(
+        clock=FX.clock(), cache=ResponseCache(settings.leo_llm_cache_dir), settings=settings
+    )
+    refs: dict[str, set[str]] = {}
+    for d in FX.documents:
+        if d.doc_class == "noise" or d.vendor is None:
+            continue
+        ex = ext.extract(FX.document_text(d.path, classified=True))
+        refs.setdefault(d.vendor, set()).update(
+            t.agreement_ref for t in ex.terms if t.agreement_ref
+        )
+    assert {v: r for v, r in refs.items() if len(r) > 1} == {}
+    assert refs["kestrel"] == {"KCH-MSA-2209"}
 
 
 def test_cached_lumenpost_notice_keeps_the_add_on_separate():
