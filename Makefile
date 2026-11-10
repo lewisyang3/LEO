@@ -31,7 +31,7 @@ web:
 	cd web && npm run dev
 
 seed:
-	@echo "make seed: not implemented yet, see ROADMAP A7" >&2; exit 1
+	uv run python -m leo.db.seed
 
 eval:
 	uv run python -m leo.eval

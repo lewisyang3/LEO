@@ -377,8 +377,9 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Click any number.** `leo/api/sources.py` maps each deadline, impact and computation field to the terms and invoice facts it comes from (for example, F3's cap % comes from the `price_cap` term). A field not in the table maps to all of the finding's items. Quotes are located with `locate_quote` on the raw text, and the viewer highlights `[start, end)`.
   - **UI.** The pages are the dashboard, the finding detail with a source viewer, and the approval queue with the outbox. Hash routes and plain CSS, with no new dependencies.
   - **Tests** (`tests/test_api.py`): the sort order, every quote located, every number sourced from linked items, document paths limited to the dataset, all 5 drafts from the cache, and the action transitions.
-  - **Not built yet:** the [should] corrections (they need A's `feedback_event`). C3 replaces the store with the repository, and adds upload and stats.
-- [ ] **C3 [must] API.**
+  - **Not built yet:** the [should] corrections (they need A's `feedback_event`).
+  - **Since C3:** `FixtureStore` is gone. The API reads Postgres, and the drafts are the seed's (`engine: fixture`), not the LLM cache's.
+- [x] **C3 [must] API.**
   - Findings, sorted by deadline and impact.
   - Finding detail with its terms and citations.
   - Source documents with quote locations.
@@ -386,6 +387,29 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Upload (calls A3's `ingest`).
   - Stage and cost stats from B6.
   - **[should]:** corrections.
+
+  Done, in `leo/db/read.py`, `leo/api/store.py` (`DbStore`) and `leo/api/routes.py`:
+  - **Reads.** `load_ledger` and `load_findings` rebuild the shared types from one tenant's rows. Ids are `str(uuid)` and document references are paths. B and C switch over to these.
+    - Link order isn't stored, so linked items are sorted by their own fields.
+    - A finding's `documents` follows C1's rule: the anchor term's document, then the invoice facts' documents.
+    - Citations come back with their stored offsets.
+  - **Store.** `DbStore` keeps C2's routes and response shapes. It serves whatever findings and actions the database holds: the seed's key rows now, the pipeline's after 2.1. The tenant is `LEO_TENANT` (default `brightwater-v1`). A missing tenant gives a 503 that says to run `make seed`.
+    - An id that isn't a UUID gives a 404.
+    - The drafts are the seed's `FixtureDrafter` text, so `engine` is `fixture`. The engine is read from `raw_model_output["engine"]` once the drafter stores one.
+  - **Actions.** Each transition is one conditional `UPDATE`, so decisions persist across restarts and reseeds.
+    - Approve records `approver` (`LEO_APPROVER`, default `reviewer`, since there's no login yet) and `decided_at`. Restore clears them.
+    - Migration `3f5925a397fe` adds `action.edited_at` and `sent_at`. `Repo.upsert_action` now updates draft text only while the action is an unedited draft.
+    - The outbox is the sent actions.
+  - **Upload.** `POST /api/documents` (multipart) calls `ingest` and commits. The path is `uploads/{sha8}-{name}`, and bytes already stored keep their row and path. A dashboard file picker uses it. Nothing is queued yet (A4, 2.1).
+  - **Stats.** `GET /api/stats` counts documents by class, terms and invoice facts by status, current findings, actions by state, and jobs by stage, `processed_by` and status (empty until A4). Cost comes with B6.
+  - **Seed.** `make seed` runs `python -m leo.db.seed` and commits. `make reset` is still A7. A reseed doesn't undo decisions, so a clean demo needs `make reset`.
+  - **Tests** (`tests/test_api.py`, which now needs Postgres): each test seeds under a random tenant slug, so the dev database never affects a test. `tests/test_repo.py` does the same now, because `make seed` commits the default tenant to that database. They cover:
+    - C2's checks, run on the database
+    - `load_findings` matching the key's F1–F5 on every field but the ids
+    - decisions and edits surviving a reseed
+    - upload deduplication
+    - the stats counts
+  - **Not built yet:** the [should] corrections. `GET /api/documents?path=inbox/07_…_resynced.eml` is now a 404, because D1's copy is the original's row.
 - [ ] **C4 [should] Export** of the term record and findings to CSV.
 - [ ] **C5 [should] Vendor view.** A vendor's terms, price history (a query per the design doc, leaving out terms from linked duplicates) and matched transactions.
 
@@ -405,6 +429,8 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   7. transaction match
   8. reconcile
   9. draft
+
+  The API (C3) reads whatever findings and actions are in Postgres, so it needs no change: write findings, links and actions through `Repo`, and set `action.raw_model_output.engine`. One API change is due first: `DbStore` shows only the first action per finding and drops findings with no action (`leo/api/store.py`, `_view`). The seed always writes exactly one, but the worker may write a finding before its draft, or several actions per finding (the key includes `action_type`). An approve or send on a hidden action would commit and then return 404 (PR #14 review). Then the B7 draft cache can be re-recorded on the new finding ids, if the demo should show LLM drafts.
 
   Prior terms come from the store with their validated status, so a `needs_review` prior isn't compared. The eval (`leo/eval/runner.py`) builds priors from raw extractions, all `current`; make it match the worker here (PR #3 review).
 - [ ] **2.2 [must] End-to-end test** (`make e2e`):

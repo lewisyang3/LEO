@@ -3,8 +3,8 @@
 Vendors, transaction mappings and duplicate links come straight from the key, the way the
 fixture stages in `leo.fixtures` serve them. A5 and A6 replace those with matching and
 detection. Every write is an upsert on a natural key, so seeding twice changes nothing.
-Documents go through `leo.ingest.ingest` (A3), which stores real raw copies. A7 wires this
-to `make seed` and `make reset`.
+Documents go through `leo.ingest.ingest` (A3), which stores real raw copies. `make seed` runs
+`main()` (C3); `make reset` is A7.
 
 Fixture ids (`lp_growth_price_v1`, `F2`, `txn_0001`) live only in this module's maps; the
 database keys rows on natural keys and UUIDs.
@@ -231,3 +231,17 @@ def seed(
     tenant_id = upsert_tenant(session, slug or fixture.dataset, fixture.customer.name)
     _Seeder(session, fixture, tenant_id, store).run()
     return tenant_id
+
+
+def main() -> None:
+    """`make seed`: load the answer key into the configured database and commit."""
+    from leo.db.session import get_sessionmaker
+
+    with get_sessionmaker()() as session:
+        tenant_id = seed(session, slug=get_settings().leo_tenant)
+        session.commit()
+    print(f"seeded tenant {tenant_id}")
+
+
+if __name__ == "__main__":
+    main()

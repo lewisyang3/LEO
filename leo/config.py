@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     leo_llm_offline: bool = False
     # Raw-file store (ROADMAP A3): ingested files, content-addressed. The DB holds references.
     leo_raw_dir: Path = Path("var/raw")
+    # The API's tenant (ROADMAP C3): the seed's slug is the dataset name.
+    leo_tenant: str = "brightwater-v1"
+    # Recorded as `action.approver` (no login yet; the schema requires an approver).
+    leo_approver: str = "reviewer"
 
 
 @lru_cache

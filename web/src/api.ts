@@ -133,6 +133,20 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   return r.json() as Promise<T>
 }
 
+export type UploadOut = { document_id: string; path: string; created: boolean; attachments: string[] }
+
+/** Upload one file (multipart). The browser sets the Content-Type boundary itself. */
+export async function upload(file: File): Promise<UploadOut> {
+  const form = new FormData()
+  form.append('file', file)
+  const r = await fetch('/api/documents', { method: 'POST', body: form })
+  if (!r.ok) {
+    const detail = await r.json().then((j) => j.detail, () => null)
+    throw new Error(typeof detail === 'string' ? detail : `HTTP ${r.status}`)
+  }
+  return r.json() as Promise<UploadOut>
+}
+
 export const get = <T,>(url: string) => request<T>('GET', url)
 export const post = <T,>(url: string, body?: unknown) => request<T>('POST', url, body)
 export const patch = <T,>(url: string, body: unknown) => request<T>('PATCH', url, body)
