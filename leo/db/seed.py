@@ -1,10 +1,13 @@
 """Load the synthetic answer key into the database through the repository (ROADMAP A2).
 
-Vendors, transaction mappings and duplicate links come straight from the key, the way the
-fixture stages in `leo.fixtures` serve them. A5 and A6 replace those with matching and
-detection. Every write is an upsert on a natural key, so seeding twice changes nothing.
-Documents go through `leo.ingest.ingest` (A3), which stores real raw copies. `make seed` runs
-`main()` (C3); `make reset` is A7.
+Terms, invoice facts, contacts and findings come from the key, the way the fixture stages in
+`leo.fixtures` serve them. Vendors and matches don't (A5): each document's vendor name, as
+`FixtureExtractor` reports it, goes through `DbVendorResolver`; transactions come from
+`transactions.csv` and resolve by descriptor; plans and invoice-to-charge links are matched
+from the stored terms. Duplicate links still come from the key until A6. Every write is an
+upsert on a natural key, so seeding twice changes nothing. Documents go through
+`leo.ingest.ingest` (A3), which stores real raw copies. `make seed` runs `main()` (C3);
+`make reset` is A7.
 
 Fixture ids (`lp_growth_price_v1`, `F2`, `txn_0001`) live only in this module's maps; the
 database keys rows on natural keys and UUIDs.
@@ -22,9 +25,19 @@ from leo.db.repo import Repo, upsert_tenant
 from leo.fixtures import Fixture, FixtureDrafter, load_fixture
 from leo.ingest.ingest import ingest
 from leo.ingest.store import RawStore
+from leo.match.transactions import (
+    SOURCE as TXN_SOURCE,
+)
+from leo.match.transactions import (
+    CsvTransactionSource,
+    match_invoice_facts,
+    match_plans,
+    sync_transactions,
+)
+from leo.match.vendors import DbVendorResolver
 from leo.rules import read_source_text, span_key
+from leo.types import DocumentClass
 
-TXN_SOURCE = "csv"
 PROBABLE_DUPLICATE = "probable_duplicate"
 
 
@@ -39,8 +52,9 @@ class _Seeder:
     ) -> None:
         self.fx = fixture
         self.repo = Repo(session, tenant_id)
+        self.resolver = DbVendorResolver(self.repo)
         self.store = store
-        self.vendors: dict[str, UUID] = {}
+        self.vendors: dict[str, UUID] = {}  # key vendor id -> resolved vendor id
         self.docs: dict[str, UUID] = {}  # path -> id (D1's two paths share one id)
         self.doc_keys: dict[str, str] = {}
         self.texts: dict[str, str] = {}
@@ -50,30 +64,33 @@ class _Seeder:
         self.term_keys: dict[str, str] = {}
         self.facts: dict[str, UUID] = {}
 
-    def _vendor(self, vendor: str | None) -> UUID | None:
-        return self.vendors[vendor] if vendor else None
-
     def run(self) -> None:
-        self.seed_vendors()
         self.seed_documents()
         self.seed_transactions()
         self.seed_terms()
         self.seed_invoice_facts()
+        match_plans(self.repo)
+        match_invoice_facts(self.repo)
         self.seed_contacts()
         self.seed_findings()
 
-    def seed_vendors(self) -> None:
-        for v in self.fx.vendors:
-            vid = self.repo.upsert_vendor(v.canonical_name, notes=v.notes)
-            self.vendors[v.id] = vid
-            for alias in v.aliases:
-                self.repo.add_alias(vid, alias)
+    def _resolve(self, key_vendor: str, create: bool) -> UUID | None:
+        """The document's vendor name as extracted. Noise only looks up, never creates."""
+        name = self.fx.vendor(key_vendor).canonical_name
+        vid = self.resolver.vendor_for_name(name) if create else self.resolver.find_vendor(name)
+        if vid is None:
+            return None
+        resolved = UUID(vid)
+        if self.vendors.setdefault(key_vendor, resolved) != resolved:
+            raise RuntimeError(f"{key_vendor!r} resolved to two vendors")
+        return resolved
 
     def seed_documents(self) -> None:
         """Every document goes through `ingest`, which stores the raw copy. The key's own
-        columns (class, vendor, notes) are set once per row: a byte-identical copy (D1)
-        reuses the original's row and doesn't overwrite them."""
-        seen: set[UUID] = set()
+        columns (class, notes) and the resolved vendor are set once per row: a
+        byte-identical copy (D1) reuses the original's row and doesn't overwrite them.
+        Non-noise documents resolve first, so noise finds their vendors without creating any
+        (ZapLedger never becomes one)."""
         for d in self.fx.documents:
             path = self.fx.root / d.path
             r = ingest(
@@ -82,13 +99,17 @@ class _Seeder:
             self.doc_keys[d.path] = r.natural_key
             self.docs[d.path] = r.document_id
             self.texts[d.path] = read_source_text(path)
-            if r.document_id in seen:
+        seen: set[UUID] = set()
+        for d in sorted(self.fx.documents, key=lambda d: d.doc_class == DocumentClass.noise):
+            doc_id = self.docs[d.path]
+            if doc_id in seen:
                 continue
-            seen.add(r.document_id)
+            seen.add(doc_id)
+            is_noise = d.doc_class == DocumentClass.noise
             self.repo.update_document(
-                r.document_id,
+                doc_id,
                 doc_class=str(d.doc_class) if d.doc_class else None,
-                vendor_id=self._vendor(d.vendor),
+                vendor_id=self._resolve(d.vendor, create=not is_noise) if d.vendor else None,
                 notes=d.notes,
             )
         for d in self.fx.documents:
@@ -98,22 +119,9 @@ class _Seeder:
                 )
 
     def seed_transactions(self) -> None:
-        for t in self.fx.transactions:
-            key = keys.txn(TXN_SOURCE, t.id)
-            self.txn_keys[t.id] = key
-            self.txns[t.id] = self.repo.upsert_transaction(
-                key,
-                vendor_id=self._vendor(self.fx.transaction_vendor_map.get(t.id)),
-                source=TXN_SOURCE,
-                external_id=t.id,
-                descriptor=t.descriptor,
-                card_last4=t.card_last4,
-                seats_billed=t.seats_billed,
-                amount=t.amount,
-                currency=t.currency,
-                date=t.date,
-                plan_label=self.fx.transaction_plan_map.get(t.id),
-            )
+        source = CsvTransactionSource(self.fx.root / "transactions.csv")
+        self.txns = sync_transactions(self.repo, source, self.resolver)
+        self.txn_keys = {ext: keys.txn(TXN_SOURCE, ext) for ext in self.txns}
 
     def seed_terms(self) -> None:
         for t in self.fx.terms:
@@ -155,9 +163,6 @@ class _Seeder:
                 amount=f.amount,
                 invoice_number=f.invoice_number,
                 seats_billed=f.seats_billed,
-                matches_transaction=self.txns[f.matches_transaction]
-                if f.matches_transaction
-                else None,
                 notes=f.notes,
                 status=str(f.status),
             )

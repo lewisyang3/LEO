@@ -19,6 +19,10 @@ Invoice facts get their own `invoice_fact` table, because they record what a ven
 - `matches_transaction`, a nullable foreign key to `transaction`
 - `notes`
 
+## Vendors and aliases
+
+Vendors upsert on `normalized_name`, and each `vendor_alias` is unique per tenant on `normalized_alias`. Aliases grow as matches are made (`leo.match.vendors.DbVendorResolver`, A5): every name or card descriptor that resolves to a vendor is stored as an alias, so the next lookup is exact. `transaction.plan_label` and `invoice_fact.matches_transaction` are derived: only `leo.match.transactions` writes them, recomputed from the stored terms.
+
 ## Vendor contacts
 
 Vendor contacts (`leo.types.Contact`) get a `vendor_contact` table with `vendor_id`, `email` and `purpose`, plus a citation for the quote they came from. It is unique on `(tenant_id, vendor_id, email, purpose)`. Like vendors, contacts get no hash key.

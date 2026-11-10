@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** Next up is A5 (transactions, vendors and matching). A4 (job queue and worker) is done on `lewis/a4-worker`, in review against main as PR #17. It replaces #13. C3–C5 (PRs #14–#16) have merged.
+**Now (2026-11-10).** A5 (transactions, vendors and matching) is done on `lewis/a5-matching`, stacked on A4. A4 (job queue and worker) is in review against main as PR #17. It replaces #13. C3–C5 (PRs #14–#16) have merged.
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -134,7 +134,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - citations upsert by (owner, ordinal) and drop stale ordinals
     - an alias that already names another vendor raises `AliasConflict`
   - **Tenants.** `tenant.slug` is the tenant's natural key. The seed's slug is the dataset name.
-  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) come straight from the key until A5 and A6 replace them. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. A7 wires this to `make seed`.
+  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) came straight from the key. A5 replaced the vendors and mappings with matching; the D2 link waits for A6. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. A7 wires this to `make seed`.
   - **Not done here.** `.eml` header decoding with `email.policy.default` and a guarded date parse belong to A3 (done there). The read methods B and C need to switch over belong to C3.
 - [x] **A3 [must] Ingestion function.**
   - An `.eml` parser covering headers, text body, and attachments stored once by hash.
@@ -178,7 +178,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Failures.** `LLMOfflineMiss`, a missing raw file, output that doesn't parse, and "no extractor matched" are not retried: the job is `failed`. Any other error retries after `run_after` (2s, then 4s), so other jobs keep running meanwhile. After 3 attempts the job is `parked`, so a failed classification stays unclassified, never noise. On Ctrl-C or SIGTERM, the worker hands its job back to `pending` without using up an attempt.
   - **Run.** `make worker` polls. `python -m leo.worker --drain` stops when nothing is due.
   - **Not done here (2.1).** A4 writes only `job` rows: no document class, terms, vendors, findings or actions. The real B and C components, prior terms read from the store, and writes through `Repo` in the stage's transaction are all 2.1.
-- [ ] **A5 [must] Transactions, vendors and matching.**
+- [x] **A5 [must] Transactions, vendors and matching.**
   - A `TransactionSource` that reads `transactions.csv`, the same interface a Ramp connection would use later.
   - Vendors come from the data, never from the answer key:
     - created from extracted non-noise documents, once the vendor name passes validation, and from normalized transaction descriptors that match nothing
@@ -194,6 +194,13 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - invoice facts match `matches_transaction`
     - ZapLedger never becomes a vendor
     - Sunridge and Metro become vendors from their transactions alone
+
+  Done, in `leo/match/`:
+  - **Names** (`names.py`). `clean_descriptor` drops a known processor prefix (`PAYWAVE*`, `SQ *`, `TST*`, `PAYPAL *`, `SP *`), turns any other `*` into a space (`KESTREL*CLOUD`), and drops phone and store numbers. `match_form` is `normalize_name` without trailing legal suffixes (`inc`, `llc`, ...). A descriptor that matches nothing names its vendor in title case (`Metro Water & Power`).
+  - **Resolver** (`vendors.py`). `DbVendorResolver(repo)` implements `VendorResolver`. Lookup is an exact match on the normalized name or an alias, then a fuzzy match in two steps. `pg_trgm` gives candidates (`greatest(similarity, word_similarity)` on the suffix-stripped forms, at least `0.3`, best first). The first candidate whose words agree (`words_agree`: the first words match, and every word of the shorter name matches one of the longer, by equality, prefix or abbreviation such as `payrl` for `payroll`) wins. `word_similarity` alone merges names that share one word (`metro cafe` and `metro water and power` score 0.55), so the word check is what decides (A5 review). Every name or descriptor that resolves becomes an alias. `find_vendor` never writes.
+  - **Transactions** (`transactions.py`). `CsvTransactionSource` reads the CSV. `sync_transactions` upserts each charge with `vendor_for_descriptor`. `match_plans` labels a charge only for a vendor with two or more plans, when exactly one plan's price in force on the charge date equals the amount. `match_invoice_facts` takes the nearest charge of the same vendor and amount within 7 days, each charge at most once. Those two are the only writers of `plan_label` and `matches_transaction`.
+  - **Seed.** Vendors now come from each document's vendor name (as `FixtureExtractor` reports it) through the resolver, non-noise first. Noise only looks up, so ZapLedger never becomes a vendor. The key's aliases and vendor notes are no longer written. Transactions come from the CSV, and plans and invoice links are matched. The key is only used to check results (`tests/test_match.py`), including as-written names from the extract cache resolved names-first and descriptors-first.
+  - **Not done here (2.1).** The worker still uses `StubVendorResolver`; 2.1 swaps in `DbVendorResolver` and runs `sync_transactions`, `match_plans` and `match_invoice_facts` before reconcile.
 - [ ] **A6 [must] Duplicate linking.**
   - Compute `context_fingerprint` and suggest links per the design doc's table, linking on the fingerprint alone plus a forwarded-message check (`Fwd:` subject, forwarded header block), because the dataset has no attachments.
   - Build and test it on the fixture's terms first, so it doesn't wait on B.
@@ -532,7 +539,7 @@ From the design doc's Open Questions. Track B questions belong to Lewis and Omar
 | Jev noise threshold | Lewis and Omar | Resolved 2026-11-05: 0.5, see B2 | B2 |
 | Ramp data: sandbox or synthetic | Lewis | Phase 0 | A5 (synthetic is the default) |
 | Where dedup runs: before or after triage | A owner (TBD) | Before A6 | A6 |
-| Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | During A5 | A5 |
+| Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | Resolved 2026-11-10: processor-prefix list, then trigram candidates on suffix-stripped names confirmed by a word check, see A5 | A5 |
 | Accuracy bar | All | Phase 2 start | 2.4 |
 | Inbox scopes and retention we promise | A owner (TBD) | Before A8 | A8, pitch |
 | Script generation threshold and testing | Lewis and Omar | Phase 4 | Stretch |
