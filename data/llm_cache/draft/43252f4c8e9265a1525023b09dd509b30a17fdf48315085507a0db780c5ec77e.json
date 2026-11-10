@@ -1,0 +1,28 @@
+{
+  "doc_hash": "62acac63fe649f53da96bc5d7429bacf222afc7ee7b9e03fd84b3d278aa0cb07",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nThis is formal written notice that {sender} is giving non-renewal notice under {agreement}. We do not wish the agreement to renew when the current term ends on {term_end}.\n\nThe agreement states: \"{notice_clause}\". We are sending this notice in advance of the {deadline} deadline so that it is received in time.\n\nPlease confirm in writing that you have received this notice of non-renewal and that the agreement will end on {term_end} without renewal. We would also ask that you let us know if anything further is needed from us to close the account.\n\nThank you for your attention to this matter.\n\nBest regards,\n{sender}"
+  },
+  "prompt_version": "draft-v5",
+  "request_id": "req_011CgjRpNxhYFMcMk1i8Ab7y",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 758,
+    "inference_geo": "global",
+    "input_tokens": 378,
+    "output_tokens": 228,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -239,3 +239,15 @@ def test_empty_quote_is_not_found():
     ex.terms.append(blank)
     d = _score(CORVANA, ex)
     assert [(x.pred_id, x.quote_found) for x in d.terms.extra] == [("blank", False)]
+
+
+def test_drafters_score_against_the_key():
+    for name in ("fixture", "template"):
+        result = run(FX, docs=[CORVANA], drafter=name)
+        assert result.drafter == name
+        assert [d.finding for d in result.drafts] == ["F1", "F2", "F3", "F4", "F5"]
+        assert all(d.ok for d in result.drafts), name
+        assert "drafts ok 5/5" in format_report(result)
+    stub = run(FX, docs=[CORVANA], drafter="stub")
+    assert not any(d.ok for d in stub.drafts)
+    assert run(FX, docs=[CORVANA]).drafts == []

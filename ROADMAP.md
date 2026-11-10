@@ -236,7 +236,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Count how many items stop at each stage.
   - Track tokens and dollars per run.
   - Expose these through the API for the demo's "16 emails in, N reached the LLM" screen.
-- [ ] **B7 [must] Action drafting.**
+- [x] **B7 [must] Action drafting.**
   - Haiku 5.5 by default (`LEO_MODEL_DRAFT`; move up only on eval evidence).
   - Draft a `cancellation_notice`, `renegotiation_request`, `negotiation_email` or `billing_dispute` from a finding and its cited terms.
   - Put in the cited facts (agreement number, amounts, dates, invoice numbers) from a template, and let the LLM write only the surrounding text.
@@ -244,6 +244,28 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - The recipient comes from a term's `deliver_to`, or else from the vendor's `contacts`.
   - Never redraft an action that already exists (`v1:action:…` key).
   - Drafts are saved with state `draft`.
+
+  Done, in `leo/actions/draft.py`:
+  - **Code decides what must be right.**
+    - `action_plan` picks the type, alternative and pre-step from the finding's kind.
+    - `build_facts` formats the cited facts from the finding and the ledger as named placeholders: the agreement number, amounts, dates as "January 1, 2027", invoice numbers with their dates, and contract clauses quoted verbatim.
+    - `recipient` takes a notice or dispute window's `deliver_to`, else a vendor contact ("notices" for a cancellation, "billing" otherwise), else `""`. The approval UI must block an empty `to`.
+    - The subject is a template.
+  - **The LLM writes only the prose.** `LLMDrafter` (prompt `draft-v5`, Haiku 5.5 at `low`) asks for a body that writes every fact as a `{placeholder}`. Code fills them in.
+  - **Check and retry.** The drafter can't see the answer key, so `check_body` stands in for `must_include`. It rejects a body that:
+    - leaves out a required placeholder or the word "non-renewal"
+    - invents a placeholder
+    - types any number itself (numbered-list markers aside)
+    - has no paragraph breaks
+    - puts a non-clause placeholder in quotation marks
+    - repeats a placeholder's opening words before it ("Agreement No. {agreement}")
+
+    The drafter retries up to 3 times, with the problems and the attempt number in the prompt, so a retry misses the cache. If every attempt fails, or a call stops early, it falls back to a fixed template. `TemplateDrafter` is that template alone, with no LLM.
+  - **Billing disputes carry no deadline fact.** Their deadline is the last day *we* can raise the dispute. The model misread it as a deadline for the vendor, and the vendor doesn't need it. The approval UI shows it.
+  - **No redraft.** `draft_new` skips `(finding, type)` pairs that already exist, before any call. The worker builds the pairs from `v1:action:…` keys.
+  - **Cache:** `data/llm_cache/draft/`, committed (7 answers, including 2 retries).
+  - **Eval:** `--drafter none|fixture|stub|template|llm` drafts the key's five findings on `fixture.ledger()`, because C1 isn't built yet. It checks type, alternative, `to`, whether there is a pre-step, and every `must_include` string, and it prints each draft.
+  - **Results** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --drafter llm`): 5/5 drafts pass with no template fallback. The template drafter also scores 5/5.
 
 ### Track C: Findings and UI (reconcile and the human gate) (owner TBD after B)
 

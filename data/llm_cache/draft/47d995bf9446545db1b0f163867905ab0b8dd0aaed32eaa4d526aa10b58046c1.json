@@ -1,0 +1,28 @@
+{
+  "doc_hash": "b39e07384a15fccb90681bfe1f0d91f7e49de36fff54cc6a9ba3c746c2e4a676",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear Halcyon Payroll Services, Inc. team,\n\nWe are disputing the charges on Agreement No. {agreement}. The 3% annual increase was applied to our Monthly Service Fee beginning with invoice {invoices}, but the agreement does not allow it until {first_application}.\n\nThe agreement states: \"{escalator_clause}\"\n\nThe increase was applied from {applied_from}, which is earlier than the first permitted date. Under the agreement, the Monthly Service Fee is {contract_monthly}. We were billed {charged_monthly}, an overcharge of {overcharge_monthly} per month. The total overcharge to date is {overcharged_to_date}.\n\nPlease issue a credit for {overcharged_to_date} and send a corrected invoice. Going forward, please bill the Monthly Service Fee at {contract_monthly} until {first_application}, and apply the {escalator_pct} increase only from that date.\n\nThank you for your prompt attention to this matter. Please confirm once the credit and corrected bill have been processed.\n\nBest regards,\n{sender}"
+  },
+  "prompt_version": "draft-v5",
+  "request_id": "req_011CgjRqJGDaXCytYEDmdfbc",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 758,
+    "inference_geo": "global",
+    "input_tokens": 462,
+    "output_tokens": 382,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}
