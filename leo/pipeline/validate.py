@@ -88,7 +88,7 @@ def _issue(item: str, check: str, message: str) -> ValidationIssue:
 
 def check_vendor(text: str, vendor_name: str | None) -> list[ValidationIssue]:
     """A blank name counts as missing: "" and " " are in almost any text. The name is matched
-    stripped, so the worker should store it stripped too (2.1)."""
+    stripped; the worker's resolver compares names normalized (`keys.normalize_name`)."""
     name = (vendor_name or "").strip()
     if not name:
         return [_issue("", VENDOR_MISSING, "the extraction has no vendor name")]

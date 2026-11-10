@@ -1,8 +1,8 @@
 """The Postgres-backed store behind the API (ROADMAP C3).
 
 `DbStore` serves one tenant's findings, documents and actions from the database, through
-`leo.db.read`. It serves whatever findings and actions are stored: the seed's answer-key rows
-until the pipeline (2.1) writes its own. A draft's `engine` is `raw_model_output["engine"]`,
+`leo.db.read`. It serves whatever findings and actions are stored: the seed's answer-key rows,
+or the pipeline's (2.1) in its own tenant. A draft's `engine` is `raw_model_output["engine"]`,
 or `fixture` for the seed's drafts.
 
 Action decisions are rows, so they survive a restart and a reseed (`Repo.upsert_action` never

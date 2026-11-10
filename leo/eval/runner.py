@@ -5,8 +5,8 @@ registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `ll
 B2 registers the `jev` classifier. B5 registers the `script` extractor and `script+llm`, which
 tries the scripts first and sends the rest to the LLM. Each factory takes the `Fixture`.
 
-Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1) is wired into
-the eval in Phase 2.1.
+Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1) runs in the
+worker (2.1), not yet in the eval (2.2).
 """
 
 import datetime

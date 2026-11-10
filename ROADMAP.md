@@ -177,7 +177,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - The components live in `Pipeline` (`pipeline.py`), and `Pipeline.stubs()` is the default.
   - **Failures.** `LLMOfflineMiss`, a missing raw file, output that doesn't parse, and "no extractor matched" are not retried: the job is `failed`. Any other error retries after `run_after` (2s, then 4s), so other jobs keep running meanwhile. After 3 attempts the job is `parked`, so a failed classification stays unclassified, never noise. On Ctrl-C or SIGTERM, the worker hands its job back to `pending` without using up an attempt.
   - **Run.** `make worker` polls. `python -m leo.worker --drain` stops when nothing is due.
-  - **Not done here (2.1).** A4 writes only `job` rows: no document class, terms, vendors, findings or actions. The real B and C components, prior terms read from the store, and writes through `Repo` in the stage's transaction are all 2.1.
+  - **Since 2.1.** The real B and C components, prior terms read from the store, and writes through `Repo` in each stage's transaction, with one reconcile per tenant. See 2.1.
 - [x] **A5 [must] Transactions, vendors and matching.**
   - A `TransactionSource` that reads `transactions.csv`, the same interface a Ramp connection would use later.
   - Vendors come from the data, never from the answer key:
@@ -200,7 +200,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Resolver** (`vendors.py`). `DbVendorResolver(repo)` implements `VendorResolver`. Lookup is an exact match on the normalized name or an alias, then a fuzzy match in two steps. `pg_trgm` gives candidates (`greatest(similarity, word_similarity)` on the suffix-stripped forms, at least `0.3`, best first). The first candidate whose words agree (`words_agree`: the first words match, and every word of the shorter name matches one of the longer, by equality, prefix or abbreviation such as `payrl` for `payroll`) wins. `word_similarity` alone merges names that share one word (`metro cafe` and `metro water and power` score 0.55), so the word check is what decides (A5 review). Every name or descriptor that resolves becomes an alias. `find_vendor` never writes.
   - **Transactions** (`transactions.py`). `CsvTransactionSource` reads the CSV. `sync_transactions` upserts each charge with `vendor_for_descriptor`. `match_plans` labels a charge only for a vendor with two or more plans, when exactly one plan's price in force on the charge date equals the amount. `match_invoice_facts` takes the nearest charge of the same vendor and amount within 7 days, each charge at most once. Those two are the only writers of `plan_label` and `matches_transaction`.
   - **Seed.** Vendors now come from each document's vendor name (as `FixtureExtractor` reports it) through the resolver, non-noise first. Noise only looks up, so ZapLedger never becomes a vendor. The key's aliases and vendor notes are no longer written. Transactions come from the CSV, and plans and invoice links are matched. The key is only used to check results (`tests/test_match.py`), including as-written names from the extract cache resolved names-first and descriptors-first.
-  - **Not done here (2.1).** The worker still uses `StubVendorResolver`; 2.1 swaps in `DbVendorResolver` and runs `sync_transactions`, `match_plans` and `match_invoice_facts` before reconcile.
+  - **Since 2.1.** The worker uses `DbVendorResolver` and runs `sync_transactions`, `match_plans` and `match_invoice_facts` before reconcile.
 - [x] **A6 [must] Duplicate linking.**
   - Compute `context_fingerprint` and suggest links per the design doc's table, linking on the fingerprint alone plus a forwarded-message check (`Fwd:` subject, forwarded header block), because the dataset has no attachments.
   - Build and test it on the fixture's terms first, so it doesn't wait on B.
@@ -221,10 +221,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Counted once.** `load_ledger` leaves out a linked duplicate's terms and invoice facts, as `leo/interfaces.py` requires. `load_price_history` already did.
   - **Seed.** The forward (02) now stores its own copy of 01's terms, cited in its own text, as an extractor would give it (contacts aren't copied). `link_duplicates` runs after matching, and the key's link is no longer copied.
   - **Tests** (`tests/test_duplicates.py`): D2, D3 and D4, the attachment signal, rerun stability, and stale-link removal.
-  - **Not done here.** Confirming or rejecting a link in the UI, with its feedback event. Wiring into the worker is left to 2.1, which runs `link_duplicates` after storing terms, next to `match_plans`.
-    - 2.1 follow-ups from review:
-      - The forward check reads the raw stored text. A base64 or quoted-printable body with no `Fwd:` subject isn't recognized, so decode the body first.
-      - Term values are hashed as stored. Normalize numbers in the value JSON (`339` and `339.0`) before fingerprinting, so two extractors' copies agree.
+  - **Not done here.** Confirming or rejecting a link in the UI, with its feedback event. Since 2.1 the worker runs `link_duplicates` at each reconcile, before matching, and both review follow-ups are done: the forward check reads the decoded body, and numbers in term values are normalized before fingerprinting.
 
 - [x] **A7 [should] Seed and reset.** `make seed` loads the synthetic tenant, and `make reset` reruns migrations and seed. Deterministic keys make this safe.
   - `make seed` was built in C3 (`python -m leo.db.seed`).
@@ -363,7 +360,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - `quillstack-receipt@1` (08). It matches the sender `billing@quillstack.example`, `Receipt for` and `Order Form: QS-OF-`. The invoice date comes from the `Date:` header, as the key says.
 
     Each returns one invoice fact with the key's quotes, sliced from the text. A test checks that neither matches any other document.
-  - **`ChainExtractor`** returns the first answer that isn't None, in the same order as the worker's extract loop. Wiring the scripts into the worker is 2.1.
+  - **`ChainExtractor`** returns the first answer that isn't None, in the same order as the worker's extract loop. Since 2.1 the worker tries the scripts before the LLM, and they match CRLF mail.
   - The registry lives in code. The `extractor_script` table and script generation are Phase 4.
   - **Eval:** `--extractor script` (scripts only, no network) and `--extractor script+llm`. The report shows each document's engine, a count per engine and "reached the LLM: N/M".
   - **Results** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --extractor script+llm --validator rules`):
@@ -403,7 +400,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Billing disputes carry no deadline fact.** Their deadline is the last day *we* can raise the dispute. The model misread it as a deadline for the vendor, and the vendor doesn't need it. The approval UI shows it.
   - **No redraft.** `draft_new` skips the `(finding, type)` pairs it's given, before any call. Since 2.1 the worker passes only actions the user decided (approved, sent, rejected) or edited. An unedited draft is redrafted on each reconcile, so it follows its finding's figures, and when nothing changed the draft cache answers.
   - **Cache:** `data/llm_cache/draft/`, committed (7 answers, including 2 retries).
-  - **Eval:** `--drafter none|fixture|stub|template|llm` drafts the key's five findings on `fixture.ledger()`. C1 is now built, but it is wired into the eval and the worker in 2.1. It checks type, alternative, `to`, whether there is a pre-step, and every `must_include` string, and it prints each draft.
+  - **Eval:** `--drafter none|fixture|stub|template|llm` drafts the key's five findings on `fixture.ledger()`. C1 runs in the worker since 2.1, but the eval doesn't run it yet (2.2). It checks type, alternative, `to`, whether there is a pre-step, and every `must_include` string, and it prints each draft.
   - **Results** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --drafter llm`): 5/5 drafts pass with no template fallback. The template drafter also scores 5/5.
 
 ### Track C: Findings and UI (reconcile and the human gate) (owner TBD after B)
@@ -446,7 +443,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - The result is the same when every status is `current`.
     - N1–N8 stay quiet.
     - Edge cases: a `needs_review` notice, the lookahead bounds, and a later `today` (F2 drops out, and F3 moves to the October invoice).
-  - **Not built yet:** the daily recheck (needs A4), and running on B3's extractions (Phase 2.1).
+  - **Not built yet:** the daily recheck. Since 2.1 the worker runs it on B3's extractions, and gives F1–F5.
 - [x] **C2 [must] UI on fixture data.** Start in Phase 1 against the fixture loader, then switch to the API.
   - **Dashboard:** open findings, days left, dollars at stake.
   - **Finding detail:** click any number to see the source document with the quote highlighted.
@@ -457,7 +454,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **[should]:** field correction and rejection, saved as `feedback_event` rows.
 
   Done, as a React UI (`web/src/`) on a fixture-backed API (`leo/api/`):
-  - **Store.** `FixtureStore` (`leo/api/store.py`) serves the key's findings (`FixtureReconciler`) with drafts from the committed LLM cache (`LLMDrafter`, forced offline). A miss or a retry fallback uses the template, and the action shows `engine: template`. It isn't `RuleReconciler` yet: the draft cache key includes the finding id, and the cache was recorded on F1–F5, so C1's `v1:finding:…` ids would miss it. Phase 2.1 wires C1 in and recaches. Action state and the outbox are in memory, so a restart resets them.
+  - **Store.** `FixtureStore` (`leo/api/store.py`) serves the key's findings (`FixtureReconciler`) with drafts from the committed LLM cache (`LLMDrafter`, forced offline). A miss or a retry fallback uses the template, and the action shows `engine: template`. It isn't `RuleReconciler` yet: the draft cache key includes the finding id, and the cache was recorded on F1–F5, so C1's `v1:finding:…` ids would miss it. Since 2.1 the worker runs C1 and the draft cache is keyed on the finding's natural key. Action state and the outbox are in memory, so a restart resets them.
   - **Routes.** `GET /api/dashboard`, `/api/findings` (sorted by days left, with no deadline last, then dollars at stake), `/api/findings/{id}`, `/api/documents?path=` (dataset paths only), `/api/actions` and `/api/outbox`. `PATCH /api/actions/{id}` edits a draft. `POST …/approve|reject|send` moves it through draft → approved → sent, or draft → rejected, and `…/restore` undoes a reject. Any other move is a 409, and a blank edit field is a 422.
   - **Click any number.** `leo/api/sources.py` maps each deadline, impact and computation field to the terms and invoice facts it comes from (for example, F3's cap % comes from the `price_cap` term). A field not in the table maps to all of the finding's items. Quotes are located with `locate_quote` on the raw text, and the viewer highlights `[start, end)`.
   - **UI.** The pages are the dashboard, the finding detail with a source viewer, and the approval queue with the outbox. Hash routes and plain CSS, with no new dependencies.
@@ -478,7 +475,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - Link order isn't stored, so linked items are sorted by their own fields.
     - A finding's `documents` follows C1's rule: the anchor term's document, then the invoice facts' documents.
     - Citations come back with their stored offsets.
-  - **Store.** `DbStore` keeps C2's routes and response shapes. It serves whatever findings and actions the database holds: the seed's key rows now, the pipeline's after 2.1. The tenant is `LEO_TENANT` (default `brightwater-v1`). A missing tenant gives a 503 that says to run `make seed`.
+  - **Store.** `DbStore` keeps C2's routes and response shapes. It serves whatever findings and actions the database holds: the seed's key rows in `brightwater-v1`, and the pipeline's in `brightwater-pipeline` (2.1). The tenant is `LEO_TENANT` (default `brightwater-v1`). A missing tenant gives a 503 that says to run `make seed`.
     - An id that isn't a UUID gives a 404.
     - The drafts are the seed's `FixtureDrafter` text, so `engine` is `fixture`. The engine is read from `raw_model_output["engine"]` once the drafter stores one.
   - **Actions.** Each transition is one conditional `UPDATE`, so decisions persist across restarts and reseeds.
@@ -574,6 +571,10 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - reset and seed, then run the pipeline on the synthetic set
   - assert F1–F5 are found, N1–N8 are not, and D1–D5 pass
   - from here on, run it before every merge to main
+  - Starting point from 2.1:
+    - The run is `make reset && make ingest && make worker ARGS="--drain --tenant brightwater-pipeline"`. It needs no seed: the pipeline has its own tenant.
+    - `tests/test_pipeline.py`'s synthetic test already runs the set offline (`--classifier fixture`, template drafts) and checks F1–F5's kinds and anchors, D2 and the supersession.
+    - Left for 2.2: N1–N8 one by one, D1, D3–D5, and running C1 in `make eval`.
 - [ ] **2.3 [must] Fix the gaps** that only show up end to end:
   - vendor names from extraction not matching transactions
   - plan labels not lining up
