@@ -330,6 +330,7 @@ def _kind_summary(name: str, s: KindSummary) -> list[str]:
         lines.append(f"  {t:<16} {_pr(x)}")
     lines.append(f"  {'quote found':<32} {_rate(s.quote_found)}")
     lines.append(f"  {'quote matches key':<32} {_rate(s.quote_matches_key)}")
+    lines.append(f"  {'field accuracy':<32} {_rate(s.field_accuracy)}")
     for field, r in s.fields.items():
         lines.append(f"  {field:<32} {_rate(r)}")
     return lines

@@ -2,7 +2,10 @@
 
 from decimal import Decimal
 
+import pytest
+
 from leo.eval.__main__ import main
+from leo.eval.bar import check_bar
 from leo.eval.runner import EvalFixtureExtractor, EvalResult, format_report, run
 from leo.eval.scoring import (
     score_extraction,
@@ -105,6 +108,11 @@ def test_dropped_term_is_a_miss_and_breaks_coverage():
     d = _score(CORVANA, ex)
     assert [(m.key_id, m.type) for m in d.terms.missed] == [("crv_notice", "notice_window")]
     assert summarize_extraction(FX, [d]).finding_coverage == {"F1": ["crv_notice"]}
+    # Its fields count as wrong, so dropping a term can't raise field accuracy (2.4).
+    [miss] = d.terms.missed
+    assert miss.fields > 0
+    acc = summarize_extraction(FX, [d]).terms.field_accuracy
+    assert acc.total == acc.hit + miss.fields
 
 
 def test_invented_term_is_extra_with_quote_not_found():
@@ -278,3 +286,51 @@ def test_script_extractor_skips_the_llm():
     assert (facts.matched, facts.predicted) == (4, 4)
     report = format_report(result)
     assert "reached the LLM                  0/17 documents" in report
+
+
+# --- The accuracy bar (2.4) -------------------------------------------------------------------
+
+
+def _failed(result) -> list[str]:
+    return [c.id for c in check_bar(result) if not c.ok]
+
+
+def test_bar_passes_on_right_extraction_and_findings():
+    assert _failed(run(FX).model_copy(update={"extractor": "script+llm"})) == []
+
+
+def test_bar_fails_on_the_fixture_extractor():
+    assert _failed(run(FX)) == ["extractor"]
+
+
+def test_bar_fails_without_the_reconciler():
+    result = run(FX, reconciler="none").model_copy(update={"extractor": "script+llm"})
+    assert _failed(result) == ["findings", "false findings"]
+
+
+def test_bar_fails_below_ninety_percent_of_term_fields():
+    result = run(FX).model_copy(update={"extractor": "script+llm"})
+    acc = result.extraction_summary.terms.field_accuracy
+    acc.hit = int(acc.total * 0.89)
+    assert _failed(result) == ["term fields"]
+
+
+def test_bar_cli_exits_by_the_bar(monkeypatch, capsys):
+    assert main(["--bar"]) == 1
+    assert "bar missed: extractor" in capsys.readouterr().out
+
+    from leo.config import get_settings
+
+    monkeypatch.setenv("LEO_LLM_OFFLINE", "1")
+    get_settings.cache_clear()
+    try:
+        assert main(["--bar", "--extractor", "script+llm"]) == 0
+    finally:
+        monkeypatch.delenv("LEO_LLM_OFFLINE")
+        get_settings.cache_clear()
+    assert "bar met" in capsys.readouterr().out
+
+
+def test_bar_refuses_a_subset_of_documents():
+    with pytest.raises(SystemExit):
+        main(["--bar", "--doc", CORVANA])

@@ -26,7 +26,7 @@ from collections.abc import Callable, Sequence
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from leo.fixtures import ExpectedAction, Fixture, FixtureVendorResolver
 from leo.interfaces import Classification, Extraction, ValidationIssue
@@ -93,6 +93,7 @@ class ItemMatch(LeoModel):
 class MissedItem(LeoModel):
     key_id: str
     type: str
+    fields: int = 0  # the fields the key item is scored on, all counted wrong (2.4)
 
 
 class ExtraItem(LeoModel):
@@ -177,6 +178,8 @@ class KindSummary(LeoModel):
     fields: dict[str, Rate] = {}
     quote_found: Rate  # over every predicted item, matched or not
     quote_matches_key: Rate  # over matched items
+    # Every field of every key item: matched items' fields, plus a missed item's all wrong (2.4).
+    field_accuracy: Rate = Field(default_factory=Rate)
 
 
 class ExtractionSummary(LeoModel):
@@ -305,7 +308,9 @@ def _pair(
         )
     out.matched.sort(key=lambda m: [k.id for k in keys].index(m.key_id))
     out.missed = [
-        MissedItem(key_id=k.id, type=k.type) for i, k in enumerate(keys) if i not in used_k
+        MissedItem(key_id=k.id, type=k.type, fields=len(fields(k, k)))
+        for i, k in enumerate(keys)
+        if i not in used_k
     ]
     out.extra = [
         ExtraItem(
@@ -514,11 +519,13 @@ def _summarize_kind(docs: Sequence[DocExtraction], kind: str, by_type: bool) -> 
                 x.predicted += 1
             for f in m.fields:
                 s.fields.setdefault(f.field, Rate()).add(f.ok)
+                s.field_accuracy.add(f.ok)
             s.quote_found.add(m.quote_found)
             s.quote_matches_key.add(m.quote_matches_key)
         for miss in score.missed:
             for x in pr(miss.type):
                 x.expected += 1
+            s.field_accuracy.total += miss.fields
         for extra in score.extra:
             for x in pr(extra.type):
                 x.predicted += 1

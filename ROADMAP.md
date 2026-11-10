@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** 2.3 (fix the end-to-end gaps) is done: `make e2e` now also checks each finding's draft against the key, the vendors' names and that no draft fell back to the template, and passes 22/22 with all five drafts from the LLM. Next is 2.4 (accuracy bar). 2.2 (`make e2e`) is done: one command resets the database, runs the pipeline on the synthetic set and checks F1–F5, N1–N8 and D1–D5. Run it before every merge to main. 2.1 (wire the pipeline) is done too. A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** 2.4 (accuracy bar) is done, so Phase 2 is complete. The bar is `make bar` and `make e2e` both passing: every planted finding, no false finding, and at least 90% of term fields right (today 262/263, 99.6%). Next is 3.1 (demo script). 2.3 (fix the end-to-end gaps) is done: `make e2e` now also checks each finding's draft against the key, the vendors' names and that no draft fell back to the template, and passes 22/22 with all five drafts from the LLM. 2.2 (`make e2e`) is done: one command resets the database, runs the pipeline on the synthetic set and checks F1–F5, N1–N8 and D1–D5. Run it before every merge to main. 2.1 (wire the pipeline) is done too. A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -602,10 +602,24 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - F2's draft cites "Agreement No. LP-204417", though Lumenpost calls it an account ID: `agreement_ref` has no label.
     - `display_name` title-cases any all-caps name of two or more words, so an all-caps acronym in a longer name (`ACME IT SERVICES`) becomes `Acme It Services`.
     - `labelled_ref` can give one document's terms a ref while the vendor's other documents keep `None` (2.3 review). `agreement_ref` is an exact-match key in `comparable` (`validate.py`), `load_price_history` (`read.py`) and the reconciler's joins, so those terms would stop being compared and split into separate price series. The model already fills the ref unevenly, so the risk isn't new in kind. The fix is to treat a missing ref as matching any, in all three places. The synthetic set isn't affected.
-- [ ] **2.4 [must] Accuracy bar.** Agree on the target and record the numbers from `make eval` and `make e2e`. Proposed target:
+- [x] **2.4 [must] Accuracy bar.** Agree on the target and record the numbers from `make eval` and `make e2e`. Proposed target:
   - 100% of the planted findings
   - 0 false findings
   - at least 90% field-level accuracy on terms
+  - **Agreed** (2026-11-10) as proposed. Invoice facts and contacts are reported, not gated.
+  - Done, in `leo/eval/bar.py`, `leo/eval/scoring.py`, `leo/eval/__main__.py` and the `Makefile`:
+    - **Checked by code.** The bar is **`make bar` and `make e2e` both passing**. `make bar` (`python -m leo.eval --extractor script+llm --bar`, offline from the committed caches, no database) checks the extractor isn't `fixture`, C1 finds F1–F5 on the key's ledger with nothing extra, and term field accuracy is at least 90% (`BAR_TERM_FIELDS`); it exits 1 on a miss. `make e2e` already fails on F1–F5, N1–N8 and any extra finding end to end.
+    - **Field accuracy.** Each kind's summary now prints `field accuracy`: every field of every key item, where a missed item's fields all count as wrong (`MissedItem.fields`). Before, a dropped term added no fields, so dropping one could raise the rate.
+  - **Numbers** (2026-11-10).
+    - `make bar` and `python -m leo.eval --extractor script+llm --drafter llm`, offline: terms P 100% R 100% (31/31), term field accuracy 262/263 (99.6%); invoice facts P 87.5% R 100% (7 matched, 8 predicted), fields 42/42; contacts 3/3, fields 3/3. Finding coverage F1–F5 all covered. Findings 5/5 right, 0 extra. Drafts 5/5, no template fallback. 13 of 17 extracted documents reach the LLM. Bar met.
+    - `make eval` (key engines): 263/263 term fields, findings 5/5, 0 extra.
+    - `make e2e`, live (Jev, against a temporary database): 22/22 in 8s, all five drafts `llm:claude-haiku-5-5`. Offline: 22/22 in 3s.
+  - **Not done here.**
+    - The one wrong term field: Ferrolink's `early_termination_fee` reads "50% of remaining Monthly Recurring Charges" for the key's "50% of the remaining…".
+    - The extra invoice fact: Harbor Supply's receipt total (`inbox/15`), which the key doesn't list. Not gated.
+    - "Quote matches key" is 25/31 for terms and 4/7 for invoice facts: the quotes are in the document, but their first span starts elsewhere than the key's. Not gated.
+    - Nothing runs the bar on every merge: there's no CI.
+    - The classifier is gated only through `make e2e` (live Jev); the holdout set (`python -m leo.eval.holdout`) isn't part of the bar.
 
 **Exit:** one command takes an empty database to five correct findings, each with a drafted action, in a few minutes.
 
@@ -653,7 +667,7 @@ From the design doc's Open Questions. Track B questions belong to Lewis and Omar
 | Ramp data: sandbox or synthetic | Lewis | Phase 0 | A5 (synthetic is the default) |
 | Where dedup runs: before or after triage | Lewis | Resolved 2026-11-10: after extraction, on the stored terms and invoice facts, see A6 | A6 |
 | Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | Resolved 2026-11-10: processor-prefix list, then trigram candidates on suffix-stripped names confirmed by a word check, see A5 | A5 |
-| Accuracy bar | All | Phase 2 start | 2.4 |
+| Accuracy bar | All | Resolved 2026-11-10: every planted finding, no false finding, at least 90% of term fields; `make bar` and `make e2e`, see 2.4 | 2.4 |
 | Inbox scopes and retention we promise | A owner (TBD) | Before A8 | A8, pitch |
 | Script generation threshold and testing | Lewis and Omar | Phase 4 | Stretch |
 | Corrections: prompts and scripts only, or also kept for fine-tuning | Lewis and Omar | Phase 4 | Stretch |

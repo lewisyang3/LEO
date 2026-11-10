@@ -1,12 +1,14 @@
 """`python -m leo.eval` (`make eval`): score stage engines against the answer key (ROADMAP B1).
 
-Always exits 0 on a completed run. The accuracy bar is set in ROADMAP 2.4.
+Exits 0 on a completed run. With `--bar` (`make bar`), it also checks the accuracy bar
+(ROADMAP 2.4, `leo.eval.bar`) and exits 1 if the bar is missed.
 """
 
 import argparse
 import sys
 from pathlib import Path
 
+from leo.eval.bar import check_bar, format_bar
 from leo.eval.runner import (
     CLASSIFIERS,
     DEFAULT_CLASSIFIER,
@@ -53,8 +55,15 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help="score only this document, as a path under data/synthetic/ (repeatable)",
     )
+    parser.add_argument(
+        "--bar",
+        action="store_true",
+        help="check the accuracy bar (ROADMAP 2.4) and exit 1 on a miss",
+    )
     parser.add_argument("--json", type=Path, metavar="PATH", help="also write the full result")
     args = parser.parse_args(argv)
+    if args.bar and args.doc:
+        parser.error("--bar scores the whole set; drop --doc")
 
     fixture = load_fixture()
     known = {d.path for d in fixture.documents}
@@ -78,6 +87,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
         args.json.write_text(result.model_dump_json(indent=2) + "\n")
+    if args.bar:
+        checks = check_bar(result)
+        sys.stdout.write(format_bar(checks))
+        return 0 if all(c.ok for c in checks) else 1
     return 0
 
 
