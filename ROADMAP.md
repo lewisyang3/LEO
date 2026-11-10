@@ -142,17 +142,19 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - `Message-ID`, `threadId` and similar headers are attributes, never part of a key.
 
   Done, in `leo/ingest/store.py`, `leo/ingest/eml.py` and `leo/ingest/ingest.py`:
-  - **Raw store.** `RawStore` saves each file under its content hash, at `{sha[:2]}/{sha}{suffix}` in `LEO_RAW_DIR` (default `var/raw`, gitignored). One folder serves every tenant: the same bytes are written once, and tenant isolation lives in the rows. A row holds `storage_path` and `content_sha256`.
+  - **Raw store.** `RawStore` saves each file under its content hash, at `{sha[:2]}/{sha}{suffix}` in `LEO_RAW_DIR` (default `var/raw`, gitignored). Writes are atomic, and files are `0644`. One folder serves every tenant: the same bytes are written once, and tenant isolation lives in the rows. A row holds `storage_path` and `content_sha256`.
   - **Parser.** `parse_eml` decodes headers with `email.policy.default`. A missing or malformed `Date` gives `None`, and a date with no zone is taken as UTC. The body is the plain-text part, or the HTML part with its tags removed. Body and headers are metadata only: the stages still read the raw stored text, which citation offsets index.
+    - Attachments are found at any depth (a signed invoice nests them), and a single-part email whose only part is an attachment gives that attachment. A text part with no filename and no `attachment` disposition counts as part of the body, not as an attachment.
     - Attachments keep their original bytes (`get_payload(decode=True)`), so an attached contract hashes the same as the file on its own.
     - An attached email (`message/rfc822`) is kept as `attached-{n}.eml`. A part with no filename gets a generated one, and a part is skipped only when it has no content.
+    - NUL is stripped from headers and filenames, because Postgres `text` columns reject it.
   - **`ingest(repo, store, raw, filename, path=None)`.** Keys the document on its bytes with A2's builders and returns the id, key, whether the row is new, and the attachment ids. It never commits. `path` defaults to `uploads/{filename}`.
     - Each attachment is its own `source_document` (`source_kind="attachment"`, path `{email path}#attachments/{name}`). Bytes already stored, for example as a contract file, reuse that row.
     - `parent_document_id` is the first email that carried an attachment, and is now insert-only. Every carrier gets a `document_link` of type `attachment`.
   - **Loaders.** `ingest_folder` reads one folder in name order, skipping dotfiles, READMEs and subfolders, and stores `{folder}/{name}` paths. `ingest_folder(…, "contracts")` is the contracts loader, and `ingest_dataset` reads `inbox/` then `contracts/`.
   - **Seed.** `seed()` now goes through `ingest`, so it stores real raw copies (still 223 rows). `Repo.update_document` sets the key's class, vendor and notes once per row, so D1's copy still doesn't overwrite the original's.
   - **Tests.** Every test's `LEO_RAW_DIR` points at a temp folder (`tests/conftest.py`).
-  - **Not done here.** Queueing jobs on ingest (A4), and reading the text of binary attachments such as PDFs. Those are stored but not converted to text, and the dataset has none. Attached emails aren't parsed for their own headers or attachments.
+  - **Not done here.** Queueing jobs on ingest (A4), and reading the text of binary attachments such as PDFs. Those are stored but not converted to text, and the dataset has none. Attached emails aren't parsed for their own headers or attachments. An attached email is stored re-serialized, so its bytes, and its key, differ from the same email loaded on its own. A6's fingerprint links the two.
 - [ ] **A4 [must] Job queue and worker.**
   - Jobs are rows claimed with `FOR UPDATE SKIP LOCKED`.
   - The worker runs each item through the stage interfaces in `leo/interfaces.py`, using `leo/stubs.py` until B and C plug in.
@@ -177,6 +179,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Compute `context_fingerprint` and suggest links per the design doc's table, linking on the fingerprint alone plus a forwarded-message check (`Fwd:` subject, forwarded header block), because the dataset has no attachments.
   - Build and test it on the fixture's terms first, so it doesn't wait on B.
   - Terms from a linked duplicate are not counted again.
+  - `document_link` also holds A3's `attachment` links (email -> attachment). Filter on `link_type`, and use them for the design doc's "same attachment hash" signal.
   - Tests:
     - D2: the forward is linked.
     - D3: monthly invoices stay separate.
