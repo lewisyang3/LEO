@@ -663,6 +663,23 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - template fingerprints beyond the sender address. A format is a sender, so another template from the same sender is never a negative test.
     - the dedup script the design doc mentions
 - [ ] **[stretch] Feedback loop.** Corrections become few-shot examples in the extraction prompt, and they lower a script's accuracy until it is rewritten.
+
+  Three steps: F1 records corrections, F2 uses them as few-shot examples, F3 demotes and rewrites a generated script.
+  - [x] **F1: record corrections.** `leo/feedback.py`, the API and the UI:
+    - **API.** `PATCH /api/terms/{id}` and `PATCH /api/invoice-facts/{id}` change an item's values (a term's `value` keys, effective date, plan label, agreement ref; an invoice fact's amount, period, date, number, seats). `POST …/reject` marks it `rejected`. Errors: 404 unknown, 422 a value that doesn't validate or a field that can't change (type, quotes), 409 already rejected. Term and invoice reads carry `corrected`.
+    - **Kept.** A corrected or rejected row gets `corrected_at`, and re-extraction never overwrites it or its citations (`Repo.upsert_term`'s `where`, like actions'). `rejected` joins `needs_review` in `EXCLUDED_STATUSES`, which findings, plan matching, priors and price history skip.
+    - **Recorded.** One `feedback_event` per changed field, with the document and the extract engine (`llm:…` or `script:…@n`), so F2 and F3 can use it.
+    - **Followed.** Each change asks for a reconcile, so findings and unedited drafts follow on the worker's next pass. Live: correcting Quillstack's included seats from 25 to 40 removes F4 after one `make worker ARGS=--drain`.
+    - **UI.** "Correct" and "Not a term" / "Not an invoice" under each term and invoice on a finding and a vendor page, with a "corrected" badge.
+    - `make bar` (262/263) and `make e2e` (22/22) are unchanged: with no corrections nothing differs.
+    - **Review fixes.** A rejected invoice fact claims no charge, and a match it had is cleared (`match_invoice_facts`). A document with a reviewed item keeps its stored fingerprint, so a correction on 01 doesn't break D2's link to the forward 02 (`link_duplicates`). A value correction records only the keys the reviewer sent.
+    - **Not done:**
+      - A correction on a document whose vendor failed closed makes the item `current` with no vendor, and re-extraction can't fill the vendor in. Neither page shows items with no vendor, so the UI can't reach it.
+      - Any correction promotes a `needs_review` item to `current`, even if the check that failed still fails. Decide in F2.
+      - A corrected row keeps its place only while re-extraction gives the same natural key. A different first quote span makes a new row beside it. The cached extractions don't do this.
+      - `write_term` / `write_invoice_fact` make one extra SELECT per item (`is_corrected`).
+  - [ ] **F2: corrections as few-shot examples** in the extraction prompt, by item type, tenant-wide. Parts with no correction keep a byte-identical prompt, so the committed cache still hits.
+  - [ ] **F3: corrections demote a generated script**, and scriptgen rewrites it from the corrected examples.
 - [ ] **[stretch] PDF contracts.** Text extraction with page and line locations for citations.
 - [ ] **[stretch] Ramp sandbox** behind `TransactionSource`, if we get access.
 - [ ] **[stretch] Hardening.** Row-level security per tenant, access logging, and a retention policy.
@@ -683,6 +700,6 @@ From the design doc's Open Questions. Track B questions belong to Lewis and Omar
 | Accuracy bar | All | Resolved 2026-11-10: every planted finding, no false finding, at least 90% of term fields; `make bar` and `make e2e`, see 2.4 | 2.4 |
 | Inbox scopes and retention we promise | A owner (TBD) | Before A8 | A8, pitch |
 | Script generation threshold and testing | Lewis and Omar | Resolved 2026-11-10: 2 verified, distinct LLM extractions from one sender; promoted only if it reproduces all of them and matches no other sender, see Phase 4 | Stretch |
-| Corrections: prompts and scripts only, or also kept for fine-tuning | Lewis and Omar | Phase 4 | Stretch |
+| Corrections: prompts and scripts only, or also kept for fine-tuning | Lewis and Omar | Resolved 2026-11-10: prompts and scripts only; `feedback_event` rows stay as labeled data for later, with no fine-tuning work, see Phase 4 | Stretch |
 | ~~Price change by email versus the signed contract: which wins~~ | Closed | — | The key settles it in F2: a properly noticed email change is a legitimate new price term that supersedes the old one, and the finding is about acting before it takes effect. |
 | ~~Demo data: which five issues~~ | Closed | — | Answered by `data/synthetic/` |

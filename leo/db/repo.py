@@ -194,10 +194,19 @@ class Repo:
         return self._put(Transaction, NK, {"natural_key": natural_key, **cols})
 
     def upsert_term(self, natural_key: str, **cols: Any) -> UUID:
-        return self._put(ContractTerm, NK, {"natural_key": natural_key, **cols})
+        """A term a reviewer corrected or rejected (`corrected_at`) is never overwritten."""
+        values = {"natural_key": natural_key, **cols}
+        return self._put(ContractTerm, NK, values, where=ContractTerm.corrected_at.is_(None))
 
     def upsert_invoice_fact(self, natural_key: str, **cols: Any) -> UUID:
-        return self._put(InvoiceFact, NK, {"natural_key": natural_key, **cols})
+        """A fact a reviewer corrected or rejected (`corrected_at`) is never overwritten."""
+        values = {"natural_key": natural_key, **cols}
+        return self._put(InvoiceFact, NK, values, where=InvoiceFact.corrected_at.is_(None))
+
+    def is_corrected(self, model: type[ContractTerm] | type[InvoiceFact], row_id: UUID) -> bool:
+        """Whether a reviewer has corrected or rejected this term or invoice fact."""
+        q = select(model.corrected_at).where(model.id == row_id, model.tenant_id == self.tenant_id)
+        return self.session.scalar(q) is not None
 
     def upsert_finding(self, natural_key: str, **cols: Any) -> UUID:
         return self._put(Finding, NK, {"natural_key": natural_key, **cols})

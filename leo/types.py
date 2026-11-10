@@ -80,6 +80,12 @@ class TermStatus(StrEnum):
     current = "current"
     superseded = "superseded"
     needs_review = "needs_review"
+    rejected = "rejected"  # a reviewer said this isn't an item (feedback loop)
+
+
+# Items the ledger's consumers (findings, plan matching, priors, price history) leave out:
+# failed validation, or rejected by a reviewer.
+EXCLUDED_STATUSES = frozenset({TermStatus.needs_review, TermStatus.rejected})
 
 
 class DocumentClass(StrEnum):

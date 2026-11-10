@@ -64,6 +64,7 @@ export type InvoiceFact = {
   amount: number
   invoice_number: string | null
   seats_billed: number | null
+  status: string
 }
 
 export type Transaction = {
@@ -110,8 +111,8 @@ export type FindingDetail = {
   }
   vendor: { id: string; canonical_name: string }
   numbers: NumberRef[]
-  terms: { term: Term; citations: QuoteRef[] }[]
-  invoice_facts: { fact: InvoiceFact; citations: QuoteRef[] }[]
+  terms: TermOut[]
+  invoice_facts: { fact: InvoiceFact; citations: QuoteRef[]; corrected: boolean }[]
   transactions: Transaction[]
   documents: SourceDocument[]
   linked_duplicates: string[]
@@ -128,7 +129,7 @@ export type VendorSummary = {
   at_stake: number
 }
 
-export type TermOut = { term: Term; citations: QuoteRef[] }
+export type TermOut = { term: Term; citations: QuoteRef[]; corrected: boolean }
 
 export type PricePoint = { term: TermOut; in_effect: boolean; change: number | null }
 
@@ -138,6 +139,7 @@ export type MatchedTransaction = {
   transaction: Transaction
   plan_label: string | null
   invoice_fact: InvoiceFact | null
+  invoice_corrected: boolean
   findings: string[]
 }
 

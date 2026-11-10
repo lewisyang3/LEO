@@ -15,6 +15,8 @@ from uuid import UUID
 from pydantic_core import to_jsonable_python
 
 from leo.db import keys
+from leo.db.models import ContractTerm
+from leo.db.models import InvoiceFact as InvoiceFactRow
 from leo.db.repo import Repo
 from leo.rules import span_key
 from leo.types import Contact, ExtractedTerm, InvoiceFact
@@ -74,7 +76,8 @@ def write_term(
     if raw_model_output is not None:
         cols["raw_model_output"] = raw_model_output
     tid = repo.upsert_term(key, **cols)
-    repo.set_citations("term_id", tid, document_id, text, t.quotes)
+    if not repo.is_corrected(ContractTerm, tid):  # a reviewer's row keeps its citations too
+        repo.set_citations("term_id", tid, document_id, text, t.quotes)
     return key, tid
 
 
@@ -105,7 +108,8 @@ def write_invoice_fact(
     if raw_model_output is not None:
         cols["raw_model_output"] = raw_model_output
     fid = repo.upsert_invoice_fact(key, **cols)
-    repo.set_citations("invoice_fact_id", fid, document_id, text, f.quotes)
+    if not repo.is_corrected(InvoiceFactRow, fid):
+        repo.set_citations("invoice_fact_id", fid, document_id, text, f.quotes)
     return key, fid
 
 

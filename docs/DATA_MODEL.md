@@ -9,6 +9,7 @@ The rules that can be code live in `leo/rules.py`, and `tests/test_rules.py` che
 - There are seven term types: `price`, `price_cap`, `escalator`, `renewal`, `notice_window`, `seat_count` and `dispute_window`. Their value shapes are in the table in `data/synthetic/README.md` ("Term value shapes") and in `leo/types.py`.
 - `contract_term.value` is JSONB in that shape. Validate it with `leo.types` before every write.
 - `status` is `current`, `superseded` or `needs_review`. `superseded_by` and `supersedes` are foreign keys to `contract_term`.
+- A fourth status, `rejected`, means a reviewer said the item isn't one (Phase 4, feedback loop). Invoice facts take `current`, `needs_review` or `rejected`. Everything that skips `needs_review` items (findings, plan matching, priors, price history) skips `rejected` ones too: `leo.types.EXCLUDED_STATUSES`.
 
 ## Invoice facts
 
@@ -18,6 +19,14 @@ Invoice facts get their own `invoice_fact` table, because they record what a ven
 - `invoice_number` and `seats_billed` (nullable)
 - `matches_transaction`, a nullable foreign key to `transaction`
 - `notes`
+
+## Corrections (Phase 4, feedback loop)
+
+A reviewer can correct a term's value, effective date, plan label or agreement ref, or an invoice fact's amount, period, date, number or seats, or reject either one (`leo.feedback`, `PATCH /api/terms/{id}`, `PATCH /api/invoice-facts/{id}` and their `/reject`). Type and quotes can't change, because they make the natural key.
+- The row gets `corrected_at`. `Repo.upsert_term` and `upsert_invoice_fact` never overwrite a row that has it, and `write_term` / `write_invoice_fact` leave its citations alone, so re-extraction keeps the reviewer's version.
+- A corrected `needs_review` item becomes `current`. An invoice fact can only become `current` with a billing period that parses; a rejected one may keep any period (`ck_invoice_period`).
+- Each changed field writes one `feedback_event` (`event_type` `correct`, `field` such as `value.included`, `old_value`, `new_value`, `reviewer`). A rejection writes one with `event_type` `reject`. Every event records the item's `document_id` and the `engine` that extracted it (the extract job's `processed_by`), so it can be traced to a generated script.
+- Either change asks for a reconcile round, so findings and unedited drafts follow on the worker's next pass.
 
 ## Vendors and aliases
 

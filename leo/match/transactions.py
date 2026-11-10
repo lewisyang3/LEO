@@ -22,7 +22,7 @@ from leo.db.models import ContractTerm, InvoiceFact
 from leo.db.models import Transaction as TxnRow
 from leo.db.repo import Repo
 from leo.interfaces import TransactionSource, VendorResolver
-from leo.types import TermStatus, TermType, Transaction
+from leo.types import EXCLUDED_STATUSES, TermStatus, TermType, Transaction
 
 SOURCE = "csv"
 INVOICE_MATCH_DAYS = 7  # an invoice and its charge are at most this far apart
@@ -79,7 +79,7 @@ def match_plans(repo: Repo) -> None:
         ).where(
             ContractTerm.tenant_id == t,
             ContractTerm.type == TermType.price,
-            ContractTerm.status != TermStatus.needs_review,
+            ContractTerm.status.not_in(EXCLUDED_STATUSES),
             ContractTerm.plan_label.is_not(None),
         )
     ).all()
@@ -111,7 +111,8 @@ def match_invoice_facts(repo: Repo) -> None:
     """Match each invoice fact to a charge of the same vendor and amount, at most
     `INVOICE_MATCH_DAYS` from the invoice date. The nearest wins, and a charge matches at
     most one fact. Facts are matched in invoice-date order. A fact with no vendor (its
-    vendor name failed validation) matches nothing."""
+    vendor name failed validation) matches nothing, and a rejected fact (a reviewer said
+    it isn't an invoice) matches nothing and claims no charge."""
     s, t = repo.session, repo.tenant_id
     txns = s.execute(
         select(TxnRow.id, TxnRow.vendor_id, TxnRow.date, TxnRow.amount)
@@ -120,9 +121,18 @@ def match_invoice_facts(repo: Repo) -> None:
     ).all()
     facts = s.execute(
         select(InvoiceFact.id, InvoiceFact.vendor_id, InvoiceFact.invoice_date, InvoiceFact.amount)
-        .where(InvoiceFact.tenant_id == t)
+        .where(InvoiceFact.tenant_id == t, InvoiceFact.status != TermStatus.rejected)
         .order_by(InvoiceFact.invoice_date, InvoiceFact.id)
     ).all()
+    s.execute(
+        update(InvoiceFact)
+        .where(
+            InvoiceFact.tenant_id == t,
+            InvoiceFact.status == TermStatus.rejected,
+            InvoiceFact.matches_transaction.is_not(None),
+        )
+        .values(matches_transaction=None)
+    )
     claimed: set[UUID] = set()
     for f in facts:
         candidates = [

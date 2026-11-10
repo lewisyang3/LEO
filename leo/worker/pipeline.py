@@ -38,7 +38,7 @@ from leo.pipeline.validate import JevPriorComparer, RuleValidator
 from leo.reconcile.reconciler import RuleReconciler
 from leo.scriptgen.scripts import StoredScripts
 from leo.stubs import StubClassifier, StubDrafter, StubExtractor, StubReconciler, StubValidator
-from leo.types import ExtractedTerm, TermStatus
+from leo.types import EXCLUDED_STATUSES, ExtractedTerm
 
 DEFAULT_TRANSACTIONS = Path("data/synthetic/transactions.csv")
 PriorTerms = Callable[[Session, UUID, str, str], list[ExtractedTerm]]
@@ -53,7 +53,7 @@ def stored_prior_terms(
     return [
         t
         for t in load_ledger(session, tenant_id).terms
-        if t.vendor == vendor_id and t.document != path and t.status != TermStatus.needs_review
+        if t.vendor == vendor_id and t.document != path and t.status not in EXCLUDED_STATUSES
     ]
 
 

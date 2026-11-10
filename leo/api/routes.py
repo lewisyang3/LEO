@@ -11,16 +11,19 @@ from sqlalchemy.orm import Session
 from leo.api.schemas import (
     ActionEdit,
     ActionOut,
+    CorrectionOut,
     Dashboard,
     DocumentOut,
     FindingDetail,
     FindingSummary,
+    InvoiceFactCorrection,
     Stats,
+    TermCorrection,
     UploadOut,
     VendorDetail,
     VendorSummary,
 )
-from leo.api.store import DbStore, InvalidTransition, NotFound
+from leo.api.store import DbStore, InvalidCorrection, InvalidTransition, NotFound
 from leo.clock import get_clock
 from leo.config import get_settings
 from leo.db.models import Job, ModelUsage, SourceDocument, StageExecution, Tenant
@@ -318,3 +321,39 @@ def restore_action(action_id: str, store: Store) -> ActionOut:
 @router.post("/actions/{action_id}/send")
 def send_action(action_id: str, store: Store) -> ActionOut:
     return _act(action_id, lambda: store.send(action_id))
+
+
+# --- Corrections (feedback loop, Phase 4) ----------------------------------------------------
+
+
+def _fix(what: str, item_id: str, fn) -> CorrectionOut:
+    try:
+        return fn()
+    except NotFound:
+        raise _not_found(what, item_id) from None
+    except InvalidTransition as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+    except InvalidCorrection as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None
+
+
+@router.patch("/terms/{term_id}")
+def correct_term(term_id: str, edit: TermCorrection, store: Store) -> CorrectionOut:
+    """A reviewer's correction: re-extraction never overwrites it, and it feeds the prompts."""
+    return _fix("term", term_id, lambda: store.correct_term(term_id, edit))
+
+
+@router.post("/terms/{term_id}/reject")
+def reject_term(term_id: str, store: Store) -> CorrectionOut:
+    """Not a term: left out of findings from the next reconcile."""
+    return _fix("term", term_id, lambda: store.reject_item("term", term_id))
+
+
+@router.patch("/invoice-facts/{fact_id}")
+def correct_invoice_fact(fact_id: str, edit: InvoiceFactCorrection, store: Store) -> CorrectionOut:
+    return _fix("invoice fact", fact_id, lambda: store.correct_invoice_fact(fact_id, edit))
+
+
+@router.post("/invoice-facts/{fact_id}/reject")
+def reject_invoice_fact(fact_id: str, store: Store) -> CorrectionOut:
+    return _fix("invoice fact", fact_id, lambda: store.reject_item("invoice_fact", fact_id))

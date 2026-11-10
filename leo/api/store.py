@@ -19,14 +19,17 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from leo import feedback
 from leo.api.export import findings_csv, terms_csv
 from leo.api.schemas import (
     ActionEdit,
     ActionOut,
+    CorrectionOut,
     Dashboard,
     DocumentOut,
     FindingDetail,
     FindingSummary,
+    InvoiceFactCorrection,
     InvoiceFactOut,
     JobCount,
     MatchedTransaction,
@@ -34,6 +37,7 @@ from leo.api.schemas import (
     PriceSeries,
     QuoteRef,
     Stats,
+    TermCorrection,
     TermOut,
     UploadOut,
     VendorDetail,
@@ -54,7 +58,7 @@ from leo.ingest.ingest import UPLOADS, ingest
 from leo.ingest.store import RawStore
 from leo.interfaces import Ledger
 from leo.rules import read_source_text
-from leo.types import ActionState, ExtractedTerm, Finding, PriceTerm, TermStatus
+from leo.types import EXCLUDED_STATUSES, ActionState, ExtractedTerm, Finding, PriceTerm
 
 FIXTURE_ENGINE = "fixture"
 
@@ -64,6 +68,10 @@ class NotFound(KeyError):
 
 
 class InvalidTransition(ValueError):
+    pass
+
+
+class InvalidCorrection(ValueError):
     pass
 
 
@@ -158,6 +166,16 @@ class DbStore:
     def _names(ledger: Ledger) -> dict[str, str]:
         return {v.id: v.canonical_name for v in ledger.vendors}
 
+    def _corrected(self) -> set[str]:
+        """Ids of the terms and invoice facts a reviewer corrected or rejected."""
+        out: set[str] = set()
+        for model in (m.ContractTerm, m.InvoiceFact):
+            q = select(model.id).where(
+                model.tenant_id == self.tenant_id, model.corrected_at.is_not(None)
+            )
+            out |= {str(i) for i in self.session.scalars(q)}
+        return out
+
     # --- Reads ------------------------------------------------------------------------------
 
     def _summary(self, f: Finding, action: ActionOut | None, vendor_name: str) -> FindingSummary:
@@ -206,6 +224,7 @@ class DbStore:
         if f is None:
             raise NotFound(finding_id)
         cites = load_citations(self.session, self.tenant_id)
+        corrected = self._corrected()
         terms = {t.id: t for t in ledger.terms}
         facts = {x.id: x for x in ledger.invoice_facts}
         txns = {t.id: t for t in ledger.transactions}
@@ -218,11 +237,19 @@ class DbStore:
             vendor=vendor,
             numbers=finding_numbers(f, ledger),
             terms=[
-                TermOut(term=terms[t], citations=[_quote(c) for c in cites.get(t, [])])
+                TermOut(
+                    term=terms[t],
+                    citations=[_quote(c) for c in cites.get(t, [])],
+                    corrected=t in corrected,
+                )
                 for t in f.terms
             ],
             invoice_facts=[
-                InvoiceFactOut(fact=facts[x], citations=[_quote(c) for c in cites.get(x, [])])
+                InvoiceFactOut(
+                    fact=facts[x],
+                    citations=[_quote(c) for c in cites.get(x, [])],
+                    corrected=x in corrected,
+                )
                 for x in f.invoice_facts
             ],
             transactions=[txns[t] for t in f.transactions],
@@ -330,11 +357,16 @@ class DbStore:
         if vendor is None:
             raise NotFound(vendor_id)
         cites = load_citations(self.session, self.tenant_id)
+        corrected = self._corrected()
         dups = self._duplicate_paths(ledger)
         terms = {t.id: t for t in ledger.terms}
 
         def term_out(t: ExtractedTerm) -> TermOut:
-            return TermOut(term=t, citations=[_quote(c) for c in cites.get(t.id, [])])
+            return TermOut(
+                term=t,
+                citations=[_quote(c) for c in cites.get(t.id, [])],
+                corrected=t.id in corrected,
+            )
 
         history = []
         for series in load_price_history(self.session, self.tenant_id, vid):
@@ -373,13 +405,15 @@ class DbStore:
             for f in ledger.invoice_facts
             if f.matches_transaction
             and f.document not in dups
-            and f.status != TermStatus.needs_review
+            and f.status not in EXCLUDED_STATUSES
         }
+        corrected_invoice = {t for t, f in invoice_for.items() if f.id in corrected}
         transactions = [
             MatchedTransaction(
                 transaction=t,
                 plan_label=ledger.transaction_plan_map.get(t.id),
                 invoice_fact=invoice_for.get(t.id),
+                invoice_corrected=t.id in corrected_invoice,
                 findings=[f.id for f in mine if t.id in f.transactions],
             )
             for t in self._vendor_transactions(ledger, vendor_id)
@@ -468,6 +502,57 @@ class DbStore:
     def send(self, action_id: str) -> ActionOut:
         return self._update(
             action_id, ActionState.approved, "send", state=ActionState.sent, sent_at=func.now()
+        )
+
+    # --- Corrections (feedback loop, Phase 4) ------------------------------------------------
+
+    def _feedback(self, kind: str, item_id: str, fn) -> CorrectionOut:
+        """Run one correction or rejection in its own transaction."""
+        iid = _uuid(item_id)
+        try:
+            events = fn(iid)
+            model = m.ContractTerm if kind == "term" else m.InvoiceFact
+            status = self.session.scalar(select(model.status).where(model.id == iid))
+            self.session.commit()
+        except feedback.ItemNotFound:
+            self.session.rollback()
+            raise NotFound(item_id) from None
+        except feedback.AlreadyRejected as e:
+            self.session.rollback()
+            raise InvalidTransition(str(e)) from None
+        except feedback.BadCorrection as e:
+            self.session.rollback()
+            raise InvalidCorrection(str(e)) from None
+        except BaseException:
+            self.session.rollback()
+            raise
+        return CorrectionOut(
+            id=item_id, kind=kind, status=status, changed=[e.field for e in events if e.field]
+        )
+
+    def correct_term(self, term_id: str, edit: TermCorrection) -> CorrectionOut:
+        edits = edit.model_dump(exclude_unset=True)
+        return self._feedback(
+            "term",
+            term_id,
+            lambda i: feedback.correct_term(self.session, self.tenant_id, self.approver, i, edits),
+        )
+
+    def correct_invoice_fact(self, fact_id: str, edit: InvoiceFactCorrection) -> CorrectionOut:
+        edits = edit.model_dump(exclude_unset=True)
+        return self._feedback(
+            "invoice_fact",
+            fact_id,
+            lambda i: feedback.correct_invoice_fact(
+                self.session, self.tenant_id, self.approver, i, edits
+            ),
+        )
+
+    def reject_item(self, kind: str, item_id: str) -> CorrectionOut:
+        return self._feedback(
+            kind,
+            item_id,
+            lambda i: [feedback.reject(self.session, self.tenant_id, self.approver, kind, i)],
         )
 
     # --- Export (C4) ------------------------------------------------------------------------

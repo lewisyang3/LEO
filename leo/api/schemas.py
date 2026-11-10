@@ -1,7 +1,8 @@
 """Response models for the API (ROADMAP C2, C3). API-only: the shared types stay in `leo.types`."""
 
 import datetime
-from typing import Annotated, Literal
+from decimal import Decimal
+from typing import Annotated, Any, Literal
 
 from pydantic import StringConstraints
 
@@ -44,11 +45,38 @@ class Number(LeoModel):
 class TermOut(LeoModel):
     term: ExtractedTerm
     citations: list[QuoteRef]
+    corrected: bool = False  # a reviewer corrected or rejected it (feedback loop)
 
 
 class InvoiceFactOut(LeoModel):
     fact: InvoiceFact
     citations: list[QuoteRef]
+    corrected: bool = False
+
+
+class TermCorrection(LeoModel):
+    """Fields a reviewer may change on a term. Leave a field out to keep it; `value` may name
+    only the keys that change."""
+
+    value: dict[str, Any] | None = None
+    effective_date: datetime.date | None = None
+    plan_label: str | None = None
+    agreement_ref: str | None = None
+
+
+class InvoiceFactCorrection(LeoModel):
+    amount: Decimal | None = None
+    billing_period: str | None = None
+    invoice_date: datetime.date | None = None
+    invoice_number: str | None = None
+    seats_billed: int | None = None
+
+
+class CorrectionOut(LeoModel):
+    id: str
+    kind: Literal["term", "invoice_fact"]
+    status: str
+    changed: list[str]  # the fields that changed ("value.early_termination_fee", "amount", ...)
 
 
 class ActionOut(LeoModel):
@@ -179,6 +207,7 @@ class MatchedTransaction(LeoModel):
     transaction: Transaction
     plan_label: str | None
     invoice_fact: InvoiceFact | None  # the invoice that matches this charge
+    invoice_corrected: bool = False
     findings: list[str]  # ids of current findings that cite it
 
 

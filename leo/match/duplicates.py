@@ -128,6 +128,17 @@ def _fingerprints(repo: Repo) -> dict[UUID, str]:
     return out
 
 
+def _reviewed(repo: Repo) -> set[UUID]:
+    """Documents with a term or invoice fact a reviewer corrected or rejected (Phase 4)."""
+    out: set[UUID] = set()
+    for model in (ContractTerm, InvoiceFact):
+        q = select(model.document_id).where(
+            model.tenant_id == repo.tenant_id, model.corrected_at.is_not(None)
+        )
+        out |= set(repo.session.scalars(q))
+    return out
+
+
 def _attachments(repo: Repo) -> dict[UUID, set[UUID]]:
     q = select(DocumentLink.document_id, DocumentLink.linked_document_id).where(
         DocumentLink.tenant_id == repo.tenant_id, DocumentLink.link_type == ATTACHMENT_LINK
@@ -149,6 +160,12 @@ def link_duplicates(repo: Repo, store: RawStore) -> dict[UUID, UUID]:
             select(SourceDocument).where(SourceDocument.tenant_id == repo.tenant_id)
         )
     )
+    # A reviewer's correction changes the stored items, not what the document says: a reviewed
+    # document keeps the fingerprint it had from extraction, so its duplicate links hold.
+    reviewed = _reviewed(repo)
+    for d in docs:
+        if d.id in reviewed and d.context_fingerprint is not None:
+            fps[d.id] = d.context_fingerprint
     for d in docs:
         if d.context_fingerprint != fps.get(d.id):
             repo.update_document(d.id, context_fingerprint=fps.get(d.id))

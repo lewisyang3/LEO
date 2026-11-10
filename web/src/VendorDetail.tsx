@@ -2,11 +2,13 @@ import { useState } from 'react'
 import type { PricePoint, PriceSeries, QuoteRef, TermOut, VendorDetail as Detail } from './api'
 import { formatTermValue, humanize, longDate, money } from './api'
 import { DaysLeft, StateBadge } from './Dashboard'
+import { CorrectedBadge, CorrectInvoice, CorrectTerm } from './Correct'
 import DocumentViewer from './DocumentViewer'
 import { findingHref } from './route'
 import { useFetch } from './useFetch'
 
 type Pick = (c: QuoteRef) => void
+type Props = { active: QuoteRef | null; pick: Pick; reload: () => void }
 
 function Quotes({ citations, active, pick }: { citations: QuoteRef[]; active: QuoteRef | null; pick: Pick }) {
   return citations.map((c) => (
@@ -41,7 +43,7 @@ function pointStatus(points: PricePoint[], i: number): 'current' | 'superseded' 
 
 const STATUS_LABEL = { current: 'in effect', superseded: 'superseded', upcoming: 'not yet in effect' }
 
-function History({ series, active, pick }: { series: PriceSeries; active: QuoteRef | null; pick: Pick }) {
+function History({ series, active, pick, reload }: { series: PriceSeries } & Props) {
   return (
     <div className="item series">
       <div className="series-head">
@@ -49,7 +51,7 @@ function History({ series, active, pick }: { series: PriceSeries; active: QuoteR
         {series.agreement_ref && <span className="muted"> · {series.agreement_ref}</span>}
       </div>
       <ol className="timeline">
-        {series.points.map(({ term: { term, citations }, change }, i) => {
+        {series.points.map(({ term: { term, citations, corrected }, change }, i) => {
           const status = pointStatus(series.points, i)
           return (
             <li key={term.id} className={`point ${status}`}>
@@ -60,8 +62,10 @@ function History({ series, active, pick }: { series: PriceSeries; active: QuoteR
                 <span className="amount">{formatTermValue(term.type, term.value)}</span>
                 <Change change={change} />
                 <span className={`badge status-${status}`}>{STATUS_LABEL[status]}</span>
+                <CorrectedBadge corrected={corrected} />
               </div>
               <Quotes citations={citations} active={active} pick={pick} />
+              <CorrectTerm term={term} onDone={reload} />
             </li>
           )
         })}
@@ -70,7 +74,7 @@ function History({ series, active, pick }: { series: PriceSeries; active: QuoteR
   )
 }
 
-function Term({ t: { term, citations }, active, pick }: { t: TermOut; active: QuoteRef | null; pick: Pick }) {
+function Term({ t: { term, citations, corrected }, active, pick, reload }: { t: TermOut } & Props) {
   return (
     <div className="item">
       <div>
@@ -80,15 +84,17 @@ function Term({ t: { term, citations }, active, pick }: { t: TermOut; active: Qu
           <span className="muted"> · effective {longDate(term.effective_date)}</span>
         )}
         {term.status !== 'current' && <span className="badge">{term.status}</span>}
+        <CorrectedBadge corrected={corrected} />
       </div>
       <div className="small muted">{formatTermValue(term.type, term.value)}</div>
       <Quotes citations={citations} active={active} pick={pick} />
+      <CorrectTerm term={term} onDone={reload} />
     </div>
   )
 }
 
 export default function VendorDetail({ id, version }: { id: string; version: number }) {
-  const { data: d, error } = useFetch<Detail>(`/api/vendors/${encodeURIComponent(id)}`, version)
+  const { data: d, error, reload } = useFetch<Detail>(`/api/vendors/${encodeURIComponent(id)}`, version)
   const [citation, setCitation] = useState<QuoteRef | null>(null)
 
   if (error) return <p className="error">{error}</p>
@@ -98,7 +104,7 @@ export default function VendorDetail({ id, version }: { id: string; version: num
   const atStake = d.findings.reduce((n, f) => n + f.at_stake, 0)
   const spend = d.transactions.reduce((n, t) => n + t.transaction.amount, 0)
   const otherTerms = d.terms.filter((t) => t.term.type !== 'price')
-  const props = { active: citation, pick: setCitation }
+  const props = { active: citation, pick: setCitation, reload }
 
   return (
     <>
@@ -194,7 +200,7 @@ export default function VendorDetail({ id, version }: { id: string; version: num
                   </tr>
                 </thead>
                 <tbody>
-                  {d.transactions.map(({ transaction: t, plan_label, invoice_fact, findings: ids }) => (
+                  {d.transactions.map(({ transaction: t, plan_label, invoice_fact, invoice_corrected, findings: ids }) => (
                     <tr key={t.id}>
                       <td className="nowrap">{longDate(t.date)}</td>
                       <td>
@@ -209,6 +215,8 @@ export default function VendorDetail({ id, version }: { id: string; version: num
                         {invoice_fact && (
                           <div className="small">
                             Invoice <span className="nowrap">{invoice_fact.invoice_number ?? invoice_fact.billing_period}</span>
+                            <CorrectedBadge corrected={invoice_corrected} />
+                            <CorrectInvoice fact={invoice_fact} onDone={reload} />
                           </div>
                         )}
                       </td>

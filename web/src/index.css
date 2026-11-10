@@ -604,3 +604,28 @@ mark {
 .upload {
   margin-top: 1.5rem;
 }
+
+/* Feedback loop: correct or reject an extracted item */
+.correct {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.3rem;
+}
+
+button.small {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.5rem;
+}
+
+.correct-form {
+  margin-top: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.correct-form label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}

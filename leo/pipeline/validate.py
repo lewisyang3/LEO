@@ -33,6 +33,7 @@ from leo.analytics.usage import record_usage
 from leo.interfaces import Clock, DocumentText, Extraction, Validated, ValidationIssue
 from leo.rules import locate_quote
 from leo.types import (
+    EXCLUDED_STATUSES,
     DisputeWindowTerm,
     ExtractedTerm,
     InvoiceFact,
@@ -131,7 +132,7 @@ def _dates(item: ExtractedTerm | InvoiceFact) -> list[tuple[str, datetime.date]]
     return [(k, v) for k, v in out if v is not None]
 
 
-def _billing_period_ok(period: str) -> bool:
+def billing_period_ok(period: str) -> bool:
     if _MONTH.match(period):
         try:
             datetime.date.fromisoformat(period + "-01")
@@ -159,7 +160,7 @@ def check_dates(item: ExtractedTerm | InvoiceFact, today: datetime.date) -> list
                     item.id, DATE_IMPLAUSIBLE, f"invoice_date {item.invoice_date} is after today"
                 )
             )
-        if not _billing_period_ok(item.billing_period):
+        if not billing_period_ok(item.billing_period):
             issues.append(
                 _issue(
                     item.id,
@@ -221,7 +222,7 @@ def _fold(s: str | None) -> str | None:
 
 def comparable(term: ExtractedTerm, prior: ExtractedTerm) -> bool:
     """Whether `prior` states the same thing as `term` for the same period (module docstring)."""
-    if prior.document == term.document or prior.status == TermStatus.needs_review:
+    if prior.document == term.document or prior.status in EXCLUDED_STATUSES:
         return False
     if prior.type != term.type:
         return False

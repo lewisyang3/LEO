@@ -21,12 +21,12 @@ from leo.db import models as m
 from leo.interfaces import Ledger
 from leo.match.duplicates import PROBABLE_DUPLICATE
 from leo.types import (
+    EXCLUDED_STATUSES,
     Contact,
     ExtractedTerm,
     Finding,
     InvoiceFact,
     SourceDocument,
-    TermStatus,
     Transaction,
     Vendor,
     extracted_term_adapter,
@@ -287,14 +287,15 @@ def _duplicate_documents(tenant_id: UUID):
 def load_price_history(session: Session, tenant_id: UUID, vendor_id: UUID) -> list[PriceSeries]:
     """The design doc's price history: a vendor's `price` terms, one series per agreement_ref
     and plan_label, by effective date. Terms from probable-duplicate documents are left out, and so
-    are `needs_review` terms, which failed validation (the reconciler ignores them too)."""
+    are `needs_review` terms, which failed validation, and `rejected` ones (the reconciler ignores
+    both)."""
     q = (
         select(m.ContractTerm.id, m.ContractTerm.agreement_ref, m.ContractTerm.plan_label)
         .where(
             m.ContractTerm.tenant_id == tenant_id,
             m.ContractTerm.vendor_id == vendor_id,
             m.ContractTerm.type == "price",
-            m.ContractTerm.status != TermStatus.needs_review,
+            m.ContractTerm.status.not_in(EXCLUDED_STATUSES),
             m.ContractTerm.document_id.not_in(_duplicate_documents(tenant_id)),
         )
         .order_by(m.ContractTerm.effective_date.asc().nulls_last(), m.ContractTerm.id)

@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react'
 import type { FindingDetail as Detail, NumberRef, QuoteRef } from './api'
 import { formatNumber, formatTermValue, humanize, longDate, money } from './api'
 import { DaysLeft, StateBadge } from './Dashboard'
+import { CorrectedBadge, CorrectInvoice, CorrectTerm } from './Correct'
 import DocumentViewer from './DocumentViewer'
 import { vendorHref } from './route'
 import { useFetch } from './useFetch'
 
 export default function FindingDetail({ id, version }: { id: string; version: number }) {
-  const { data: d, error } = useFetch<Detail>(`/api/findings/${encodeURIComponent(id)}`, version)
+  const { data: d, error, reload } = useFetch<Detail>(`/api/findings/${encodeURIComponent(id)}`, version)
   const [number, setNumber] = useState<NumberRef | null>(null)
   const [citation, setCitation] = useState<QuoteRef | null>(null)
 
@@ -117,7 +118,10 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
 
           <section>
             <h2>Contract terms</h2>
-            {d.terms.map(({ term, citations }) => (
+            <p className="muted small">
+              Wrong or not a term? Correct it: LEO keeps your fix and learns from it.
+            </p>
+            {d.terms.map(({ term, citations, corrected }) => (
               <div key={term.id} className="item">
                 <div>
                   <strong>{humanize(term.type)}</strong>
@@ -126,6 +130,7 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
                     <span className="muted"> · effective {longDate(term.effective_date)}</span>
                   )}
                   {term.status !== 'current' && <span className="badge">{term.status}</span>}
+                  <CorrectedBadge corrected={corrected} />
                 </div>
                 <div className="small muted">{formatTermValue(term.type, term.value)}</div>
                 {citations.map((c) => (
@@ -137,6 +142,7 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
                     “{c.quote}”
                   </button>
                 ))}
+                <CorrectTerm term={term} onDone={reload} />
               </div>
             ))}
           </section>
@@ -144,7 +150,7 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
           {d.invoice_facts.length > 0 && (
             <section>
               <h2>Invoices</h2>
-              {d.invoice_facts.map(({ fact, citations }) => (
+              {d.invoice_facts.map(({ fact, citations, corrected }) => (
                 <div key={fact.id} className="item">
                   <div>
                     <strong>{fact.invoice_number ?? fact.id}</strong>{' '}
@@ -153,6 +159,8 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
                       {money(fact.amount)}
                       {fact.seats_billed !== null && ` · ${fact.seats_billed} seats`}
                     </span>
+                    {fact.status !== 'current' && <span className="badge">{fact.status}</span>}
+                    <CorrectedBadge corrected={corrected} />
                   </div>
                   {citations.map((c) => (
                     <button
@@ -163,6 +171,7 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
                       “{c.quote}”
                     </button>
                   ))}
+                  {fact.status !== 'rejected' && <CorrectInvoice fact={fact} onDone={reload} />}
                 </div>
               ))}
             </section>

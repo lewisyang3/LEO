@@ -45,11 +45,12 @@ from leo.types import ActionState, ActionType, FindingKind, TermStatus, TermType
 # Finding statuses have no shared enum yet. C1 recomputes findings; the user's decision
 # lives on action.state.
 FINDING_STATUSES = ("current", "superseded")
-INVOICE_STATUSES = (TermStatus.current, TermStatus.needs_review)
+INVOICE_STATUSES = (TermStatus.current, TermStatus.needs_review, TermStatus.rejected)
 JOB_STATUSES = ("pending", "running", "done", "failed", "parked")
-# A flagged (needs_review) invoice fact is stored as extracted, so its period may not parse.
+# A flagged (needs_review) invoice fact is stored as extracted, so its period may not parse,
+# and a rejected one keeps whatever it had.
 INVOICE_PERIOD_CHECK = (
-    "status = 'needs_review'"
+    "status IN ('needs_review', 'rejected')"
     " OR billing_period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
     " OR billing_period ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
 )
@@ -224,6 +225,8 @@ class ContractTerm(NaturalKeyRow):
     supersedes: Mapped[UUID | None]
     notes: Mapped[str | None] = mapped_column(Text)
     raw_model_output: Mapped[dict | None] = mapped_column(JSONB)
+    # Set when a reviewer corrects or rejects the term: re-extraction never overwrites it.
+    corrected_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         _tenant_id_key("contract_term"),
         _nk("contract_term"),
@@ -251,6 +254,8 @@ class InvoiceFact(NaturalKeyRow):
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=TermStatus.current)
     raw_model_output: Mapped[dict | None] = mapped_column(JSONB)
+    # Set when a reviewer corrects or rejects the fact: re-extraction never overwrites it.
+    corrected_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         _tenant_id_key("invoice_fact"),
         _nk("invoice_fact"),
@@ -472,10 +477,18 @@ class ExtractorScript(Row):
 
 
 class FeedbackEvent(Row):
-    """A user correction or rejection: the training signal for prompts and scripts."""
+    """A user correction or rejection: the training signal for prompts and scripts.
+
+    `event_type` is `correct` (one row per changed field) or `reject`. `document_id` is the
+    item's source document and `engine` the extract engine that produced it (the extract
+    job's `processed_by`), so a correction can be traced to a generated script.
+    """
 
     __tablename__ = "feedback_event"
     term_id: Mapped[UUID | None]
+    invoice_fact_id: Mapped[UUID | None]
+    document_id: Mapped[UUID | None]
+    engine: Mapped[str | None] = mapped_column(Text)
     finding_id: Mapped[UUID | None]
     action_id: Mapped[UUID | None]
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -490,6 +503,8 @@ class FeedbackEvent(Row):
     __table_args__ = (
         _tenant_id_key("feedback_event"),
         _fk("feedback_event", "term_id", "contract_term"),
+        _fk("feedback_event", "invoice_fact_id", "invoice_fact"),
+        _fk("feedback_event", "document_id", "source_document"),
         _fk("feedback_event", "finding_id", "finding"),
         _fk("feedback_event", "action_id", "action"),
     )

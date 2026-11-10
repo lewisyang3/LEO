@@ -13,7 +13,7 @@ the ledger and takes `today` from the caller. There is one rule per `FindingKind
   application.
 
 Inputs:
-- Terms and invoice facts with status `needs_review` are ignored.
+- Terms and invoice facts with status `needs_review` or `rejected` are ignored.
 - `superseded` terms are kept as price history. Supersession is computed from the data, never
   read from `status`.
 
@@ -41,6 +41,7 @@ from leo.rules import (
     recommended_send_by,
 )
 from leo.types import (
+    EXCLUDED_STATUSES,
     Anchor,
     AppliesTo,
     AutoRenewalFinding,
@@ -70,7 +71,6 @@ from leo.types import (
     SeatsComputation,
     SeatsImpact,
     SeatsOverCommitmentFinding,
-    TermStatus,
     Transaction,
     Vendor,
 )
@@ -149,7 +149,7 @@ class _Vendor:
             (
                 f
                 for f in ledger.invoice_facts
-                if f.vendor == vid and f.status != TermStatus.needs_review
+                if f.vendor == vid and f.status not in EXCLUDED_STATUSES
             ),
             key=lambda f: (f.invoice_date, f.id),
         )
@@ -656,7 +656,7 @@ class RuleReconciler:
     def reconcile(self, ledger: Ledger, today: datetime.date) -> Reconciliation:
         terms: dict[str, list[ExtractedTerm]] = defaultdict(list)
         for t in ledger.terms:
-            if t.vendor and t.status != TermStatus.needs_review:
+            if t.vendor and t.status not in EXCLUDED_STATUSES:
                 terms[t.vendor].append(t)
         findings: list[Finding] = []
         supersessions: list[Supersession] = []
