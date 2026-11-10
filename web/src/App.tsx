@@ -1,28 +1,40 @@
-import { useEffect, useState } from 'react'
-
-type Health = { status: string; db: string }
+import { useCallback, useState } from 'react'
+import type { Dashboard } from './api'
+import ApprovalQueue from './ApprovalQueue'
+import DashboardPage from './Dashboard'
+import FindingDetail from './FindingDetail'
+import { useHashRoute } from './route'
+import { useFetch } from './useFetch'
 
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(setHealth)
-      .catch((e: Error) => setError(e.message))
-  }, [])
+  const route = useHashRoute()
+  // Bumped after any action change, so the header count and lists refetch.
+  const [version, setVersion] = useState(0)
+  const changed = useCallback(() => setVersion((v) => v + 1), [])
+  const { data: dash, error } = useFetch<Dashboard>('/api/dashboard', version)
 
   return (
-    <main>
-      <h1>LEO</h1>
-      {error && <p>API unreachable: {error}. Is `make api` running?</p>}
-      {health && (
-        <p>
-          API: {health.status} · DB: {health.db}
-        </p>
-      )}
-      {!health && !error && <p>Checking API…</p>}
-    </main>
+    <>
+      <header className="topbar">
+        <a href="#/" className="brand">
+          LEO
+        </a>
+        <nav>
+          <a href="#/" className={route.page !== 'actions' ? 'active' : ''}>
+            Findings
+          </a>
+          <a href="#/actions" className={route.page === 'actions' ? 'active' : ''}>
+            Approvals{dash ? ` (${dash.pending_actions})` : ''}
+          </a>
+        </nav>
+        <span className="today">{dash && `Today ${dash.today}`}</span>
+      </header>
+      <main>
+        {error && <p className="error">API unreachable: {error}. Is `make api` running?</p>}
+        {route.page === 'findings' && <DashboardPage dash={dash} version={version} />}
+        {route.page === 'finding' && <FindingDetail key={route.id} id={route.id} version={version} />}
+        {route.page === 'actions' && <ApprovalQueue version={version} onChange={changed} />}
+      </main>
+    </>
   )
 }
