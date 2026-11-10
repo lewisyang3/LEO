@@ -100,14 +100,21 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
 
 ### Track A: Data and platform (owner TBD after B)
 
-- [ ] **A1 [must] Schema and migrations.**
+- [x] **A1 [must] Schema and migrations.**
   - The first Alembic migration creates:
     - every table in the design doc: `tenant`, `vendor`, `vendor_alias`, `source_document`, `contract_term`, `citation`, `transaction`, `finding`, `action`, `extractor_script`, `feedback_event` and `job`
     - four additions: `invoice_fact`, `vendor_contact`, `document_link` for duplicate links, and `finding_term` / `finding_transaction` / `finding_invoice_fact` for linking a finding to many items
   - Every table has `tenant_id`, a UUIDv7 primary key, and `UNIQUE (tenant_id, natural_key)` where it has a natural key.
   - Raw model output goes in JSONB.
   - Enable `pg_trgm`.
-- [ ] **A2 [must] Keys and upserts.**
+
+  Done, in `leo/db/models.py` and migration `7f576f9fa5fc` (PR #10):
+  - **Tenant isolation.** `tenant_id` is a foreign key to `tenant`, and every table has `UNIQUE (tenant_id, id)`. Every cross-table reference is a composite foreign key on `(tenant_id, col)`, so a row can't point at another tenant's rows. Self-references (`supersedes`/`superseded_by`, `parent_document_id`, `*_duplicate_of_id`) are `DEFERRABLE INITIALLY DEFERRED`, so terms that supersede each other can be written in either order.
+  - **CHECKs.** Their value lists come from the `leo.types` enums. Finding status is `current` or `superseded`, and job status is `pending`, `running`, `done`, `failed` or `parked`. An `approved` or `sent` action must have an `approver`.
+  - **Design-doc columns.** `action.approver`/`decided_at`, `extractor_script.code`/`accuracy`/`promoted_at`, the correction fields on `feedback_event`, and `job.claimed_at`/`updated_at` with a claim index.
+  - **Migrations.** `make migration msg=…` autogenerates one. Add extensions by hand, because autogenerate can't emit them. `leo/db/migrations/versions/` is exempt from ruff's line-length rule, for the generated CHECK SQL.
+  - **Open.** `source_document` has both the `*_duplicate_of_id` columns and the `document_link` table. A2's seed writes only `document_link`. Pick one representation in A6.
+- [x] **A2 [must] Keys and upserts.**
   - Natural-key builders: `v1:gmail:…`, `v1:eml-hash:…`, `v1:file:…`, `v1:term:…`, `v1:invoice-fact:{doc key}:{first quote start}:{first quote end}`, `v1:finding:{anchor term key}:{anchor txn key or -}:{kind}`, `v1:txn:{source}:{external_id}`, `v1:job:{doc key}:{stage}` and `v1:action:{finding key}:{action type}`.
   - A repository layer where every write is an upsert.
   - Tests:
@@ -115,6 +122,18 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - D1 (the byte-identical re-sync) gives one document row.
     - D5 (a full rerun) adds no rows to any table.
   - ⇄ B and C switch from fixtures to the repository once this lands.
+
+  Done, in `leo/db/keys.py`, `leo/db/repo.py`, `leo/db/seed.py` and migration `9c5628160120` (PR #11):
+  - **Keys.** `leo/db/keys.py` builds every `v1:` key. `.eml` files key on `eml-hash` and all other files on `file`, so contracts get `v1:file:…`. Transactions use `v1:txn:csv:{id}`. `normalize_name` gives `vendor.normalized_name` and `vendor_alias.normalized_alias`.
+  - **Upserts.** `Repo(session, tenant_id)` never commits. Every write is `INSERT … ON CONFLICT DO UPDATE … RETURNING id`, so a rerun gets back the same id. On conflict:
+    - provenance columns (path, hash, headers) keep their first value
+    - derived values are overwritten
+    - `action.state`, `approver` and `decided_at` are never written, and draft text updates only while the action is still a draft, so approvals survive reruns
+    - citations upsert by (owner, ordinal) and drop stale ordinals
+    - an alias that already names another vendor raises `AliasConflict`
+  - **Tenants.** `tenant.slug` is the tenant's natural key. The seed's slug is the dataset name.
+  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) come straight from the key until A5 and A6 replace them. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. A7 wires this to `make seed`.
+  - **Not done here.** `.eml` header decoding with `email.policy.default` and a guarded date parse belong to A3. The read methods B and C need to switch over belong to C3.
 - [ ] **A3 [must] Ingestion function.**
   - An `.eml` parser covering headers, text body, and attachments stored once by hash.
   - A contracts-folder loader.

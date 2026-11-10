@@ -36,8 +36,9 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | --- | --- |
 | `setup` | `uv sync`, create `.env` if missing, `npm install` in `web/` |
 | `up` / `down` | Start / stop Postgres (`docker compose`) |
+| `migration` | Autogenerate a migration from the models: `make migration msg="what changed"`. Add extensions by hand |
 | `migrate` | `alembic upgrade head` |
-| `test` | `pytest` (needs `make up`) |
+| `test` | `pytest` (needs `make up` and `make migrate`) |
 | `lint` | `ruff check` and `ruff format --check` |
 | `api` | Run FastAPI with reload |
 | `web` | Run the Vite dev server |

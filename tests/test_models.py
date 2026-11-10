@@ -1,6 +1,6 @@
 """A1 schema tests. Need Postgres running and migrated: `make up && make migrate`.
 
-Each test runs inside one transaction that is rolled back, so nothing is left behind.
+Each test gets the rolled-back `session` fixture from conftest.py, so nothing is left behind.
 """
 
 import datetime as dt
@@ -21,20 +21,10 @@ from leo.db.models import (
     Vendor,
     new_uuid7,
 )
-from leo.db.session import get_engine
-
-
-@pytest.fixture
-def session():
-    with get_engine().connect() as conn:
-        trans = conn.begin()
-        with Session(bind=conn, join_transaction_mode="create_savepoint") as s:
-            yield s
-        trans.rollback()
 
 
 def _tenant(s: Session, name: str = "t") -> Tenant:
-    t = Tenant(name=name)
+    t = Tenant(name=name, slug=f"test-{name}-{new_uuid7()}")
     s.add(t)
     s.flush()
     return t

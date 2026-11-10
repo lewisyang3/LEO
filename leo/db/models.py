@@ -113,9 +113,11 @@ class Tenant(Row):
     """A tenant row's tenant_id is its own id."""
 
     __tablename__ = "tenant"
+    slug: Mapped[str] = mapped_column(Text, nullable=False)  # natural key, e.g. the dataset
     name: Mapped[str] = mapped_column(Text, nullable=False)
     __table_args__ = (
         _tenant_id_key("tenant"),
+        UniqueConstraint("slug", name="uq_tenant_slug"),
         CheckConstraint("tenant_id = id", name="ck_tenant_self_id"),
     )
 
@@ -158,7 +160,7 @@ class SourceDocument(NaturalKeyRow):
     source_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     doc_class: Mapped[str | None] = mapped_column(String(64))
     sender: Mapped[str | None] = mapped_column(Text)
-    recipient: Mapped[str] = mapped_column(Text, nullable=False)
+    recipient: Mapped[str | None] = mapped_column(Text)  # null for contract files
     subject: Mapped[str | None] = mapped_column(Text)
     message_id: Mapped[str | None] = mapped_column(Text)  # metadata, never identity
     thread_id: Mapped[str | None] = mapped_column(Text)  # metadata, never identity
