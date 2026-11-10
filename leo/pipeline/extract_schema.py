@@ -251,3 +251,38 @@ EXTRACTION_PARTS: dict[str, tuple[type[LLMModel], str]] = {
         "notice_window terms, dispute_window terms, invoice facts and contacts",
     ),
 }
+
+
+# --- Few-shot corrections (Phase 4, feedback loop) --------------------------------------------
+#
+# A reviewer's correction is shown to the model in the part that extracts that kind of item,
+# and only for fields the model itself writes. Dates the mapper computes afterwards
+# (`current_term_end`, `next_deadline`) aren't in the model's output, and `first_application` /
+# `initial_term_end` are filled only when the document states them outright, so a correction of
+# any of them would push the model to write what the prompt says to leave null.
+
+INVOICE_FACT = "invoice_fact"
+_DERIVED = frozenset({"value.first_application", "value.initial_term_end"})
+_TERM_FIELDS = ("plan_label", "agreement_ref", "effective_date")
+
+
+def _items() -> tuple[dict[str, str], dict[str, frozenset[str]]]:
+    part_of: dict[str, str] = {}
+    fields: dict[str, frozenset[str]] = {}
+    for part, (model, _) in EXTRACTION_PARTS.items():
+        for name, info in model.model_fields.items():
+            if name in TERM_LISTS:
+                item = info.annotation.__args__[0]  # list[LLM...Item]
+                value = item.model_fields["value"].annotation
+                keys = {f"value.{k}" for k in value.model_fields} - _DERIVED
+                part_of[TERM_LISTS[name]] = part
+                fields[TERM_LISTS[name]] = frozenset(keys | set(_TERM_FIELDS))
+            elif name == "invoice_facts":
+                part_of[INVOICE_FACT] = part
+                fields[INVOICE_FACT] = frozenset(LLMInvoiceFact.model_fields) - {"quotes"}
+    return part_of, fields
+
+
+# Item kind (a term type, or "invoice_fact") -> the part that extracts it, and the fields of it
+# a correction may show the model.
+PART_OF_ITEM, EXAMPLE_FIELDS = _items()

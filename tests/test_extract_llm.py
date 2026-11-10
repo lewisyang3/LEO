@@ -9,12 +9,14 @@ from anthropic.types import Message
 
 from leo.clock import FixedClock
 from leo.config import Settings
+from leo.feedback import FewShot
 from leo.fixtures import load_fixture
 from leo.interfaces import DocumentText
 from leo.llm import LLMOfflineMiss, ResponseCache, json_schema_for
 from leo.pipeline.extract_llm import (
     SCHEMAS,
     LLMExtractor,
+    _user_prompt,
     add_months,
     agreement_ref,
     labelled_ref,
@@ -555,3 +557,83 @@ def test_cached_vendor_names_resolve():
     for path in F_DOCS:
         name = ex.extract(FX.document_text(path, classified=True)).vendor_name
         assert name and resolver.find_vendor(name) == FX.document(path).vendor, (path, name)
+
+
+# --- Few-shot corrections (Phase 4, F2) -------------------------------------------------------
+
+
+def _shot(item="renewal", rejected=False, **kw):
+    return FewShot(
+        item=item,
+        quotes=kw.get("quotes", ("Early termination fee: 50% of the remaining MRC.",)),
+        fixes=kw.get(
+            "fixes",
+            ()
+            if rejected
+            else (
+                ("value.early_termination_fee", "50% of the remaining MRC", "50% of remaining MRC"),
+            ),
+        ),
+        rejected=rejected,
+        event_ids=kw.get("event_ids", ("e1",)),
+    )
+
+
+def test_no_examples_leaves_the_prompt_as_it_was():
+    """The committed cache keys hash this text: with no corrections it must not change."""
+    doc = _doc()
+    for _, asks in EXTRACTION_PARTS.values():
+        expected = (
+            "Document class: contract\n\n<document>\nKestrel Cloud Hosting, LLC\nsome text\n"
+            "</document>\n\n"
+            f"Extract the vendor name and, from this document, only its {asks}. Other kinds of "
+            "item are extracted separately. Return empty lists when the document has none."
+        )
+        assert _user_prompt(doc, asks) == expected
+        assert _user_prompt(doc, asks, ()) == expected
+
+
+def test_only_the_part_with_examples_gets_the_block(tmp_path):
+    ex, client = _extractor(tmp_path)
+    ex.extract(_doc())
+    before = [c["messages"][0]["content"] for c in client.messages.calls]
+    x = ex.extract(_doc(), examples={"prices_renewals": [_shot()]})
+    after = [c["messages"][0]["content"] for c in client.messages.calls[3:]]
+    assert len(after) == 1  # the other two parts were cache hits: same request as before
+    assert "<corrections>" in after[0] and "<corrections>" not in "".join(before)
+    assert (
+        'early_termination_fee was "50% of the remaining MRC", corrected to '
+        '"50% of remaining MRC"' in after[0]
+    )
+    assert "renewal term, from " in after[0]
+    assert x.raw_output["few_shots"] == {"prices_renewals": ["e1"]}
+
+
+def test_no_examples_records_no_few_shots(tmp_path):
+    ex, _ = _extractor(tmp_path)
+    assert "few_shots" not in ex.extract(_doc(), examples={}).raw_output
+
+
+def test_a_rejection_says_leave_it_out(tmp_path):
+    ex, client = _extractor(tmp_path)
+    shot = _shot("invoice_fact", rejected=True, quotes=("Total charged $842.17",))
+    ex.extract(_doc(), examples={"windows_invoices_contacts": [shot]})
+    (call,) = [c for c in client.messages.calls if "<corrections>" in c["messages"][0]["content"]]
+    assert (
+        'From "Total charged $842.17": this is not an invoice fact; leave it out.'
+        in call["messages"][0]["content"]
+    )
+
+
+def test_the_example_quotes_the_clause_with_the_corrected_text():
+    from leo.pipeline.extract_llm import corrections_block
+
+    shot = _shot(
+        quotes=(
+            "Term: twenty-four (24) months from the Service Start Date.",
+            "Early termination fee: 50% of the remaining MRC.",
+        )
+    )
+    block = corrections_block([shot])
+    assert 'from "Early termination fee: 50% of the remaining MRC.":' in block
+    assert "Service Start Date" not in block

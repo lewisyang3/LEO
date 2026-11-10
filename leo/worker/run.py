@@ -37,11 +37,13 @@ from leo.db.models import Job, ModelUsage, StageExecution
 from leo.db.models import SourceDocument as DocumentRow
 from leo.db.read import load_ledger
 from leo.db.repo import Repo
+from leo.feedback import few_shots
 from leo.ingest.store import RawStore
 from leo.interfaces import Classification, Clock, DocumentText, Extraction
 from leo.llm import LLMOfflineMiss
 from leo.match.duplicates import link_duplicates
 from leo.match.transactions import match_invoice_facts, match_plans, sync_transactions
+from leo.pipeline.extract_llm import LLMExtractor
 from leo.rules import read_source_text
 from leo.types import DocumentClass, SourceDocument, TermStatus
 from leo.worker import queue
@@ -259,7 +261,7 @@ class Worker:
         classification = Classification.model_validate(self._output(job, row, queue.CLASSIFY))
         doc = self._text(row, classification.doc_class)
         if job.stage == queue.EXTRACT:
-            return self._extract(repo, doc)
+            return self._extract(repo, row, doc)
         if job.stage == queue.VALIDATE:
             extraction = Extraction.model_validate(self._output(job, row, queue.EXTRACT))
             return self._validate(repo, row, doc, extraction)
@@ -271,14 +273,20 @@ class Worker:
         nxt = None if c.doc_class == DocumentClass.noise else NEXT_STAGE[queue.CLASSIFY]
         return StageResult(c.model_dump(mode="json"), c.engine, nxt)
 
-    def _extract(self, repo: Repo, doc: DocumentText) -> StageResult:
+    def _extract(self, repo: Repo, row: DocumentRow, doc: DocumentText) -> StageResult:
         """The tenant's promoted generated scripts first (Phase 4), then the pipeline's
-        extractors in order."""
+        extractors in order. The LLM extractor also gets the tenant's reviewed items from
+        other documents as few-shot examples (F2), loaded only when it is reached."""
         p = self.pipeline
         stored = p.stored_scripts(repo) if p.stored_scripts is not None else None
         chain = [*([stored] if stored is not None else []), *p.extractors]
         for extractor in chain:
-            if (x := extractor.extract(doc)) is not None:
+            if isinstance(extractor, LLMExtractor) and p.few_shots:
+                examples = few_shots(repo.session, repo.tenant_id, exclude_document=row.id)
+                x = extractor.extract(doc, examples=examples)
+            else:
+                x = extractor.extract(doc)
+            if x is not None:
                 return StageResult(x.model_dump(mode="json"), x.engine, NEXT_STAGE[queue.EXTRACT])
         raise Permanent("no extractor matched")
 

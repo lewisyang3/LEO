@@ -675,10 +675,20 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - **Review fixes.** A rejected invoice fact claims no charge, and a match it had is cleared (`match_invoice_facts`). A document with a reviewed item keeps its stored fingerprint, so a correction on 01 doesn't break D2's link to the forward 02 (`link_duplicates`). A value correction records only the keys the reviewer sent.
     - **Not done:**
       - A correction on a document whose vendor failed closed makes the item `current` with no vendor, and re-extraction can't fill the vendor in. Neither page shows items with no vendor, so the UI can't reach it.
-      - Any correction promotes a `needs_review` item to `current`, even if the check that failed still fails. Decide in F2.
       - A corrected row keeps its place only while re-extraction gives the same natural key. A different first quote span makes a new row beside it. The cached extractions don't do this.
       - `write_term` / `write_invoice_fact` make one extra SELECT per item (`is_corrected`).
-  - [ ] **F2: corrections as few-shot examples** in the extraction prompt, by item type, tenant-wide. Parts with no correction keep a byte-identical prompt, so the committed cache still hits.
+  - [x] **F2: corrections as few-shot examples** in the extraction prompt, by item type, tenant-wide:
+    - **Loading.** `leo.feedback.few_shots` returns the tenant's reviewed items by extraction part, newest first, at most 5 per part. Each carries its citations, its fixes (field, extracted value, corrected value) or "rejected", and its event ids.
+      - **Left out:** the document being extracted, and documents linked to it as probable duplicates (either direction; attachment links don't count). Also left out are fixes to fields the model doesn't write (`EXAMPLE_FIELDS` in `extract_schema.py`, built from the LLM models): the computed `current_term_end` and `next_deadline`, and `first_application` and `initial_term_end`, which the prompt says to fill only when the document states them.
+      - **Merging:** an item's latest state wins, and a field corrected twice shows its first extracted and last corrected value. The same events always give the same examples in the same order.
+    - **Prompt.** `LLMExtractor.extract(doc, examples=...)` adds a `<corrections>` block to the user prompt only for a part that has examples. The block quotes the citation that holds the corrected text. A rejection reads "this is not a … ; leave it out". With no examples the prompt is byte-identical to before (`PROMPT_VERSION` stays `extract-v3`), so the committed cache still answers. The job's raw output lists the event ids used (`few_shots`).
+    - **Worker.** Only the LLM extractor gets examples, loaded when it is reached (`Pipeline.few_shots`, on by default). Scripts, the eval and scriptgen are unchanged.
+    - **Decided:** a correction makes a `needs_review` item `current`. The reviewer looked at it, which is a stronger check than the rule that flagged it.
+    - **Live check.**
+      - Steps: correct Ferrolink's early termination fee to the key's "50% of remaining Monthly Recurring Charges", upload the holdout Brightline contract, then drain online. One extra call is made: only the renewals part, which carries the block. Brightline states no fee, and the model leaves it null.
+      - The synthetic set has no second document where the same mistake recurs, so the effect shows in the prompt, not in a score.
+    - **Results:** `make bar` stays at 262/263 and `make e2e` at 22/22. A worker test shows that with no corrections a contract's re-extraction hits the committed cache, and after a correction elsewhere it sends a new request.
+    - **Not done:** a forward extracted for the first time has no duplicate link yet, so it can see its twin's correction. That's harmless, because the correction is right for it too.
   - [ ] **F3: corrections demote a generated script**, and scriptgen rewrites it from the corrected examples.
 - [ ] **[stretch] PDF contracts.** Text extraction with page and line locations for citations.
 - [ ] **[stretch] Ramp sandbox** behind `TransactionSource`, if we get access.

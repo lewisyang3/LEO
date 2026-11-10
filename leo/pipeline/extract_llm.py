@@ -16,10 +16,12 @@ The cache holds the model's answer from before this step, so a new "today" never
 import calendar
 import datetime
 import hashlib
+import json
 import re
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import anthropic
 from pydantic import TypeAdapter, ValidationError
@@ -40,6 +42,9 @@ from leo.pipeline.extract_schema import (
     LLMTerm,
 )
 from leo.rules import notice_deadline
+
+if TYPE_CHECKING:  # leo.feedback imports the schema module; only its type is needed here
+    from leo.feedback import FewShot
 from leo.types import (
     Contact,
     ExtractedTerm,
@@ -165,9 +170,11 @@ in that term
 """
 
 
-def _user_prompt(doc: DocumentText, asks: str) -> str:
+def _user_prompt(doc: DocumentText, asks: str, examples: Sequence["FewShot"] = ()) -> str:
+    """The request for one part. With no examples it is exactly the pre-F2 prompt, so the
+    committed response cache still answers it."""
     doc_class = doc.document.doc_class.value if doc.document.doc_class else "unknown"
-    return (
+    prompt = (
         f"Document class: {doc_class}\n\n"
         "<document>\n"
         f"{doc.text}\n"
@@ -175,6 +182,38 @@ def _user_prompt(doc: DocumentText, asks: str) -> str:
         f"Extract the vendor name and, from this document, only its {asks}. Other kinds of item "
         "are extracted separately. Return empty lists when the document has none."
     )
+    if examples:
+        prompt += "\n\n" + corrections_block(examples)
+    return prompt
+
+
+def _example_quote(ex: "FewShot") -> str:
+    """The citation the correction is about: the first that contains a corrected field's
+    extracted text (a renewal's fee sits in its second quote), else the first."""
+    olds = [str(old) for _, old, _ in ex.fixes if isinstance(old, str) and old]
+    return next((q for q in ex.quotes for o in olds if o in q), ex.quotes[0])
+
+
+def corrections_block(examples: Sequence["FewShot"]) -> str:
+    """A reviewer's corrections of earlier extractions, as few-shot examples (Phase 4)."""
+    lines = [
+        "<corrections>",
+        "A reviewer corrected earlier extractions from other documents. Where this document says "
+        "something similar, follow the corrected form.",
+    ]
+    for ex in examples:
+        what = "invoice fact" if ex.item == "invoice_fact" else f"{ex.item} term"
+        source = json.dumps(_example_quote(ex)) if ex.quotes else "(no quote)"
+        if ex.rejected:
+            article = "an" if what[0] in "aeiou" else "a"
+            lines.append(f"- From {source}: this is not {article} {what}; leave it out.")
+            continue
+        lines.append(f"- {what}, from {source}:")
+        for field, old, new in ex.fixes:
+            name = field.removeprefix("value.")
+            lines.append(f"  {name} was {json.dumps(old)}, corrected to {json.dumps(new)}")
+    lines.append("</corrections>")
+    return "\n".join(lines)
 
 
 def merge_parts(outputs: dict[str, dict[str, Any]]) -> tuple[dict[str, Any], list[str]]:
@@ -368,10 +407,16 @@ class LLMExtractor:
     def engine(self) -> str:
         return f"llm:{self.model}"
 
-    def extract(self, doc: DocumentText) -> Extraction:
+    def extract(
+        self, doc: DocumentText, examples: Mapping[str, Sequence["FewShot"]] | None = None
+    ) -> Extraction:
         """Three requests, one per part. If any part has no complete answer, the extraction is
         empty with `vendor_name=None` (fail closed). The parts that did answer stay cached, so
-        a rerun repeats only the failed request."""
+        a rerun repeats only the failed request.
+
+        `examples` are reviewers' corrections by part (`leo.feedback.few_shots`). Only a part
+        with examples gets a corrections block; the others send the same request as before."""
+        examples = examples or {}
         doc_hash = doc.document.sha256 or hashlib.sha256(doc.text.encode("utf-8")).hexdigest()
         records: dict[str, dict[str, Any]] = {}
         outputs: dict[str, dict[str, Any]] = {}
@@ -384,7 +429,7 @@ class LLMExtractor:
                 prompt_version=PROMPT_VERSION,
                 effort=EFFORT,
                 system=SYSTEM_PROMPT,
-                user=_user_prompt(doc, asks),
+                user=_user_prompt(doc, asks, examples.get(part, ())),
                 schema=SCHEMAS[part],
                 client=self.client,
                 api_key=self.settings.anthropic_api_key or None,
@@ -394,6 +439,9 @@ class LLMExtractor:
             if result.output is not None:
                 outputs[part] = result.output
         raw: dict[str, Any] = {"parts": records}
+        used = {p: [i for ex in examples[p] for i in ex.event_ids] for p in examples if examples[p]}
+        if used:
+            raw["few_shots"] = used
         failed = [p for p in EXTRACTION_PARTS if p not in outputs]
         if failed:
             raw["error"] = "no complete answer for part(s): " + ", ".join(failed)

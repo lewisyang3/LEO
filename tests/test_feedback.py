@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from leo import feedback
 from leo.api.app import app
@@ -436,3 +436,144 @@ def test_a_value_correction_records_only_the_keys_sent(repo, acme):
         repo.session, repo.tenant_id, "r", term.id, {"value": {"amount": "400"}}
     )
     assert [e.field for e in events] == ["value.amount"]
+
+
+# --- F2: corrections as few-shot examples -------------------------------------------------------
+
+
+@pytest.fixture
+def contracts(repo, raw_store):
+    """Four contracts, one price term each, through the worker. Returns [(doc_id, term), ...]."""
+    p = Pipeline.stubs()
+    p.classifier = StubClassifier(DocumentClass.contract)
+    p.extractors = [OnePrice()]
+    p.validator = RuleValidator(FixedClock(TODAY))
+    ids = [
+        ingest(repo, raw_store, CONTRACT + f"\nCopy {i}.\n".encode(), f"msa{i}.md").document_id
+        for i in range(4)
+    ]
+    Worker(repo.session, p, raw_store, FixedClock(TODAY), tenant_id=repo.tenant_id).drain()
+    terms = {
+        t.document_id: t
+        for t in repo.session.scalars(
+            select(m.ContractTerm).where(m.ContractTerm.tenant_id == repo.tenant_id)
+        )
+    }
+    return [(d, terms[d]) for d in ids]
+
+
+def _fix(repo: Repo, term, amount: str) -> None:
+    feedback.correct_term(repo.session, repo.tenant_id, "r", term.id, {"value": {"amount": amount}})
+    repo.session.flush()
+
+
+def _at(repo: Repo, term_id, seconds_ago: int) -> None:
+    """Date a term's events: the fixture's one outer transaction gives every event the same
+    now(); through the API each change commits apart."""
+    repo.session.execute(
+        update(m.FeedbackEvent)
+        .where(m.FeedbackEvent.term_id == term_id)
+        .values(created_at=func.now() - dt.timedelta(seconds=seconds_ago))
+    )
+
+
+def test_few_shots_by_part_newest_first_and_capped(repo, contracts):
+    for i, (_, term) in enumerate(contracts[1:]):
+        _fix(repo, term, str(400 + i))
+        _at(repo, term.id, 10 - i)  # the last correction is the newest
+    shots = feedback.few_shots(repo.session, repo.tenant_id, exclude_document=contracts[0][0])
+    assert list(shots) == ["prices_renewals"]
+    got = [s.fixes[0][2] for s in shots["prices_renewals"]]
+    assert [float(x) for x in got] == [402, 401, 400]
+    (first,) = shots["prices_renewals"][:1]
+    assert (first.item, first.quotes, first.rejected) == ("price", (QUOTE,), False)
+    assert first.fixes[0][0] == "value.amount"
+    capped = feedback.few_shots(
+        repo.session, repo.tenant_id, exclude_document=contracts[0][0], limit=2
+    )
+    assert len(capped["prices_renewals"]) == 2
+    again = feedback.few_shots(repo.session, repo.tenant_id, exclude_document=contracts[0][0])
+    assert again == shots  # deterministic, so a rerun hits the response cache
+
+
+def test_few_shots_leave_out_the_document_and_its_linked_duplicates(repo, contracts):
+    (d0, t0), (d1, t1), (d2, t2), (d3, t3) = contracts
+    for t in (t0, t1, t2, t3):
+        _fix(repo, t, "500")
+    repo.link_documents(d1, d0, "probable_duplicate", "fp")  # d1 duplicates d0
+    repo.link_documents(d0, d2, "probable_duplicate", "fp")  # d0 duplicates d2
+    repo.link_documents(d3, d0, "attachment", None)  # not a duplicate: still an example
+    repo.session.flush()
+    shots = feedback.few_shots(repo.session, repo.tenant_id, exclude_document=d0)
+    ids = {e for s in shots["prices_renewals"] for e in s.event_ids}
+    expected = {str(e.id) for e in _events(repo) if e.term_id == t3.id}
+    assert ids == expected
+
+
+def test_a_rejection_after_corrections_is_one_rejection(repo, contracts):
+    (d0, _), (_, t1), *_ = contracts
+    _fix(repo, t1, "500")
+    _at(repo, t1.id, 1)  # the correction comes a second before the rejection
+    feedback.reject(repo.session, repo.tenant_id, "r", "term", t1.id)
+    repo.session.flush()
+    (shot,) = feedback.few_shots(repo.session, repo.tenant_id, exclude_document=d0)[
+        "prices_renewals"
+    ]
+    assert (shot.rejected, shot.fixes, len(shot.event_ids)) == (True, (), 2)
+
+
+def test_fixes_to_fields_the_model_does_not_write_are_left_out(repo, contracts):
+    (d0, _), (d1, t1), *_ = contracts
+    repo.session.add(
+        m.FeedbackEvent(
+            tenant_id=repo.tenant_id,
+            term_id=t1.id,
+            document_id=d1,
+            event_type="correct",
+            field="value.current_term_end",  # computed by the mapper, never by the model
+            old_value="2026-01-01",
+            new_value="2027-01-01",
+        )
+    )
+    repo.session.flush()
+    assert feedback.few_shots(repo.session, repo.tenant_id, exclude_document=d0) == {}
+
+
+@needs_cache
+def test_the_worker_sends_corrections_to_the_llm(synthetic):
+    """With no corrections a contract's re-extraction hits the committed cache (the prompt is
+    unchanged). After a price correction elsewhere its price part carries the corrections
+    block, a request the offline cache doesn't have."""
+    repo, w = synthetic
+    contract = _doc_id(repo, "contracts/kestrel_master")
+    job = repo.session.scalar(
+        select(m.Job).where(
+            m.Job.tenant_id == repo.tenant_id,
+            m.Job.document_id == contract,
+            m.Job.stage == queue.EXTRACT,
+        )
+    )
+    assert job.processed_by.startswith("llm:")
+
+    def rerun() -> None:
+        job.status, job.attempts, job.claimed_at, job.run_after = "pending", 0, None, None
+        repo.session.commit()
+        w.drain()
+        repo.session.refresh(job)
+
+    rerun()
+    assert job.status == "done", job.last_error
+    assert "few_shots" not in job.raw_model_output["raw_output"]
+
+    lumenpost = _doc_id(repo, "inbox/01_")
+    price = repo.session.scalars(
+        select(m.ContractTerm).where(
+            m.ContractTerm.document_id == lumenpost, m.ContractTerm.type == "price"
+        )
+    ).first()
+    feedback.correct_term(
+        repo.session, repo.tenant_id, "r", price.id, {"plan_label": "Growth plan"}
+    )
+    rerun()
+    assert job.status == "failed"
+    assert job.last_error.startswith("LLMOfflineMiss")

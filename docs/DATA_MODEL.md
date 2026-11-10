@@ -27,6 +27,7 @@ A reviewer can correct a term's value, effective date, plan label or agreement r
 - A corrected `needs_review` item becomes `current`. An invoice fact can only become `current` with a billing period that parses; a rejected one may keep any period (`ck_invoice_period`).
 - Each changed field writes one `feedback_event` (`event_type` `correct`, `field` such as `value.included`, `old_value`, `new_value`, `reviewer`). A rejection writes one with `event_type` `reject`. Every event records the item's `document_id` and the `engine` that extracted it (the extract job's `processed_by`), so it can be traced to a generated script.
 - Either change asks for a reconcile round, so findings and unedited drafts follow on the worker's next pass.
+- The events are also the extraction prompt's few-shot examples (F2, `leo.feedback.few_shots`), by item type, from the tenant's other documents.
 
 ## Vendors and aliases
 

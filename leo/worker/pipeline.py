@@ -69,6 +69,8 @@ class Pipeline:
     transactions: TransactionSource | None = None  # synced at the start of each reconcile
     # The tenant's promoted generated scripts (Phase 4), tried before `extractors`.
     stored_scripts: Callable[[Repo], Extractor | None] | None = None
+    # Reviewers' corrections as few-shot examples for the LLM extractor (Phase 4, F2).
+    few_shots: bool = True
 
     @classmethod
     def default(

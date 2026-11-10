@@ -12,17 +12,21 @@ Either change asks for a reconcile round, so findings and unedited drafts follow
 """
 
 import datetime
+from collections import defaultdict
 from collections.abc import Mapping
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from leo.db.models import ContractTerm, FeedbackEvent, InvoiceFact, Job
+from leo.db.models import Citation, ContractTerm, DocumentLink, FeedbackEvent, InvoiceFact, Job
 from leo.db.write import jsonb
+from leo.match.duplicates import PROBABLE_DUPLICATE
+from leo.pipeline.extract_schema import EXAMPLE_FIELDS, INVOICE_FACT, PART_OF_ITEM
 from leo.pipeline.validate import billing_period_ok
 from leo.types import TermStatus, extracted_term_adapter
 from leo.worker import queue
@@ -266,3 +270,120 @@ def _seats(v: Any) -> int | None:
     if isinstance(v, bool) or not isinstance(v, int | str) or not str(v).strip().isdigit():
         raise BadCorrection(f"seats_billed: {v!r} is not a whole number")
     return int(v)
+
+
+# --- Few-shot examples for the extraction prompt (F2) ------------------------------------------
+
+FEW_SHOTS_PER_PART = 5
+
+
+@dataclass(frozen=True)
+class FewShot:
+    """One reviewed item, as an example for the part that extracts its kind."""
+
+    item: str  # a term type, or "invoice_fact"
+    quotes: tuple[str, ...]  # the item's citations, in order
+    fixes: tuple[tuple[str, Any, Any], ...]  # (field, extracted, corrected); empty if rejected
+    rejected: bool
+    event_ids: tuple[str, ...]
+
+
+def _related_documents(session: Session, tenant_id: UUID, document_id: UUID) -> set[UUID]:
+    """The document and those linked to it as a probable duplicate, either way round."""
+    rows = session.execute(
+        select(DocumentLink.document_id, DocumentLink.linked_document_id).where(
+            DocumentLink.tenant_id == tenant_id,
+            DocumentLink.link_type == PROBABLE_DUPLICATE,
+            or_(
+                DocumentLink.document_id == document_id,
+                DocumentLink.linked_document_id == document_id,
+            ),
+        )
+    ).all()
+    return {document_id, *(d for r in rows for d in r)}
+
+
+def few_shots(
+    session: Session,
+    tenant_id: UUID,
+    *,
+    exclude_document: UUID,
+    limit: int = FEW_SHOTS_PER_PART,
+) -> dict[str, list[FewShot]]:
+    """The tenant's reviewed items as examples, by extraction part (`EXTRACTION_PARTS` names),
+    newest first, at most `limit` per part.
+
+    Left out: items from the document being extracted and its linked duplicates (it shouldn't
+    see its own answer), and fixes to fields the model doesn't write (`EXAMPLE_FIELDS`). An
+    item's latest state wins: a rejection after corrections is one rejection, and a field
+    corrected twice shows its first extracted and last corrected value. Same events, same
+    examples, in the same order, so a rerun hits the response cache."""
+    skip = _related_documents(session, tenant_id, exclude_document)
+    events = session.scalars(
+        select(FeedbackEvent)
+        .where(
+            FeedbackEvent.tenant_id == tenant_id,
+            or_(FeedbackEvent.term_id.is_not(None), FeedbackEvent.invoice_fact_id.is_not(None)),
+            FeedbackEvent.document_id.not_in(skip),
+        )
+        .order_by(FeedbackEvent.created_at, FeedbackEvent.id)
+    ).all()
+    by_item: dict[tuple[str, UUID], list[FeedbackEvent]] = defaultdict(list)
+    for e in events:
+        key = ("term", e.term_id) if e.term_id is not None else (INVOICE_FACT, e.invoice_fact_id)
+        by_item[key].append(e)
+    if not by_item:
+        return {}
+
+    term_ids = [i for k, i in by_item if k == "term"]
+    types = dict(
+        session.execute(
+            select(ContractTerm.id, ContractTerm.type).where(ContractTerm.id.in_(term_ids))
+        ).all()
+    )
+    owners = [i for _, i in by_item]
+    quotes: dict[UUID, list[str]] = defaultdict(list)
+    for term_id, fact_id, quote in session.execute(
+        select(Citation.term_id, Citation.invoice_fact_id, Citation.quote)
+        .where(
+            Citation.tenant_id == tenant_id,
+            or_(Citation.term_id.in_(owners), Citation.invoice_fact_id.in_(owners)),
+        )
+        .order_by(Citation.ordinal)
+    ):
+        quotes[term_id or fact_id].append(quote)
+
+    # Newest item first: by its latest event.
+    order = sorted(by_item, key=lambda k: (by_item[k][-1].created_at, by_item[k][-1].id))
+    out: dict[str, list[FewShot]] = defaultdict(list)
+    for key in reversed(order):
+        evs = by_item[key]
+        item = types.get(key[1]) if key[0] == "term" else INVOICE_FACT
+        if item is None or item not in PART_OF_ITEM:
+            continue
+        part = PART_OF_ITEM[item]
+        if len(out.get(part, ())) >= limit:
+            continue
+        rejected = evs[-1].event_type == REJECT
+        fixes: dict[str, list[Any]] = {}
+        if not rejected:
+            for e in evs:
+                if e.event_type != CORRECT or e.field not in EXAMPLE_FIELDS[item]:
+                    continue
+                if e.field in fixes:
+                    fixes[e.field][1] = e.new_value
+                else:
+                    fixes[e.field] = [e.old_value, e.new_value]
+            fixes = {f: v for f, v in fixes.items() if v[0] != v[1]}
+            if not fixes:
+                continue
+        out[part].append(
+            FewShot(
+                item=item,
+                quotes=tuple(quotes.get(key[1], ())),
+                fixes=tuple((f, o, n) for f, (o, n) in fixes.items()),
+                rejected=rejected,
+                event_ids=tuple(str(e.id) for e in evs),
+            )
+        )
+    return dict(out)
