@@ -26,6 +26,7 @@ from leo.db.models import SourceDocument
 from leo.db.repo import Repo
 from leo.ingest.eml import Attachment, parse_eml, safe_filename
 from leo.ingest.store import RawStore
+from leo.worker import queue
 
 EML = "eml"
 FILE = "file"
@@ -65,12 +66,22 @@ def _stored(store: RawStore, raw: bytes, filename: str) -> dict:
 
 
 def ingest(
-    repo: Repo, store: RawStore, raw: bytes, filename: str, *, path: str | None = None
+    repo: Repo,
+    store: RawStore,
+    raw: bytes,
+    filename: str,
+    *,
+    path: str | None = None,
+    enqueue: bool = True,
 ) -> IngestResult:
     """Store one file and upsert its document row, and its attachments' rows if it's an email.
 
     `filename` decides the kind (`.eml` is an email, anything else a file); only its bare name
     is kept. `path` defaults to `uploads/{filename}`.
+
+    With `enqueue`, each document (attachments too) gets a `classify` job for the worker (A4).
+    A document that already has one keeps it, whatever its status, so re-ingesting requeues
+    nothing. The seed passes `enqueue=False`: it writes the answer key's results itself.
     """
     name = safe_filename(filename)
     if name is None:
@@ -84,6 +95,8 @@ def ingest(
 
     if not keys.is_eml(name):
         doc_id = repo.upsert_document(key, source_kind=FILE, **cols)
+        if enqueue:
+            _enqueue(repo, doc_id, key)
         return IngestResult(doc_id, key, created)
 
     email = parse_eml(raw)
@@ -97,23 +110,32 @@ def ingest(
         received_at=email.received_at,
         **cols,
     )
-    attachment_ids = [_attachment(repo, store, doc_id, path, a) for a in email.attachments]
+    if enqueue:
+        _enqueue(repo, doc_id, key)
+    attachment_ids = [_attachment(repo, store, doc_id, path, a, enqueue) for a in email.attachments]
     return IngestResult(doc_id, key, created, attachment_ids)
 
 
+def _enqueue(repo: Repo, document_id: UUID, doc_key: str) -> None:
+    queue.enqueue(repo.session, repo.tenant_id, document_id, doc_key, queue.CLASSIFY)
+
+
 def _attachment(
-    repo: Repo, store: RawStore, email_id: UUID, email_path: str, a: Attachment
+    repo: Repo, store: RawStore, email_id: UUID, email_path: str, a: Attachment, enqueue: bool
 ) -> UUID:
     """Upsert one attachment and link it from its email. Bytes already ingested (another
     email's attachment, or the same file uploaded on its own) reuse that row unchanged."""
+    att_key = keys.document_key(a.filename, a.raw)
     att_id = repo.upsert_document(
-        keys.document_key(a.filename, a.raw),
+        att_key,
         source_kind=ATTACHMENT,
         path=f"{email_path}#attachments/{a.filename}",
         parent_document_id=email_id,
         **_stored(store, a.raw, a.filename),
     )
     repo.link_documents(email_id, att_id, ATTACHMENT_LINK)
+    if enqueue:
+        _enqueue(repo, att_id, att_key)
     return att_id
 
 

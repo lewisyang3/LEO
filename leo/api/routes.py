@@ -104,7 +104,7 @@ def document(path: str, store: Store) -> DocumentOut:
 
 @router.post("/documents")
 def upload_document(file: UploadFile, store: Store) -> UploadOut:
-    """Store one file (`ingest`, A3). Processing it waits for the worker (A4, 2.1)."""
+    """Store one file (`ingest`, A3) and queue it. The worker (A4) processes it."""
     raw = file.file.read()
     try:
         return store.upload(file.filename or "", raw)

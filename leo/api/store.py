@@ -442,7 +442,7 @@ class DbStore:
     # --- Upload and stats -------------------------------------------------------------------
 
     def upload(self, filename: str, raw: bytes) -> UploadOut:
-        """Ingest one file (A3) and commit. Nothing is queued yet: that's A4 and 2.1.
+        """Ingest one file (A3), queue it for the worker (A4) and commit.
 
         The path is `uploads/{sha8}-{name}`, so two different files with one name don't share
         a path. Bytes already ingested keep their row and its first path."""

@@ -1,4 +1,4 @@
-.PHONY: setup up down migrate test lint api web seed eval e2e
+.PHONY: setup up down migrate test lint api web seed eval e2e worker
 
 setup:
 	uv sync
@@ -32,6 +32,9 @@ web:
 
 seed:
 	uv run python -m leo.db.seed
+
+worker:
+	uv run python -m leo.worker
 
 eval:
 	uv run python -m leo.eval

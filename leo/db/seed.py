@@ -76,7 +76,9 @@ class _Seeder:
         seen: set[UUID] = set()
         for d in self.fx.documents:
             path = self.fx.root / d.path
-            r = ingest(self.repo, self.store, path.read_bytes(), path.name, path=d.path)
+            r = ingest(
+                self.repo, self.store, path.read_bytes(), path.name, path=d.path, enqueue=False
+            )
             self.doc_keys[d.path] = r.natural_key
             self.docs[d.path] = r.document_id
             self.texts[d.path] = read_source_text(path)

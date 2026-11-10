@@ -157,10 +157,27 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Seed.** `seed()` now goes through `ingest`, so it stores real raw copies (still 223 rows). `Repo.update_document` sets the key's class, vendor and notes once per row, so D1's copy still doesn't overwrite the original's.
   - **Tests.** Every test's `LEO_RAW_DIR` points at a temp folder (`tests/conftest.py`).
   - **Not done here.** Queueing jobs on ingest (A4), and reading the text of binary attachments such as PDFs. Those are stored but not converted to text, and the dataset has none. Attached emails aren't parsed for their own headers or attachments. An attached email is stored re-serialized, so its bytes, and its key, differ from the same email loaded on its own. A6's fingerprint links the two.
-- [ ] **A4 [must] Job queue and worker.**
+- [x] **A4 [must] Job queue and worker.**
   - Jobs are rows claimed with `FOR UPDATE SKIP LOCKED`.
   - The worker runs each item through the stage interfaces in `leo/interfaces.py`, using `leo/stubs.py` until B and C plug in.
   - It records which stage handled each item (`processed_by`) and retries or parks failures.
+
+  Done, in `leo/worker/` and migration `06c67d5193ee`. This replaces PR #13, which wrote job statuses the CHECK rejects and called none of the interfaces. Its claim query and bounded retries carried over.
+  - **Jobs.** Each document gets one row per stage, keyed `v1:job:{doc key}:{stage}`. The stages are `classify -> extract -> validate -> reconcile`, and noise stops after classify. Finishing a stage queues the next one in the same transaction. `reconcile` reconciles the tenant's whole ledger and drafts each finding, so it runs once per document. That's fine at demo scale.
+  - **Queue** (`queue.py`).
+    - `enqueue` is `ON CONFLICT DO NOTHING`, so re-ingesting requeues nothing. It deliberately avoids `Repo.upsert_job`, which updates.
+    - `claim` takes the oldest due `pending` job with `SKIP LOCKED`. It sets `running` and `claimed_at`, and counts the attempt. It and `drain` take an optional tenant filter, which the tests use.
+    - `recover_stale` handles jobs left `running` for more than 10 minutes. It parks the ones out of attempts, so a stage that kills the worker every time stops being retried, and resets the rest. It runs when the worker starts and after every idle poll.
+  - **Ingest.** `ingest()` queues a `classify` job for each document, attachments included. The seed passes `enqueue=False`, because it writes the key's results itself.
+  - **Stages** (`run.py`).
+    - Each stage reads the previous stage's output from that job's `raw_model_output`. `doc_class` comes from the classify job's output.
+    - Extractors are tried in order, and the first non-None result wins. If every extractor returns None, the job is `failed`.
+    - Validate follows the interfaces' vendor order (find, prior terms, validate, create on `vendor_ok`). When `vendor_ok` is False it fails closed.
+    - `processed_by` is the result's `engine`. Stubs record `stub`.
+    - The components live in `Pipeline` (`pipeline.py`), and `Pipeline.stubs()` is the default.
+  - **Failures.** `LLMOfflineMiss`, a missing raw file, output that doesn't parse, and "no extractor matched" are not retried: the job is `failed`. Any other error retries after `run_after` (2s, then 4s), so other jobs keep running meanwhile. After 3 attempts the job is `parked`, so a failed classification stays unclassified, never noise. On Ctrl-C or SIGTERM, the worker hands its job back to `pending` without using up an attempt.
+  - **Run.** `make worker` polls. `python -m leo.worker --drain` stops when nothing is due.
+  - **Not done here (2.1).** A4 writes only `job` rows: no document class, terms, vendors, findings or actions. The real B and C components, prior terms read from the store, and writes through `Repo` in the stage's transaction are all 2.1.
 - [ ] **A5 [must] Transactions, vendors and matching.**
   - A `TransactionSource` that reads `transactions.csv`, the same interface a Ramp connection would use later.
   - Vendors come from the data, never from the answer key:
@@ -403,7 +420,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - Approve records `approver` (`LEO_APPROVER`, default `reviewer`, since there's no login yet) and `decided_at`. Restore clears them.
     - Migration `3f5925a397fe` adds `action.edited_at` and `sent_at`. `Repo.upsert_action` now updates draft text only while the action is an unedited draft.
     - The outbox is the sent actions.
-  - **Upload.** `POST /api/documents` (multipart) calls `ingest` and commits. The path is `uploads/{sha8}-{name}`, and bytes already stored keep their row and path. A dashboard file picker uses it. Nothing is queued yet (A4, 2.1).
+  - **Upload.** `POST /api/documents` (multipart) calls `ingest` and commits. The path is `uploads/{sha8}-{name}`, and bytes already stored keep their row and path. A dashboard file picker uses it. Since A4 it queues a `classify` job.
   - **Stats.** `GET /api/stats` counts documents by class, terms and invoice facts by status, current findings, actions by state, and jobs by stage, `processed_by` and status (empty until A4). Cost comes with B6.
   - **Seed.** `make seed` runs `python -m leo.db.seed` and commits. `make reset` is still A7. A reseed doesn't undo decisions, so a clean demo needs `make reset`.
   - **Tests** (`tests/test_api.py`, which now needs Postgres): each test seeds under a random tenant slug, so the dev database never affects a test. `tests/test_repo.py` does the same now, because `make seed` commits the default tenant to that database. They cover:
@@ -450,6 +467,12 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   9. draft
 
   The API (C3) reads whatever findings and actions are in Postgres, so it needs no change: write findings, links and actions through `Repo`, and set `action.raw_model_output.engine`. One API change is due first: `DbStore` shows only the first action per finding and drops findings with no action (`leo/api/store.py`, `_view`). The seed always writes exactly one, but the worker may write a finding before its draft, or several actions per finding (the key includes `action_type`). An approve or send on a hidden action would commit and then return 404 (PR #14 review). Then the B7 draft cache can be re-recorded on the new finding ids, if the demo should show LLM drafts.
+
+  Before wiring B7's LLM drafter, make the reconcile job per tenant or debounce it. A4 keys it per document, and each one reconciles and drafts the whole ledger, so N documents mean N rounds of LLM calls (A4 review).
+
+  Worker robustness (PR #17 review):
+  - `recover_stale` resets any job claimed more than `STALE_AFTER` (10 minutes) ago, even if its worker is still running it. Before running more than one worker, or stages that can take longer than that, tie `STALE_AFTER` to a stage timeout or refresh `claimed_at` as a heartbeat. Otherwise a slow LLM stage runs twice.
+  - Any database error (in `claim`, `_failed` or `_recover`) stops `serve()`. The job stays `running` until `recover_stale` picks it up after a restart. Before running the worker unattended, add a supervisor restart policy or retry with backoff around the loop.
 
   Prior terms come from the store with their validated status, so a `needs_review` prior isn't compared. The eval (`leo/eval/runner.py`) builds priors from raw extractions, all `current`; make it match the worker here (PR #3 review).
 - [ ] **2.2 [must] End-to-end test** (`make e2e`):

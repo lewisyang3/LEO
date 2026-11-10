@@ -510,6 +510,8 @@ class Job(NaturalKeyRow):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     claimed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    # A retried job waits until then; NULL means it can run now (A4).
+    run_after: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         _tenant_id_key("job"),
         _nk("job"),
