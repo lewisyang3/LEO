@@ -45,7 +45,7 @@ class IngestResult:
     attachment_ids: list[UUID] = field(default_factory=list)
 
 
-def _exists(repo: Repo, natural_key: str) -> bool:
+def document_exists(repo: Repo, natural_key: str) -> bool:
     return (
         repo.session.scalar(
             select(SourceDocument.id).where(
@@ -73,6 +73,9 @@ def ingest(
     *,
     path: str | None = None,
     enqueue: bool = True,
+    natural_key: str | None = None,
+    source_kind: str = EML,
+    thread_id: str | None = None,
 ) -> IngestResult:
     """Store one file and upsert its document row, and its attachments' rows if it's an email.
 
@@ -82,6 +85,9 @@ def ingest(
     With `enqueue`, each document (attachments too) gets a `classify` job for the worker (A4).
     A document that already has one keeps it, whatever its status, so re-ingesting requeues
     nothing. The seed passes `enqueue=False`: it writes the answer key's results itself.
+
+    A synced email (A8) passes its own `natural_key` (`v1:gmail:{account}:{message id}`),
+    `source_kind` and `thread_id`. Its attachments still key on their bytes.
     """
     name = safe_filename(filename)
     if name is None:
@@ -89,8 +95,8 @@ def ingest(
     if not raw:
         raise ValueError(f"empty file: {name}")
     path = path or f"{UPLOADS}/{name}"
-    key = keys.document_key(name, raw)
-    created = not _exists(repo, key)
+    key = natural_key or keys.document_key(name, raw)
+    created = not document_exists(repo, key)
     cols = {"path": path, **_stored(store, raw, name)}
 
     if not keys.is_eml(name):
@@ -102,11 +108,12 @@ def ingest(
     email = parse_eml(raw)
     doc_id = repo.upsert_document(
         key,
-        source_kind=EML,
+        source_kind=source_kind,
         sender=email.sender,
         recipient=email.recipient,
         subject=email.subject,
         message_id=email.message_id,
+        thread_id=thread_id,
         received_at=email.received_at,
         **cols,
     )

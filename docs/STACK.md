@@ -16,7 +16,7 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 | Classification and prior-term comparison | Jev (TypeSafe AI), `typesafe_sdk` | Behind the `Classifier` and `Validator` interfaces. The key is in `JEV_API_KEY`, and `leo.jev.jev_client` passes it to the SDK explicitly, because the SDK's own variable is `TYPESAFE_API_KEY` |
 | LLM | `anthropic` (official Python SDK), `claude-haiku-5-5` | No other LLM providers |
 | Frontend | React + Vite + TypeScript, npm, in `web/` | Node 22 or later; Vite's dev server proxies `/api` to FastAPI |
-| Gmail (A8, [should]) | `google-api-python-client`, read-only scope | |
+| Gmail (A8, [should]) | `google-api-python-client`, `google-auth-oauthlib`, read-only scope; `cryptography` (Fernet) for tokens at rest | `leo/ingest/gmail.py`. The `.eml` path stays the fallback |
 
 ## What does what
 

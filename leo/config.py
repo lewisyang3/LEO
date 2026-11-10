@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     leo_tenant: str = "brightwater-v1"
     # Recorded as `action.approver` (no login yet; the schema requires an approver).
     leo_approver: str = "reviewer"
+    # Gmail sync (ROADMAP A8). The key encrypts OAuth tokens at rest (Fernet); the synced
+    # mailbox gets its own tenant, so it never doubles the seeded one.
+    leo_secret_key: str | None = None
+    leo_gmail_tenant: str = "gmail-demo"
+    leo_google_client_secrets: Path = Path("var/google_client_secret.json")
 
 
 @lru_cache

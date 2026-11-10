@@ -27,6 +27,7 @@ from leo.db.models import (
     Action,
     Base,
     Citation,
+    ConnectedAccount,
     ContractTerm,
     DocumentLink,
     Finding,
@@ -35,6 +36,7 @@ from leo.db.models import (
     FindingTransaction,
     InvoiceFact,
     Job,
+    OAuthCredential,
     SourceDocument,
     Tenant,
     Transaction,
@@ -121,6 +123,25 @@ class Repo:
         self, model: type[Base], key: Sequence[str], values: Mapping[str, Any], **kw: Any
     ) -> UUID:
         return _upsert(self.session, model, key, {"tenant_id": self.tenant_id, **values}, **kw)
+
+    # --- Connected accounts (A8) -------------------------------------------------------------
+
+    def upsert_account(self, provider: str, email_address: str) -> UUID:
+        """Upserts on the address, so a reconnect keeps the id (and every document key)."""
+        values = {"provider": provider, "email_address": email_address}
+        return self._put(ConnectedAccount, ("tenant_id", "provider", "email_address"), values)
+
+    def set_credential(self, account_id: UUID, ciphertext: bytes, scopes: str) -> UUID:
+        """Store an account's token, already encrypted (`leo.ingest.secrets`)."""
+        values = {"account_id": account_id, "ciphertext": ciphertext, "scopes": scopes}
+        return self._put(OAuthCredential, ("tenant_id", "account_id"), values)
+
+    def set_cursor(self, account_id: UUID, history_id: str, synced_at: Any) -> None:
+        self.session.execute(
+            update(ConnectedAccount)
+            .where(ConnectedAccount.id == account_id, ConnectedAccount.tenant_id == self.tenant_id)
+            .values(history_id=history_id, last_synced_at=synced_at)
+        )
 
     # --- Vendors -----------------------------------------------------------------------------
 

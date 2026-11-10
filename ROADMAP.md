@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** Next in Track A is A8 (Gmail sync). A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** Track A is done, and next is 2.1 (wire the pipeline). A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -235,11 +235,29 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Not done here.** `LEO_RAW_DIR` isn't emptied: it's content-addressed, and the seed rewrites the same files. Uploaded bytes stay there with no row pointing to them, which does no harm.
     - Small follow-ups: `Config("alembic.ini")` is relative, so it only works from the repo root (as `make` runs it). A Unix-socket `DATABASE_URL` (no host) counts as non-local and needs `--force`.
   - **Tests** (`tests/test_reset.py`): the local-host check, and the refusal of a remote database without dropping anything. No test drops the dev schema, because `make test` shares it. The reset itself was checked by hand: two runs in a row give the same row counts, and an approval made before a reset is back to a draft afterwards.
-- [ ] **A8 [should] Gmail sync.**
+- [x] **A8 [should] Gmail sync.**
   - Read-only OAuth into a seeded demo Gmail account.
   - Incremental sync by `historyId`.
   - Tokens encrypted at rest.
   - The `.eml` path stays as the fallback, so the demo never depends on this.
+
+  Done, in `leo/ingest/gmail.py`, `leo/ingest/secrets.py`, `scripts/seed_gmail.py` and migration `0f19fbbdb783`:
+  - **Accounts.** `connected_account` upserts on (tenant, provider, address), so a reconnect keeps its id. Its `history_id` is the sync cursor. `oauth_credential` holds the token, encrypted with Fernet under `LEO_SECRET_KEY`, in its own table: the read layer and the API never touch it.
+  - **Tenant.** The mailbox gets its own tenant (`gmail-demo`). It holds the same emails the seed loads, under different keys, so syncing into `brightwater-v1` would double every document. `make api-gmail` serves it.
+  - **Sync.** `GmailClient` is a Protocol, like `TransactionSource`, with `GoogleGmailClient` over the Gmail API. The first sync, or a sync whose cursor has expired (404), lists the inbox, reading the profile's `historyId` first. After that, it reads `history.list` (`messageAdded`, `INBOX`). Each new message goes through `ingest()` with the key `v1:gmail:{account id}:{message id}`, the path `gmail/{id}.eml`, `source_kind` `gmail` and `thread_id`, which queues `classify`. A message already stored is skipped without being fetched. A message deleted before the fetch (404) is skipped and counted, so it can't stall the cursor. Documents and the cursor commit together, one account at a time. An account that fails is rolled back, and the rest still sync. An expired access token is refreshed and stored again, encrypted.
+  - **Commands.** `make gmail-connect` (consent in the browser, read-only), `make gmail-sync` (`ARGS="--watch 10"` polls), and `make gmail-import` (`scripts/seed_gmail.py`). The import uses `messages.import` with the dates taken from the headers, and offers `--drip SECONDS` and `--only FILE`. Its `gmail.insert` token is never stored. It isn't idempotent.
+  - **Tests** (`tests/test_gmail.py`, with a `FakeGmail`):
+    - full and incremental sync, and an unchanged rerun that makes no fetches
+    - expired history, and a deleted message
+    - a reconnect keeps the account id
+    - the token is encrypted at rest, and a missing key explains how to make one
+    - a synced email and its upload are separate rows
+    - `sync_all` keeps going past a failing account
+  - **Not done here.**
+    - The live run against a real account waits on a Google Cloud OAuth client and a demo Gmail account (README, "Gmail sync"): connect, import, a sync giving 16 then 0 new, a `--watch` pickup of one `--only` import, and a check that the stored ciphertext has no readable token.
+    - A message that gets the `INBOX` label after it arrives (`labelAdded`) isn't picked up.
+    - 2.1 turns the queued jobs into terms.
+    - A larger dataset belongs to its own task, because every new email changes the answer key. `seed_gmail.py --folder` takes any folder.
 
 ### Track B: AI pipeline (stages 1–4 and drafting) (Lewis and Omar, first)
 
