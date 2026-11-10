@@ -327,7 +327,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - N1–N8 stay quiet.
     - Edge cases: a `needs_review` notice, the lookahead bounds, and a later `today` (F2 drops out, and F3 moves to the October invoice).
   - **Not built yet:** the daily recheck (needs A4), and running on B3's extractions (Phase 2.1).
-- [ ] **C2 [must] UI on fixture data.** Start in Phase 1 against the fixture loader, then switch to the API.
+- [x] **C2 [must] UI on fixture data.** Start in Phase 1 against the fixture loader, then switch to the API.
   - **Dashboard:** open findings, days left, dollars at stake.
   - **Finding detail:** click any number to see the source document with the quote highlighted.
   - **Approval queue:**
@@ -335,6 +335,14 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - edit, approve or reject
     - "Send" is simulated: the draft is written to an outbox and marked `sent`, and nothing is sent externally.
   - **[should]:** field correction and rejection, saved as `feedback_event` rows.
+
+  Done, as a React UI (`web/src/`) on a fixture-backed API (`leo/api/`):
+  - **Store.** `FixtureStore` (`leo/api/store.py`) serves the key's findings (`FixtureReconciler`) with drafts from the committed LLM cache (`LLMDrafter`, forced offline). A miss or a retry fallback uses the template, and the action shows `engine: template`. It isn't `RuleReconciler` yet: the draft cache key includes the finding id, and the cache was recorded on F1–F5, so C1's `v1:finding:…` ids would miss it. Phase 2.1 wires C1 in and recaches. Action state and the outbox are in memory, so a restart resets them.
+  - **Routes.** `GET /api/dashboard`, `/api/findings` (sorted by days left, with no deadline last, then dollars at stake), `/api/findings/{id}`, `/api/documents?path=` (dataset paths only), `/api/actions` and `/api/outbox`. `PATCH /api/actions/{id}` edits a draft. `POST …/approve|reject|send` moves it through draft → approved → sent, or draft → rejected, and `…/restore` undoes a reject. Any other move is a 409, and a blank edit field is a 422.
+  - **Click any number.** `leo/api/sources.py` maps each deadline, impact and computation field to the terms and invoice facts it comes from (for example, F3's cap % comes from the `price_cap` term). A field not in the table maps to all of the finding's items. Quotes are located with `locate_quote` on the raw text, and the viewer highlights `[start, end)`.
+  - **UI.** The pages are the dashboard, the finding detail with a source viewer, and the approval queue with the outbox. Hash routes and plain CSS, with no new dependencies.
+  - **Tests** (`tests/test_api.py`): the sort order, every quote located, every number sourced from linked items, document paths limited to the dataset, all 5 drafts from the cache, and the action transitions.
+  - **Not built yet:** the [should] corrections (they need A's `feedback_event`). C3 replaces the store with the repository, and adds upload and stats.
 - [ ] **C3 [must] API.**
   - Findings, sorted by deadline and impact.
   - Finding detail with its terms and citations.
