@@ -19,12 +19,16 @@ from leo.db.models import (
     Job,
     SourceDocument,
     Vendor,
+    new_uuid7,
 )
 from leo.db.repo import Repo
 from leo.db.seed import seed
 from leo.fixtures import load_fixture
 from leo.types import FindingKind
 
+# Not the default slug: `make seed` commits that tenant to the same database, and its rows
+# (an approved action, an upload) would leak into these tests. Each test rolls back.
+SLUG = f"test-{new_uuid7()}"
 UNSEEDED = {"extractor_script", "feedback_event", "job"}  # written by A4 and later
 
 
@@ -51,24 +55,24 @@ def fixture():
 
 
 def test_seed_twice_gives_same_rows_and_ids(session, fixture):
-    first_tenant = seed(session, fixture)
+    first_tenant = seed(session, fixture, slug=SLUG)
     first = _ids(session)
-    assert seed(session, fixture) == first_tenant
+    assert seed(session, fixture, slug=SLUG) == first_tenant
     assert _ids(session) == first
     _check_deferred(session)
 
 
 def test_d5_rerun_adds_no_rows(session, fixture):
-    seed(session, fixture)
+    seed(session, fixture, slug=SLUG)
     first = _counts(session)
     assert all(first[t] > 0 for t in first if t not in UNSEEDED), first
-    seed(session, load_fixture())  # a fresh load, like a full rerun
+    seed(session, load_fixture(), slug=SLUG)  # a fresh load, like a full rerun
     assert _counts(session) == first
     _check_deferred(session)
 
 
 def test_d1_resync_is_one_document_row(session, fixture):
-    tenant = seed(session, fixture)
+    tenant = seed(session, fixture, slug=SLUG)
     rows = session.scalars(
         select(SourceDocument).where(
             SourceDocument.tenant_id == tenant,
@@ -89,8 +93,8 @@ def test_d1_resync_is_one_document_row(session, fixture):
     )
 
 
-def test_approval_survives_reseed(session, fixture):
-    seed(session, fixture)
+def test_approval_survives_reseed(session, fixture, slug=SLUG):
+    seed(session, fixture, slug=SLUG)
     action = session.scalars(select(Action).order_by(Action.natural_key)).first()
     body = action.body
     session.execute(
@@ -98,7 +102,7 @@ def test_approval_survives_reseed(session, fixture):
     )
     for x in fixture.expected_findings:  # every draft changes upstream
         x.expected_action.must_include.append("edited upstream")
-    seed(session, fixture)
+    seed(session, fixture, slug=SLUG)
     session.expire_all()
     again = session.get(Action, action.id)
     assert (again.state, again.approver, again.body) == ("approved", "maya", body)
@@ -106,17 +110,17 @@ def test_approval_survives_reseed(session, fixture):
 
 
 def test_draft_action_takes_new_content(session, fixture):
-    seed(session, fixture)
+    seed(session, fixture, slug=SLUG)
     target = fixture.expected_findings[0]
     target.expected_action.must_include.append("edited upstream")
-    seed(session, fixture)
+    seed(session, fixture, slug=SLUG)
     session.expire_all()
     bodies = session.scalars(select(Action.body)).all()
     assert any(b.endswith("edited upstream") for b in bodies)
 
 
 def test_shorter_quote_list_leaves_no_stale_citations(session, fixture):
-    tenant = seed(session, fixture)
+    tenant = seed(session, fixture, slug=SLUG)
     term = session.scalars(select(ContractTerm).where(ContractTerm.tenant_id == tenant)).first()
     repo = Repo(session, tenant)
     text_ = "first quote and second quote"
@@ -127,7 +131,7 @@ def test_shorter_quote_list_leaves_no_stale_citations(session, fixture):
 
 
 def test_jsonb_round_trip(session, fixture):
-    tenant = seed(session, fixture)
+    tenant = seed(session, fixture, slug=SLUG)
     session.expire_all()
     stored = {
         f.kind: f for f in session.scalars(select(Finding).where(Finding.tenant_id == tenant)).all()
@@ -142,7 +146,7 @@ def test_jsonb_round_trip(session, fixture):
 
 
 def test_tenants_stay_apart(session, fixture):
-    a = seed(session, fixture)
+    a = seed(session, fixture, slug=SLUG)
     b = seed(session, fixture, slug="second-tenant")
     assert a != b
     vendors = {
@@ -154,7 +158,7 @@ def test_tenants_stay_apart(session, fixture):
 
 
 def test_vendor_upsert_without_notes_keeps_them(session, fixture):
-    repo = Repo(session, seed(session, fixture))
+    repo = Repo(session, seed(session, fixture, slug=SLUG))
     vid = repo.upsert_vendor("Acme Widgets", notes="keep")
     assert repo.upsert_vendor("Acme Widgets") == vid
     session.expire_all()
@@ -162,7 +166,7 @@ def test_vendor_upsert_without_notes_keeps_them(session, fixture):
 
 
 def test_job_upsert_bumps_updated_at(session, fixture):
-    tenant = seed(session, fixture)
+    tenant = seed(session, fixture, slug=SLUG)
     repo = Repo(session, tenant)
     doc = session.scalars(select(SourceDocument).where(SourceDocument.tenant_id == tenant)).first()
     key = keys.job(doc.natural_key, "extract")
@@ -178,7 +182,8 @@ def test_job_upsert_bumps_updated_at(session, fixture):
 
 
 def test_seed_stores_real_raw_copies(session, fixture, raw_store):
-    tenant = seed(session, fixture)  # the default store is LEO_RAW_DIR, the test's raw_store
+    # The default store is LEO_RAW_DIR, the test's raw_store.
+    tenant = seed(session, fixture, slug=SLUG)
     docs = session.scalars(select(SourceDocument).where(SourceDocument.tenant_id == tenant)).all()
     assert len(docs) == len(fixture.documents) - 1
     for d in docs:

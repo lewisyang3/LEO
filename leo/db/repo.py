@@ -7,8 +7,9 @@ never updated. On conflict, each table's columns fall in three groups:
 - identity and provenance (`insert_only`): the first writer wins. D1's re-synced copy keeps
   the original's path.
 - derived values (everything else passed in): overwritten from the new write.
-- user-owned (`action.state`, `approver`, `decided_at`): never written by an upsert. An
-  action's draft content only updates while it is still a draft, so approvals survive reruns.
+- user-owned (`action.state`, `approver`, `decided_at`, `edited_at`, `sent_at`): never
+  written by an upsert. An action's draft content only updates while it is still an unedited
+  draft, so approvals and edits survive reruns.
 
 The caller owns the transaction; `Repo` never commits.
 """
@@ -60,7 +61,7 @@ DOCUMENT_INSERT_ONLY = (
     "subject",
     "parent_document_id",  # an attachment's first carrier; later carriers get a document_link
 )
-ACTION_USER_OWNED = ("state", "approver", "decided_at")
+ACTION_USER_OWNED = ("state", "approver", "decided_at", "edited_at", "sent_at")
 CITATION_OWNERS = ("term_id", "invoice_fact_id", "vendor_contact_id")
 
 
@@ -180,11 +181,17 @@ class Repo:
         return self._put(Finding, NK, {"natural_key": natural_key, **cols})
 
     def upsert_action(self, natural_key: str, **cols: Any) -> UUID:
-        """Draft content updates only while the action is a draft; state is the user's."""
+        """Draft content updates only while the action is an unedited draft: state, decisions
+        and the user's edits are the user's."""
         if owned := set(cols) & set(ACTION_USER_OWNED):
             raise ValueError(f"upsert_action never writes user-owned columns: {sorted(owned)}")
         values = {"natural_key": natural_key, **cols}
-        return self._put(Action, NK, values, where=Action.state == ActionState.draft)
+        return self._put(
+            Action,
+            NK,
+            values,
+            where=(Action.state == ActionState.draft) & Action.edited_at.is_(None),
+        )
 
     def upsert_job(self, natural_key: str, **cols: Any) -> UUID:
         """Sets updated_at itself: ON CONFLICT DO UPDATE skips the ORM's onupdate."""

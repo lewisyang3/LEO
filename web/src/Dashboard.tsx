@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import type { Dashboard, FindingSummary } from './api'
-import { humanize, longDate, money } from './api'
+import { humanize, longDate, money, upload } from './api'
 import { findingHref } from './route'
 import { useFetch } from './useFetch'
 
@@ -22,6 +23,41 @@ export function DaysLeft({ days, long = false }: { days: number | null; long?: b
 
 export function StateBadge({ state }: { state: string }) {
   return <span className={`badge state-${state}`}>{state}</span>
+}
+
+/** Upload one document. It is stored now; processing it arrives with the worker (A4). */
+function Upload() {
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null)
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // picking the same file again still fires
+    if (!file) return
+    setBusy(true)
+    try {
+      const r = await upload(file)
+      setNote({
+        text: r.created
+          ? `Stored as ${r.path}. Processing arrives with the worker.`
+          : `Already ingested, as ${r.path}.`,
+      })
+    } catch (err) {
+      setNote({ text: `Upload failed: ${(err as Error).message}`, error: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="upload">
+      <label>
+        <span className="muted small">Upload a document (.eml or contract) </span>
+        <input type="file" onChange={pick} disabled={busy} />
+      </label>
+      {note && <p className={note.error ? 'error small' : 'muted small'}>{note.text}</p>}
+    </section>
+  )
 }
 
 export default function DashboardPage({ dash, version }: { dash: Dashboard | null; version: number }) {
@@ -80,6 +116,8 @@ export default function DashboardPage({ dash, version }: { dash: Dashboard | nul
           ))}
         </tbody>
       </table>
+
+      <Upload />
     </>
   )
 }

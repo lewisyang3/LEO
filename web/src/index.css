@@ -474,3 +474,7 @@ mark {
     animation: none;
   }
 }
+
+.upload {
+  margin-top: 1.5rem;
+}

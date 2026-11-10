@@ -433,6 +433,8 @@ class Action(NaturalKeyRow):
     state: Mapped[str] = mapped_column(String(24), nullable=False, default=ActionState.draft)
     approver: Mapped[str | None] = mapped_column(Text)
     decided_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    edited_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # C3
+    sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # C3
     raw_model_output: Mapped[dict | None] = mapped_column(JSONB)
     __table_args__ = (
         _tenant_id_key("action"),

@@ -119,3 +119,31 @@ class Dashboard(LeoModel):
     open_findings: int
     at_stake: Money
     pending_actions: int
+
+
+class UploadOut(LeoModel):
+    """One uploaded file. `path` is the stored row's path: bytes already ingested keep theirs."""
+
+    document_id: str
+    path: str
+    created: bool  # False when these bytes were already ingested
+    attachments: list[str]
+
+
+class JobCount(LeoModel):
+    stage: str
+    processed_by: str | None
+    status: str
+    count: int
+
+
+class Stats(LeoModel):
+    """Counts from the database (ROADMAP C3). Cost numbers come with B6."""
+
+    documents: int
+    documents_by_class: dict[str, int]  # "unclassified" when not yet classified
+    terms_by_status: dict[str, int]
+    invoice_facts_by_status: dict[str, int]
+    findings: int
+    actions_by_state: dict[str, int]
+    jobs: list[JobCount]

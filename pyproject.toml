@@ -11,6 +11,7 @@ dependencies = [
     "psycopg[binary]>=3",
     "pydantic>=2",
     "pydantic-settings",
+    "python-multipart>=0.0.33",
     "sqlalchemy>=2",
     "typesafe-sdk>=0.7.5",
     "uvicorn[standard]",
