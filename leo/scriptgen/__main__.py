@@ -2,13 +2,16 @@
 
 Reads the pipeline tenant's finished jobs (`LEO_PIPELINE_TENANT`; run `make e2e` first, with
 `ARGS=--no-builtin-scripts` to send the hand-written scripts' formats to the LLM). For each
-sender with at least `--threshold` verified LLM extractions, it asks the model for a script,
+sender with at least `--threshold` verified extractions, it asks the model for a script,
 tests it on those documents and on every other sender's, and stores it in `extractor_script`,
 promoted only when it reproduces every example and matches nothing else. Up to
 `--max-attempts` per sender; each retry sees the previous failures.
 
 Promoted scripts run in the worker before the LLM. `make e2e ARGS="--no-builtin-scripts
 --keep-scripts"` carries them across the reset and shows which documents they took.
+
+A reviewer's correction on a generated script's output demotes it (F3): its sender becomes a
+candidate again, and the new version must reproduce the corrected results.
 
 `--offline` (or `LEO_LLM_OFFLINE=1`) uses only cached answers (`data/llm_cache/scriptgen`).
 `--dry-run` lists the candidate senders and stops.
@@ -34,8 +37,10 @@ def main(argv: list[str] | None = None) -> int:
 
     get_settings.cache_clear()
 
+    from sqlalchemy import select
+
     from leo.clock import FixedClock, get_clock
-    from leo.db.models import Tenant
+    from leo.db.models import ExtractorScript, Tenant
     from leo.db.repo import Repo
     from leo.db.session import get_sessionmaker
     from leo.fixtures import load_fixture
@@ -63,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         if tenant_id is None:
             parser.error(f"no tenant {slug!r} (run make e2e)")
         repo = Repo(session, tenant_id)
-        docs = load_documents(session, tenant_id, RawStore(settings.leo_raw_dir))
+        docs = load_documents(session, tenant_id, RawStore(settings.leo_raw_dir), clock)
         covered = {r.matcher for r in repo.promoted_scripts() if r.matcher}
         groups = find_groups(docs, threshold, covered=covered)
         n_llm = sum(1 for d in docs if (d.extract_engine or "").startswith("llm:"))
@@ -71,8 +76,20 @@ def main(argv: list[str] | None = None) -> int:
             f"scriptgen: tenant {slug}, {len(docs)} documents, {n_llm} extracted by the LLM, "
             f"model {settings.leo_model_scriptgen}"
         )
+        for r in session.scalars(
+            select(ExtractorScript)
+            .where(ExtractorScript.tenant_id == tenant_id, ExtractorScript.demoted_at.is_not(None))
+            .order_by(ExtractorScript.name, ExtractorScript.version)
+        ):
+            print(
+                f"demoted: {r.name}@{r.version} ({r.matcher}), accuracy {float(r.accuracy):.0%} "
+                "after reviewers' corrections"
+            )
+        for d in docs:
+            if d.note:
+                print(f"   not an example: {d.path}: {d.note}")
         if not groups:
-            print(f"No sender has {threshold}+ verified LLM extractions without a script.")
+            print(f"No sender has {threshold}+ verified extractions without a script.")
         for g in groups:
             print(f"\n== {g.sender}: {len(g.examples)} examples")
             for e in g.examples:

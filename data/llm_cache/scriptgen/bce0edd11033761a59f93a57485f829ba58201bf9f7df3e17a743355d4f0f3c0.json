@@ -1,0 +1,29 @@
+{
+  "doc_hash": "aa6ed9acd3331e19345890deffd5b51cf45c2bd1e71bc7e4cbf7f68dfe3c8ccd",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "code": "def matches(text):\n    fm = re_search(r'^From: (.+)$', text, MULTILINE)\n    if fm is None:\n        return False\n    addr = parseaddr(fm.group(1))[1].lower()\n    if addr != 'billing@kestrelcloud.example':\n        return False\n    for marker in [r'^Invoice: INV-', r'^Invoice date: ', r'^Billing period: ', r'^Total due: \\$']:\n        if re_search(marker, text, MULTILINE) is None:\n            return False\n    return True\n\n\ndef parse(text):\n    if not matches(text):\n        raise ValueError('not a Kestrel Cloud invoice')\n    vendor_m = re_search(r'^(.+)\\nInvoice: INV-', text, MULTILINE)\n    inv_m = re_search(r'^Invoice: INV-(\\S+)$', text, MULTILINE)\n    subj_m = re_search(r'^Subject: .*INV-(\\S+)$', text, MULTILINE)\n    date_m = re_search(r'^Invoice date: (.+)$', text, MULTILINE)\n    period_m = re_search(r'^Billing period: (.+?) - (.+)$', text, MULTILINE)\n    total_m = re_search(r'^Total due: \\$([0-9,]+\\.[0-9]{2})$', text, MULTILINE)\n    if vendor_m is None or inv_m is None or subj_m is None or date_m is None or period_m is None or total_m is None:\n        raise ValueError('expected line missing')\n    inv_number = inv_m.group(1).strip()\n    if subj_m.group(1).strip() != inv_number:\n        raise ValueError('subject invoice number disagrees with body')\n    items = re_findall(r'^(.+?) {2,}\\$([0-9,]+\\.[0-9]{2})$', text, MULTILINE)\n    if not items:\n        raise ValueError('no line items')\n    total = Decimal(total_m.group(1).replace(',', ''))\n    line_sum = sum((Decimal(item[1].replace(',', '')) for item in items), Decimal('0'))\n    if line_sum != total:\n        raise ValueError('line items do not add up to total')\n    invoice_date = datetime.strptime(date_m.group(1).strip(), '%B %d, %Y').date().isoformat()\n    start = datetime.strptime(period_m.group(1).strip(), '%B %d, %Y').date().isoformat()\n    end = datetime.strptime(period_m.group(2).strip(), '%B %d, %Y').date().isoformat()\n    if end < start:\n        raise ValueError('billing period ends before it starts')\n    quotes = [inv_m.group(0), date_m.group(0), period_m.group(0), total_m.group(0)]\n    return {'contacts': [], 'invoice_facts': [{'amount': float(total), 'billing_period': start + '/' + end, 'invoice_date': invoice_date, 'invoice_number': inv_number, 'quotes': quotes, 'seats_billed': None}], 'terms': [], 'vendor_name': vendor_m.group(1).strip()}\n",
+    "notes": "Matches on the billing@kestrelcloud.example sender plus fixed template labels (Invoice, Invoice date, Billing period, Total due). The parser removes the underscore-named loop variable that broke loading, and it cross-checks the subject invoice number against the body and the line items against the total, raising ValueError on any mismatch or missing line."
+  },
+  "prompt_version": "scriptgen-v1",
+  "request_id": "req_011Cgv9E5KJQWQm1FRom9rQ9",
+  "stage": "scriptgen",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "inference_geo": "global",
+    "input_tokens": 3620,
+    "output_tokens": 2795,
+    "output_tokens_details": {
+      "thinking_tokens": 1565
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

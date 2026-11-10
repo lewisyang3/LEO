@@ -23,7 +23,15 @@ from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from leo.db.models import Citation, ContractTerm, DocumentLink, FeedbackEvent, InvoiceFact, Job
+from leo.db.models import (
+    Citation,
+    ContractTerm,
+    DocumentLink,
+    ExtractorScript,
+    FeedbackEvent,
+    InvoiceFact,
+    Job,
+)
 from leo.db.write import jsonb
 from leo.match.duplicates import PROBABLE_DUPLICATE
 from leo.pipeline.extract_schema import EXAMPLE_FIELDS, INVOICE_FACT, PART_OF_ITEM
@@ -113,6 +121,72 @@ def _finish(session: Session, row, events: list[FeedbackEvent]) -> None:
     session.add_all(events)
     queue.request_reconcile(session, row.tenant_id)
     session.flush()
+    _demote(session, row.tenant_id, events[0].engine)
+
+
+# --- Demoting a generated script (F3) ---------------------------------------------------------
+
+GENERATED = "script:gen-"
+
+
+def _script(session: Session, tenant_id: UUID, engine: str | None) -> ExtractorScript | None:
+    """The stored generated script an engine string names (`script:<name>@<version>`, as
+    `leo.scriptgen.scripts` writes it). None for the LLM, hand-written scripts and the rest."""
+    if not engine or not engine.startswith(GENERATED):
+        return None
+    name, _, version = engine.removeprefix("script:").rpartition("@")
+    return session.scalar(
+        select(ExtractorScript).where(
+            ExtractorScript.tenant_id == tenant_id,
+            ExtractorScript.name == name,
+            ExtractorScript.version == version,
+        )
+    )
+
+
+def _demote(session: Session, tenant_id: UUID, engine: str | None) -> None:
+    """A reviewed item lowers its generated script's accuracy: the share of the documents
+    this version extracted that have no reviewed item. Below 1.0, the promotion bar, the
+    script is demoted: the worker sends its sender to the LLM, and scriptgen may rewrite it."""
+    script = _script(session, tenant_id, engine)
+    if script is None:
+        return
+    handled = set(
+        session.scalars(
+            select(Job.document_id).where(
+                Job.tenant_id == tenant_id,
+                Job.stage == queue.EXTRACT,
+                Job.status == queue.DONE,
+                Job.processed_by == engine,
+            )
+        )
+    )
+    if not handled:
+        return
+    reviewed: set[UUID] = set()
+    for model in (ContractTerm, InvoiceFact):
+        reviewed |= set(
+            session.scalars(
+                select(model.document_id).where(
+                    model.tenant_id == tenant_id,
+                    model.document_id.in_(handled),
+                    model.corrected_at.is_not(None),
+                )
+            )
+        )
+    accuracy = (len(handled) - len(reviewed)) / len(handled)
+    script.accuracy = Decimal(str(round(accuracy, 4)))
+    if accuracy < 1 and script.demoted_at is None:
+        script.demoted_at = func.now()
+    session.flush()
+
+
+def demoted_script(session: Session, tenant_id: UUID, engine: str | None) -> str | None:
+    """`name@version` when the engine is a generated script that is now demoted."""
+    script = _script(session, tenant_id, engine)
+    if script is None or script.demoted_at is None:
+        return None
+    return f"{script.name}@{script.version}"
 
 
 def correct_term(

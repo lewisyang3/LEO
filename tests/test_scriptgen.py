@@ -15,8 +15,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
+from leo import feedback
 from leo.clock import FixedClock
 from leo.config import Settings
+from leo.db import models as m
 from leo.db.models import ExtractorScript, Job
 from leo.db.repo import Repo
 from leo.e2e.checks import run_checks
@@ -26,7 +28,7 @@ from leo.interfaces import DocumentText, Extraction
 from leo.llm import ResponseCache
 from leo.pipeline.extract_script import ParseError, sender_address
 from leo.scriptgen import generate
-from leo.scriptgen.candidates import find_groups, load_documents, negatives
+from leo.scriptgen.candidates import _overlay, find_groups, load_documents, negatives
 from leo.scriptgen.promote import check_candidate, compare, generate_and_promote, script_name
 from leo.scriptgen.sandbox import (
     PROVIDED,
@@ -247,6 +249,15 @@ def _have_caches() -> bool:
 
 needs_cache = pytest.mark.skipif(not _have_caches(), reason="no committed extract/scriptgen cache")
 
+# The committed answer for `gen-kestrel-cloud-hosting@1` (05 and 06 as the LLM extracted them).
+# Other committed scriptgen entries are F3's rewrite after a reviewer's corrections.
+KESTREL_V1 = "470368dbf6944069185163590704bdde26ea5e4c721413dbd25daa89ad3abc3a.json"
+
+
+def _cached_code(settings) -> str:
+    path = settings.leo_llm_cache_dir / "scriptgen" / KESTREL_V1
+    return json.loads(path.read_text())["output"]["code"]
+
 
 def _offline(monkeypatch):
     from leo.config import get_settings
@@ -370,9 +381,7 @@ def test_a_wrong_or_greedy_candidate_is_rejected_and_stored(llm_run):
     repo, docs, settings = llm_run
     [group] = find_groups(docs)
     others = negatives(docs, group)
-    code = json.loads(next((settings.leo_llm_cache_dir / "scriptgen").glob("*.json")).read_text())[
-        "output"
-    ]["code"]
+    code = _cached_code(settings)
     assert check_candidate(code, group, others, CLOCK).promotable
 
     wrong = code.replace('float(tm.group(1).replace(",", ""))', "1.0")
@@ -411,9 +420,7 @@ def test_the_worker_extracts_with_a_promoted_script_and_the_checks_still_pass(
     session, raw_store, monkeypatch
 ):
     settings = _offline(monkeypatch)
-    code = json.loads(next((settings.leo_llm_cache_dir / "scriptgen").glob("*.json")).read_text())[
-        "output"
-    ]["code"]
+    code = _cached_code(settings)
     repo = _run(session, raw_store, scripts=[code])
     engines = _engines(repo)
     assert engines["inbox/05_kestrel_invoice_2026_09.eml"] == "script:gen-test-0@1"
@@ -475,3 +482,167 @@ def test_the_prompt_is_the_same_for_the_same_group_and_carries_failures():
     assert generate.user_prompt(g, []) == generate.user_prompt(g, [])
     p = generate.user_prompt(g, [generate.Attempt("def f(): pass", ["a: parse() raised X"])])
     assert "a: parse() raised X" in p and "rejected" in p
+
+
+# --- F3: a reviewer's correction demotes a generated script; the rewrite follows it ----------
+
+
+KESTREL_05 = "inbox/05_kestrel_invoice_2026_09.eml"
+KESTREL_06 = "inbox/06_kestrel_invoice_2026_10.eml"
+
+# A rewrite that drops the "INV-" prefix: what the reviewer's corrections below ask for.
+STRIP = """
+
+orig_parse = parse
+
+
+def parse(text):
+    out = orig_parse(text)
+    for fact in out["invoice_facts"]:
+        number = fact.get("invoice_number")
+        if number and number.startswith("INV-"):
+            fact["invoice_number"] = number[4:]
+    return out
+"""
+
+
+def _fact(repo: Repo, path: str) -> m.InvoiceFact:
+    return repo.session.scalar(
+        select(m.InvoiceFact)
+        .join(m.SourceDocument, m.SourceDocument.id == m.InvoiceFact.document_id)
+        .where(m.InvoiceFact.tenant_id == repo.tenant_id, m.SourceDocument.path == path)
+    )
+
+
+def _script_row(repo: Repo) -> ExtractorScript:
+    return repo.session.scalar(
+        select(ExtractorScript).where(
+            ExtractorScript.tenant_id == repo.tenant_id, ExtractorScript.name == "gen-test-0"
+        )
+    )
+
+
+def _drop_prefix(repo: Repo, path: str) -> None:
+    fact = _fact(repo, path)
+    feedback.correct_invoice_fact(
+        repo.session,
+        repo.tenant_id,
+        "r",
+        fact.id,
+        {"invoice_number": fact.invoice_number.removeprefix("INV-")},
+    )
+
+
+@pytest.fixture
+def scripted(session, raw_store, monkeypatch):
+    """The synthetic set with the cached Kestrel script promoted: it takes 05 and 06."""
+    settings = _offline(monkeypatch)
+    code = _cached_code(settings)
+    repo = _run(session, raw_store, scripts=[code])
+    assert _engines(repo)[KESTREL_05] == "script:gen-test-0@1"
+    return repo, code, settings
+
+
+@needs_cache
+def test_a_correction_on_its_output_demotes_the_script(scripted):
+    repo, _, _ = scripted
+    _drop_prefix(repo, KESTREL_05)
+    row = _script_row(repo)
+    assert row.demoted_at is not None and float(row.accuracy) == 0.5
+    assert repo.promoted_scripts() == []
+    assert feedback.demoted_script(repo.session, repo.tenant_id, "script:gen-test-0@1") == (
+        "gen-test-0@1"
+    )
+    _drop_prefix(repo, KESTREL_06)
+    assert float(_script_row(repo).accuracy) == 0
+
+
+@needs_cache
+def test_a_correction_on_llm_output_leaves_the_script_alone(scripted):
+    repo, _, _ = scripted
+    fact = _fact(repo, "inbox/08_quillstack_invoice_2026_10.eml")
+    assert fact is not None
+    feedback.correct_invoice_fact(
+        repo.session, repo.tenant_id, "r", fact.id, {"invoice_number": "Q-1"}
+    )
+    row = _script_row(repo)
+    assert row.demoted_at is None and float(row.accuracy) == 1.0
+
+
+@needs_cache
+def test_the_rewrite_must_reproduce_the_corrected_results(scripted, raw_store, monkeypatch):
+    repo, code, settings = scripted
+    _drop_prefix(repo, KESTREL_05)  # demotes the script; 06 still counts as an example
+    docs = load_documents(repo.session, repo.tenant_id, raw_store, CLOCK)
+    [group] = find_groups(docs)
+    by_path = {e.path: e for e in group.examples}
+    assert set(by_path) == {KESTREL_05, KESTREL_06}
+    assert by_path[KESTREL_05].expected["invoice_facts"][0]["invoice_number"] == "KCH-260901"
+    assert by_path[KESTREL_05].verified.invoice_facts[0].invoice_number == "KCH-260901"
+    assert by_path[KESTREL_06].expected["invoice_facts"][0]["invoice_number"] == "INV-KCH-261001"
+
+    # The old script reproduces the old number, so it fails on the corrected example.
+    old = check_candidate(code, group, negatives(docs, group), CLOCK)
+    assert not old.promotable
+    assert any(KESTREL_05 in f and "KCH-260901" in f for f in old.failures)
+
+    # With both invoices corrected, a rewrite that drops the prefix is promoted.
+    _drop_prefix(repo, KESTREL_06)
+    docs = load_documents(repo.session, repo.tenant_id, raw_store, CLOCK)
+    [group] = find_groups(docs)
+    proposal = generate.ScriptProposal(code=code + STRIP, notes="")
+    monkeypatch.setattr(generate, "propose", lambda *a, **k: (proposal, None))
+    cache = ResponseCache(settings.leo_llm_cache_dir)
+    out = generate_and_promote(repo, group, negatives(docs, group), CLOCK, cache, settings)
+    assert out.promoted is not None
+    [row] = repo.promoted_scripts()
+    assert (row.name, row.version) == (out.name, out.promoted)
+
+    # The worker extracts with the rewrite.
+    job = repo.session.scalar(
+        select(Job)
+        .join(m.SourceDocument, m.SourceDocument.id == Job.document_id)
+        .where(Job.tenant_id == repo.tenant_id, Job.stage == queue.EXTRACT)
+        .where(m.SourceDocument.path == KESTREL_05)
+    )
+    job.status, job.attempts, job.claimed_at, job.run_after = "pending", 0, None, None
+    repo.session.commit()
+    pipeline = Pipeline.default(
+        CLOCK, classifier="fixture", drafter="template", sender="B", builtin_scripts=False
+    )
+    Worker(repo.session, pipeline, raw_store, CLOCK, tenant_id=repo.tenant_id).drain()
+    repo.session.refresh(job)
+    assert job.processed_by == f"script:{out.name}@{out.promoted}"
+
+
+@needs_cache
+def test_a_rejected_item_leaves_the_expected_output(scripted, raw_store):
+    repo, _, _ = scripted
+    feedback.reject(repo.session, repo.tenant_id, "r", "invoice_fact", _fact(repo, KESTREL_05).id)
+    docs = {d.path: d for d in load_documents(repo.session, repo.tenant_id, raw_store, CLOCK)}
+    assert docs[KESTREL_05].expected["invoice_facts"] == []
+    assert docs[KESTREL_05].verified.invoice_facts == []
+
+
+def test_a_correction_code_derives_is_not_expressible():
+    base = {
+        "terms": [
+            {
+                "type": "renewal",
+                "quotes": ["q"],
+                "value": {"initial_term_end": None, "auto_renew": True},
+            }
+        ],
+        "invoice_facts": [],
+    }
+    assert "deriv" in _overlay(
+        base, [("term", "renewal", "q", False, [("value.current_term_end", "2027-01-01")])]
+    )
+    assert "deriv" in _overlay(
+        base, [("term", "renewal", "q", False, [("value.initial_term_end", "2027-01-01")])]
+    )
+    assert "no renewal quoting" in _overlay(
+        base, [("term", "renewal", "other", False, [("value.auto_renew", False)])]
+    )
+    assert _overlay(base, [("term", "renewal", "q", False, [("value.auto_renew", False)])]) is None
+    assert base["terms"][0]["value"]["auto_renew"] is False

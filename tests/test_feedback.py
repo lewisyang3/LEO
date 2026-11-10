@@ -333,6 +333,7 @@ def test_api_correct_and_reject(client, session):
         "kind": "term",
         "status": "current",
         "changed": ["value.included"],
+        "demoted": None,
     }
     assert next(t for t in _f4(c)["terms"] if t["term"]["id"] == tid)["corrected"] is True
 

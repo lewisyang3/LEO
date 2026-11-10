@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { InvoiceFact, Term } from './api'
+import type { CorrectionOut, InvoiceFact, Term } from './api'
 import { humanize, patch, post } from './api'
 
 // The feedback loop (Phase 4): a reviewer corrects or rejects an extracted term or invoice.
@@ -37,12 +37,14 @@ function Editor({
   const [form, setForm] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [demoted, setDemoted] = useState<string | null>(null)
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
     setError(null)
     try {
-      await fn()
+      const out = (await fn()) as CorrectionOut
+      setDemoted(out?.demoted ?? null)
       setOpen(false)
       onDone()
     } catch (e) {
@@ -72,6 +74,11 @@ function Editor({
           {rejectLabel}
         </button>
         {error && <span className="error small">{error}</span>}
+        {demoted && (
+          <span className="small muted">
+            Script {demoted} demoted: this sender goes back to the LLM until scriptgen rewrites it.
+          </span>
+        )}
       </div>
     )
   return (

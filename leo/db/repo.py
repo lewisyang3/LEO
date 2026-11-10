@@ -449,7 +449,9 @@ class Repo:
 
     def promoted_scripts(self) -> list[ExtractorScript]:
         """The latest promoted version per (name, matcher), by name then matcher. The matcher
-        is the sender, so two senders of one vendor (one name) each keep their script."""
+        is the sender, so two senders of one vendor (one name) each keep their script. A
+        latest version that was demoted (F3) leaves its sender with none: an older version
+        never comes back."""
         rows = self.session.scalars(
             select(ExtractorScript).where(
                 ExtractorScript.tenant_id == self.tenant_id,
@@ -465,4 +467,4 @@ class Repo:
             key = (r.name, r.matcher or "")
             if key not in latest or version(r) > version(latest[key]):
                 latest[key] = r
-        return [latest[k] for k in sorted(latest)]
+        return [latest[k] for k in sorted(latest) if latest[k].demoted_at is None]

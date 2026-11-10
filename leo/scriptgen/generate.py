@@ -68,7 +68,7 @@ def user_prompt(group: Group, previous: list[Attempt]) -> str:
     for i, ex in enumerate(group.examples, 1):
         parts.append(
             f"### Example {i}\n\n<email>\n{ex.doc.text}\n</email>\n\n"
-            f"Expected parse(text) output:\n```json\n{_example_json(ex.llm_output)}\n```\n"
+            f"Expected parse(text) output:\n```json\n{_example_json(ex.expected)}\n```\n"
         )
     for i, a in enumerate(previous, 1):
         failures = "\n".join(f"- {f}" for f in a.failures)

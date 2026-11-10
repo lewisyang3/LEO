@@ -513,6 +513,8 @@ class DbStore:
             events = fn(iid)
             model = m.ContractTerm if kind == "term" else m.InvoiceFact
             status = self.session.scalar(select(model.status).where(model.id == iid))
+            engine = events[0].engine if events else None
+            demoted = feedback.demoted_script(self.session, self.tenant_id, engine)
             self.session.commit()
         except feedback.ItemNotFound:
             self.session.rollback()
@@ -527,7 +529,11 @@ class DbStore:
             self.session.rollback()
             raise
         return CorrectionOut(
-            id=item_id, kind=kind, status=status, changed=[e.field for e in events if e.field]
+            id=item_id,
+            kind=kind,
+            status=status,
+            changed=[e.field for e in events if e.field],
+            demoted=demoted,
         )
 
     def correct_term(self, term_id: str, edit: TermCorrection) -> CorrectionOut:

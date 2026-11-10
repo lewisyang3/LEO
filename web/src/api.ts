@@ -152,6 +152,14 @@ export type VendorDetail = {
   linked_duplicates: string[]
 }
 
+export type CorrectionOut = {
+  id: string
+  kind: 'term' | 'invoice_fact'
+  status: string
+  changed: string[]
+  demoted: string | null
+}
+
 export type DocumentOut = { path: string; doc_class: string | null; vendor: string | null; text: string }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {

@@ -469,6 +469,8 @@ class ExtractorScript(Row):
     code: Mapped[str] = mapped_column(Text, nullable=False)
     accuracy: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     promoted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when a reviewer's correction drops a promoted script's accuracy below 1.0 (F3).
+    demoted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         _tenant_id_key("extractor_script"),
         UniqueConstraint("tenant_id", "name", "version", name="uq_extractor_script_version"),

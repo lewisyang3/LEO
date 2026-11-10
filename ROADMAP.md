@@ -689,7 +689,22 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
       - The synthetic set has no second document where the same mistake recurs, so the effect shows in the prompt, not in a score.
     - **Results:** `make bar` stays at 262/263 and `make e2e` at 22/22. A worker test shows that with no corrections a contract's re-extraction hits the committed cache, and after a correction elsewhere it sends a new request.
     - **Not done:** a forward extracted for the first time has no duplicate link yet, so it can see its twin's correction. That's harmless, because the correction is right for it too.
-  - [ ] **F3: corrections demote a generated script**, and scriptgen rewrites it from the corrected examples.
+  - [x] **F3: corrections demote a generated script**, and scriptgen rewrites it from the corrected examples:
+    - **Demotion** (`leo.feedback._demote`, in the correction's own commit). An item whose extract engine is `script:gen-…@n` updates that version's `accuracy`: the share of the documents it extracted that have no reviewed item. Below 1.0, the promotion bar, it gets `demoted_at`. `Repo.promoted_scripts` drops a demoted latest version (an older one never comes back), so the worker sends the sender to the LLM, with F2's examples, and scriptgen sees the sender again. The API's correction answer names the demoted script, and the UI shows it.
+    - **Examples for the rewrite** (`candidates.apply_feedback`). Every document the demoted script extracted is an example, its base output the old script's own `parse` run again in the sandbox. A document the LLM extracted with reviewed items takes the LLM's answer as its base. Reviewed items are overlaid on the base: a rejection removes the item, and a correction sets the fields it changed.
+      - **Not an example:** a document whose corrections can't be expressed, with no matching item or a field code derives. scriptgen prints why. No script could reproduce it, so the sender stays on the LLM.
+      - **Unchanged:** documents the LLM extracted with no correction keep their answer, so the existing scriptgen prompt and cache are the same.
+    - **Live check.**
+      1. `@1` takes 05 and 06 (`--no-builtin-scripts --keep-scripts`). A reviewer drops the "INV-" prefix from both invoice numbers in the UI. The first correction demotes `@1` (accuracy 50%, then 0%).
+      2. `make scriptgen` asks Haiku twice. The first attempt is rejected by the sandbox (a name `_`). The retry is promoted at 100%, and the worker then extracts 05 with it ("KCH-260901").
+      3. Both answers are committed in `data/llm_cache/scriptgen`.
+      - The correction is a staged reviewer preference, not a real script error.
+    - **Don't** run `--keep-scripts` with that rewrite. `check_d3` wants the key's `INV-KCH-…` numbers, so it fails by design. Finish with a plain `make e2e`.
+    - **Results:** `make bar`, `make e2e` and the default `make scriptgen --offline` (`@1`) are unchanged.
+    - **Not done:**
+      - B5's hand-written scripts aren't demoted: they are code, not stored rows.
+      - Accuracy counts documents, not fields.
+      - A sender whose corrections disagree across its documents (one invoice corrected, one not, on the same field) can't get a rewrite. That is the right outcome, but nothing says so beyond the rejected attempts.
 - [ ] **[stretch] PDF contracts.** Text extraction with page and line locations for citations.
 - [ ] **[stretch] Ramp sandbox** behind `TransactionSource`, if we get access.
 - [ ] **[stretch] Hardening.** Row-level security per tenant, access logging, and a retention policy.

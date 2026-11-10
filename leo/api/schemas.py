@@ -77,6 +77,7 @@ class CorrectionOut(LeoModel):
     kind: Literal["term", "invoice_fact"]
     status: str
     changed: list[str]  # the fields that changed ("value.early_termination_fee", "amount", ...)
+    demoted: str | None = None  # the generated script ("name@version") now demoted (F3)
 
 
 class ActionOut(LeoModel):
