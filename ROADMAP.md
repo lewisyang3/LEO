@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** A5 (transactions, vendors and matching) is done on `lewis/a5-matching`, stacked on A4. A4 (job queue and worker) is in review against main as PR #17. It replaces #13. C3–C5 (PRs #14–#16) have merged.
+**Now (2026-11-10).** Next up is A6 (duplicate linking). A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
