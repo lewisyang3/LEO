@@ -516,3 +516,90 @@ class Job(NaturalKeyRow):
         _check_in("job", "status", JOB_STATUSES),
         Index("ix_job_claim", "status", "created_at"),
     )
+
+class StageExecution(Row):
+    """Tracks each execution of a pipeline stage for B6 analytics."""
+
+    __tablename__ = "stage_execution"
+
+    job_id: Mapped[UUID] = mapped_column(nullable=False)
+
+    stage: Mapped[str] = mapped_column(String(48), nullable=False)
+
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="running"
+    )
+    # running, completed, filtered, failed, needs_review
+
+    stop_reason: Mapped[str | None] = mapped_column(Text)
+
+    started_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    finished_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+    __table_args__ = (
+        _tenant_id_key("stage_execution"),
+        _fk("stage_execution", "job_id", "job"),
+        _check_in(
+            "stage_execution",
+            "status",
+            ("running", "completed", "filtered", "failed", "needs_review"),
+        ),
+        Index("ix_stage_execution_job_stage", "job_id", "stage"),
+    )
+
+
+class ModelUsage(Row):
+    """Tracks token consumption and cost for each API attempt."""
+
+    __tablename__ = "model_usage"
+
+    stage_execution_id: Mapped[UUID] = mapped_column(nullable=False)
+
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    # claude, jev
+
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    attempt_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1
+    )
+
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 8))
+
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    # success, failed, rate_limited
+
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        _tenant_id_key("model_usage"),
+        _fk("model_usage", "stage_execution_id", "stage_execution"),
+        _check_in(
+            "model_usage",
+            "status",
+            ("success", "failed", "rate_limited"),
+        ),
+        CheckConstraint(
+            "attempt_number >= 1",
+            name="ck_model_usage_attempt_number",
+        ),
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0 AND cost_usd >= 0",
+            name="ck_model_usage_nonnegative",
+        ),
+        Index("ix_model_usage_stage_execution", "stage_execution_id"),
+    )

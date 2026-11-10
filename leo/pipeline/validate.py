@@ -29,6 +29,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel
 from typesafe_sdk import Choice, TypeSafeError
 
+from leo.analytics.usage import record_usage
 from leo.interfaces import Clock, DocumentText, Extraction, Validated, ValidationIssue
 from leo.rules import locate_quote
 from leo.types import (
@@ -322,8 +323,13 @@ class JevPriorComparer:
                     state=state,
                     questions={JEV_QUESTION: Choice(criteria=JEV_CRITERIA)},
                 )
+                record_usage(
+                    "jev", getattr(resp, "model", "jev-latest"), getattr(resp, "usage", None)
+                )
                 answer = resp.choices[JEV_QUESTION]
             except (TypeSafeError, KeyError) as e:
+                if isinstance(e, TypeSafeError):
+                    record_usage("jev", "jev-latest", status="failed")
                 log.warning("Jev comparison failed for %s vs %s: %r", term.id, prior.id, e)
                 out.error = True
                 continue

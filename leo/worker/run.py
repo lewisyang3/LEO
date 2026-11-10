@@ -25,8 +25,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from leo import stubs
+from leo.analytics.usage import collect_usage
 from leo.db import keys
-from leo.db.models import Job
+from leo.db.models import Job, ModelUsage, StageExecution
 from leo.db.models import SourceDocument as DocumentRow
 from leo.db.read import load_ledger
 from leo.ingest.store import RawStore
@@ -96,28 +97,63 @@ class Worker:
             return False
         job_id = job.id
         s.commit()
-        try:
-            result = self._run(job)
-            job = s.get(Job, job_id)
-            job.raw_model_output = result.output
-            job.processed_by = result.processed_by
-            job.status = queue.DONE
-            job.last_error = None
-            job.run_after = None
-            job.updated_at = func.now()
-            if result.next_stage is not None:
-                doc_key = self._doc(job).natural_key
-                queue.enqueue(s, job.tenant_id, job.document_id, doc_key, result.next_stage)
-            s.commit()
-        except Exception as e:
-            s.rollback()
-            log.warning("job %s failed: %r", job_id, e)
-            self._failed(job_id, e)
-            s.commit()
-        except BaseException:
-            self._release(job_id)
-            raise
+        execution = StageExecution(tenant_id=job.tenant_id, job_id=job.id, stage=job.stage)
+        s.add(execution)
+        s.commit()
+        execution_id = execution.id
+        # Model calls register into this in-memory list. Even if _run raises, keep them.
+        with collect_usage() as calls:
+            try:
+                result = self._run(job)
+                job = s.get(Job, job_id)
+                job.raw_model_output = result.output
+                job.processed_by = result.processed_by
+                job.status = queue.DONE
+                job.last_error = None
+                job.run_after = None
+                job.updated_at = func.now()
+                if result.next_stage is not None:
+                    doc_key = self._doc(job).natural_key
+                    queue.enqueue(s, job.tenant_id, job.document_id, doc_key, result.next_stage)
+                # Stage and API usage commit with successful job outcome.
+                filtered = job.stage == queue.CLASSIFY and result.next_stage is None
+                self._finish_execution(
+                    execution_id, calls, "filtered" if filtered else "completed",
+                    "classified_noise" if filtered else None,
+                )
+                s.commit()
+            except Exception as e:
+                s.rollback()
+                log.warning("job %s failed: %r", job_id, e)
+                self._failed(job_id, e)
+                self._finish_execution(execution_id, calls, "failed", f"{type(e).__name__}: {e}")
+                s.commit()
+            except BaseException:
+                s.rollback()
+                self._finish_execution(execution_id, calls, "failed", "worker interrupted")
+                s.commit()
+                self._release(job_id)
+                raise
         return True
+
+    def _finish_execution(self, execution_id, calls, status: str, reason: str | None) -> None:
+        """Record each real API call, including failed attempts; no cached-call billing."""
+        execution = self.session.get(StageExecution, execution_id)
+        execution.status = status
+        execution.stop_reason = reason[:4000] if reason else None
+        execution.finished_at = func.now()
+        for index, call in enumerate(calls, start=1):
+            self.session.add(ModelUsage(
+                tenant_id=execution.tenant_id,
+                stage_execution_id=execution_id,
+                provider=call.provider,
+                model=call.model,
+                attempt_number=index,
+                input_tokens=call.input_tokens,
+                output_tokens=call.output_tokens,
+                cost_usd=call.cost_usd,
+                status=call.status,
+            ))
 
     def drain(self) -> int:
         """Run jobs until none is due. Returns how many ran."""

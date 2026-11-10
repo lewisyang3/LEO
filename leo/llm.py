@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 import anthropic
+
+from leo.analytics.usage import record_usage
 from pydantic import BaseModel
 
 # --- Schema ----------------------------------------------------------------------------------
@@ -148,14 +150,23 @@ def structured_call(
     if offline:
         raise LLMOfflineMiss(f"no cached {stage} answer for document {doc_hash[:12]} ({key[:12]})")
 
-    client = client or anthropic.Anthropic(api_key=api_key)
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": user}],
-        output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
-    )
+    # We own the worker retries. New SDK clients must not silently amplify requests.
+    client = client or anthropic.Anthropic(api_key=api_key, max_retries=0)
+    try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": user}],
+            output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
+        )
+    except anthropic.APIError as exc:
+        record_usage(
+            "claude", model,
+            status="rate_limited" if getattr(exc, "status_code", None) == 429 else "failed",
+        )
+        raise
+    record_usage("claude", response.model, response.usage)
     record: dict[str, Any] = {
         "stage": stage,
         "model": response.model,
