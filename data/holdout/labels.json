@@ -1,0 +1,10 @@
+{
+  "dataset": "brightwater-holdout-v1",
+  "documents": [
+    {"path": "inbox/h1_pinegrove_pos_newsletter_price_change.eml", "class": "price_notice", "why": "A newsletter, but it announces a price increase on the customer's own plan ($89 to $99 per register from Jan 1, 2027)."},
+    {"path": "inbox/h2_tidewater_linen_invoice.eml", "class": "invoice", "why": "A bill requesting payment, net 30, with a 15-day dispute window."},
+    {"path": "contracts/h3_brightline_waste_services_agreement.md", "class": "contract", "why": "A signed services agreement with auto-renewal, a 60-day notice window, a price and a renewal cap."},
+    {"path": "inbox/h4_pinegrove_product_update.eml", "class": "noise", "why": "A product launch email from a current vendor. Its prices are for an add-on and a plan the customer doesn't have."},
+    {"path": "inbox/h5_internal_espresso_machine_budget.eml", "class": "noise", "why": "An internal email about a possible purchase. It has spending figures but no vendor terms, prices or charges for this business."}
+  ]
+}

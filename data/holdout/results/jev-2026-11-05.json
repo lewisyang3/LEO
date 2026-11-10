@@ -1,0 +1,263 @@
+{
+  "classifier": "jev",
+  "dataset": "brightwater-holdout-v1",
+  "run_at": "2026-11-05T21:47:53Z",
+  "classification": [
+    {
+      "path": "inbox/h1_pinegrove_pos_newsletter_price_change.eml",
+      "expected": "price_notice",
+      "predicted": "price_notice",
+      "confidence": 0.99,
+      "matters": true,
+      "error": null,
+      "probabilities": {
+        "contract": 0.01,
+        "order_form": 0.0,
+        "price_notice": 0.99,
+        "invoice": 0.0,
+        "receipt": 0.0,
+        "noise": 0.0
+      }
+    },
+    {
+      "path": "inbox/h2_tidewater_linen_invoice.eml",
+      "expected": "invoice",
+      "predicted": "invoice",
+      "confidence": 1.0,
+      "matters": true,
+      "error": null,
+      "probabilities": {
+        "contract": 0.0,
+        "order_form": 0.0,
+        "price_notice": 0.0,
+        "invoice": 1.0,
+        "receipt": 0.0,
+        "noise": 0.0
+      }
+    },
+    {
+      "path": "contracts/h3_brightline_waste_services_agreement.md",
+      "expected": "contract",
+      "predicted": "contract",
+      "confidence": 1.0,
+      "matters": true,
+      "error": null,
+      "probabilities": {
+        "contract": 1.0,
+        "order_form": 0.0,
+        "price_notice": 0.0,
+        "invoice": 0.0,
+        "receipt": 0.0,
+        "noise": 0.0
+      }
+    },
+    {
+      "path": "inbox/h4_pinegrove_product_update.eml",
+      "expected": "noise",
+      "predicted": "price_notice",
+      "confidence": 0.59,
+      "matters": false,
+      "error": null,
+      "probabilities": {
+        "contract": 0.03,
+        "order_form": 0.03,
+        "price_notice": 0.59,
+        "invoice": 0.0,
+        "receipt": 0.0,
+        "noise": 0.35
+      }
+    },
+    {
+      "path": "inbox/h5_internal_espresso_machine_budget.eml",
+      "expected": "noise",
+      "predicted": "noise",
+      "confidence": 0.86,
+      "matters": false,
+      "error": null,
+      "probabilities": {
+        "contract": 0.01,
+        "order_form": 0.06,
+        "price_notice": 0.06,
+        "invoice": 0.01,
+        "receipt": 0.0,
+        "noise": 0.86
+      }
+    }
+  ],
+  "classification_summary": {
+    "accuracy": {
+      "hit": 4,
+      "total": 5
+    },
+    "matters_recall": {
+      "hit": 3,
+      "total": 3
+    },
+    "noise_false_pass": {
+      "hit": 1,
+      "total": 2
+    },
+    "mean_confidence": 0.8879999999999999,
+    "confusion": {
+      "price_notice": {
+        "price_notice": 1
+      },
+      "invoice": {
+        "invoice": 1
+      },
+      "contract": {
+        "contract": 1
+      },
+      "noise": {
+        "price_notice": 1,
+        "noise": 1
+      }
+    },
+    "threshold_sweep": [
+      {
+        "threshold": 0.0,
+        "matters_recall": {
+          "hit": 0,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 0,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.35,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 0,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.5,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.55,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.6,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.65,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.7,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.75,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.8,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.85,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.86,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 1,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.9,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 2,
+          "total": 2
+        }
+      },
+      {
+        "threshold": 0.95,
+        "matters_recall": {
+          "hit": 3,
+          "total": 3
+        },
+        "noise_false_pass": {
+          "hit": 2,
+          "total": 2
+        }
+      }
+    ],
+    "recommended_threshold": 0.35
+  }
+}

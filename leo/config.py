@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://leo:leo@localhost:5432/leo"
     anthropic_api_key: str | None = None
     jev_api_key: str | None = None
-    leo_model_investigate: str = DEFAULT_MODEL
     leo_model_extract: str = DEFAULT_MODEL
     leo_model_draft: str = DEFAULT_MODEL
     leo_today: date | None = None
