@@ -283,12 +283,12 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Billing disputes carry no deadline fact.** Their deadline is the last day *we* can raise the dispute. The model misread it as a deadline for the vendor, and the vendor doesn't need it. The approval UI shows it.
   - **No redraft.** `draft_new` skips `(finding, type)` pairs that already exist, before any call. The worker builds the pairs from `v1:action:…` keys.
   - **Cache:** `data/llm_cache/draft/`, committed (7 answers, including 2 retries).
-  - **Eval:** `--drafter none|fixture|stub|template|llm` drafts the key's five findings on `fixture.ledger()`, because C1 isn't built yet. It checks type, alternative, `to`, whether there is a pre-step, and every `must_include` string, and it prints each draft.
+  - **Eval:** `--drafter none|fixture|stub|template|llm` drafts the key's five findings on `fixture.ledger()`. C1 is now built, but it is wired into the eval and the worker in 2.1. It checks type, alternative, `to`, whether there is a pre-step, and every `must_include` string, and it prints each draft.
   - **Results** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --drafter llm`): 5/5 drafts pass with no template fallback. The template drafter also scores 5/5.
 
 ### Track C: Findings and UI (reconcile and the human gate) (owner TBD after B)
 
-- [ ] **C1 [must] Reconciliation rules.** Built and tested on the fixture's correct terms, so it doesn't wait on B. One rule per finding kind:
+- [x] **C1 [must] Reconciliation rules.** Built and tested on the fixture's correct terms, so it doesn't wait on B. One rule per finding kind:
   - `auto_renewal_deadline` (F1): a notice deadline inside the 60-day lookahead.
   - `price_increase_notice` (F2): a new price term later than the current charge, scoped by `plan_label`. A restated price (the add-on) is not a change.
   - `price_cap_exceeded` (F3): a renewal uplift above `price_cap`.
@@ -306,6 +306,27 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - N1–N8 produce nothing
 
   Deadlines computed during reconciliation are [must]. Rechecking them every day as a queued job in A's queue is [should].
+
+  Done, in `leo/reconcile/reconciler.py` (`RuleReconciler`):
+  - **Inputs.** It is pure: it never mutates the ledger and takes `today` from the caller. It ignores `needs_review` terms and invoice facts. It keeps `superseded` terms as price history, but computes supersession from the data and never reads `status`.
+  - **Price history.** Prices are grouped per vendor and `plan_label` and ordered by `effective_date`. `price_on(group, day)` picks the price that applies on a day. A price that differs from the current one supersedes it. An equal price is a restatement, which changes nothing: this is the add-on, N3.
+  - **Rules.** One per kind, with deadlines from `leo.rules`:
+    - F1: an auto-renewing term whose notice deadline is within the lookahead (`lookahead_days`, 60).
+    - F2: a price increase not yet in effect. The deadline is the day before it takes effect.
+    - F3–F5: invoice facts checked against the cap, the seat count and the escalator date. Each takes the earliest dispute deadline still open among its offending invoices, or None when there is no dispute window (F4).
+  - **Linked items.**
+    - transactions: the latest charge (F1, F2), or the last charge before the first offending invoice plus the offending invoices' charges (F3–F5)
+    - `documents`: the anchor term's document plus the documents of the invoice facts
+    - `linked_duplicates`: probable duplicates of those documents. Exact duplicates are one row (D1).
+    - `plan_label`: set only when the vendor has more than one plan
+  - **Ids.** `v1:finding:{anchor term}:{anchor txn or -}:{kind}`, from the ledger's ids. They become natural keys once A2's ids flow through. Titles and `deadline_notes` are templates, with a weekend note when the send-by date moves.
+  - **Tests** (`tests/test_reconcile.py`):
+    - F1–F5 match the key on every structured field. Only id, title and notes are left out.
+    - Supersessions: one, Growth v1 → v2.
+    - The result is the same when every status is `current`.
+    - N1–N8 stay quiet.
+    - Edge cases: a `needs_review` notice, the lookahead bounds, and a later `today` (F2 drops out, and F3 moves to the October invoice).
+  - **Not built yet:** the daily recheck (needs A4), and running on B3's extractions (Phase 2.1).
 - [ ] **C2 [must] UI on fixture data.** Start in Phase 1 against the fixture loader, then switch to the API.
   - **Dashboard:** open findings, days left, dollars at stake.
   - **Finding detail:** click any number to see the source document with the quote highlighted.

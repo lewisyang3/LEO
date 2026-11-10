@@ -68,4 +68,4 @@ A finding's `deadline` is the contract date. The rule depends on its `deadline_b
 - All deadlines are plain dates, with no time zones.
 - A finding stores `deadline`, `recommended_send_by`, `deadline_notes`, `anchor_term_id` and a nullable `anchor_transaction_id`.
 - The `finding_term` and `finding_invoice_fact` link tables have an `is_deadline_basis` boolean, so the deadline basis is a query.
-- C1 stores the deadlines when it reconciles. The daily recheck ([should]) recomputes them.
+- C1 computes the deadlines when it reconciles, and the repository stores them with the finding. The daily recheck ([should]) recomputes them.

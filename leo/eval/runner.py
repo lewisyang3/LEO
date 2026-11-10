@@ -4,8 +4,8 @@ Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS`, `VALIDATORS` and `D
 registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `llm` drafters, and
 B2 registers the `jev` classifier. Each factory takes the `Fixture`.
 
-Drafters run on the key's findings and `fixture.ledger()`, because reconciliation (C1) isn't
-built yet.
+Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1) is wired into
+the eval in Phase 2.1.
 """
 
 import datetime
