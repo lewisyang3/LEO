@@ -197,12 +197,37 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - every quote found
     - the one wrong field is Ferrolink's early-termination fee, where the key drops a "the" the document has
     - a full run costs about $0.02
-- [ ] **B4 [must] Validator (stage 4).**
+- [x] **B4 [must] Validator (stage 4).**
   - Each quote must appear in the source, and so must the vendor name.
   - Dates must parse, and amounts must be plausible.
   - Report quotes that aren't in the source as `quote_not_found`. A2 computes the offsets on write (per 0.4).
   - Jev compares each new extraction with the vendor's prior terms.
   - Failures get status `needs_review` instead of being dropped.
+
+  Done, in `leo/pipeline/validate.py` (`RuleValidator`, the comparers) and `leo/jev.py` (the Jev client; B2 can reuse it):
+  - **Checks:**
+    - `vendor_missing` and `vendor_not_in_source`. Either one makes `vendor_ok` False and sets every term and invoice fact to `needs_review` (fail closed).
+    - `quote_not_found`, an exact match with `leo.rules.locate_quote`. A contact's issue has `item=""`, because contacts have no id or status.
+    - `date_implausible`: a date outside 2000–2100, or an invoice date after today. `date_unparsed`: a bad `billing_period`.
+    - `amount_implausible`: money in (0, 10M], percentages in (0, 100], days 1–366, seats 1–100,000, renewal months 1–120, and a three-letter currency.
+    - `conflicts_prior`.
+  - **Prior terms.** A prior term is compared only when all of these hold:
+    - it comes from another document
+    - it has the same type, plan label, agreement ref and effective date
+    - for windows, it has the same `applies_to`
+
+    A different effective date is a change, and C1 handles it as supersession.
+    - `RulePriorComparer` always runs. It ignores free-text and derived fields.
+    - `JevPriorComparer` makes one Jev call per comparable pair. Jev chooses `restates`, `conflicts` or `unrelated`, and a conflict is reported when `conflicts` is its top choice at 0.6 or above. There is no `changes` choice, because only pairs with the same effective date reach Jev; with one, Jev split a same-date $299 vs $339 pair about evenly.
+    - If a Jev call fails, that term gets only the rule result, and the engine is marked `rules+jev(error)`. A missing `JEV_API_KEY` stops the run at startup.
+    - There is no Jev cache, because the demo is a recorded video.
+  - **Eval:** `--validator none|stub|rules|jev`.
+    - Every extraction is made first. Each document is then validated against the terms from every other document of the same vendor.
+    - A finding counts as covered only if none of its items is `needs_review`.
+  - **Results:**
+    - The answer key and the B3 cache (`--extractor llm --validator rules`) both give 0 issues and 17/17 `vendor_ok`, with F1–F5 covered.
+    - In this dataset, only the forward (02) and its original (01) have comparable prior terms, so they are the only pairs Jev sees.
+  - Run the end-to-end test (2.2) with the rules validator, which needs no network and gives the same result every run.
 - [ ] **B5 [should] Script extractors (stage 2).**
   - A registry of matcher and parser pairs.
   - Hand-write one or two, for example the Kestrel and Quillstack invoice templates.
@@ -275,6 +300,8 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   7. transaction match
   8. reconcile
   9. draft
+
+  Prior terms come from the store with their validated status, so a `needs_review` prior isn't compared. The eval (`leo/eval/runner.py`) builds priors from raw extractions, all `current`; make it match the worker here (PR #3 review).
 - [ ] **2.2 [must] End-to-end test** (`make e2e`):
   - reset and seed, then run the pipeline on the synthetic set
   - assert F1–F5 are found, N1–N8 are not, and D1–D5 pass
