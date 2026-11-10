@@ -29,21 +29,32 @@ from leo.api.schemas import (
     FindingSummary,
     InvoiceFactOut,
     JobCount,
+    MatchedTransaction,
+    PricePoint,
+    PriceSeries,
     QuoteRef,
     Stats,
     TermOut,
     UploadOut,
+    VendorDetail,
+    VendorSummary,
 )
 from leo.api.sources import finding_numbers
 from leo.db import models as m
-from leo.db.read import StoredCitation, load_citations, load_findings, load_ledger
+from leo.db.read import (
+    StoredCitation,
+    load_citations,
+    load_findings,
+    load_ledger,
+    load_price_history,
+)
 from leo.db.repo import Repo
 from leo.ingest.eml import safe_filename
 from leo.ingest.ingest import UPLOADS, ingest
 from leo.ingest.store import RawStore
 from leo.interfaces import Ledger
 from leo.rules import read_source_text
-from leo.types import ActionState, Finding
+from leo.types import ActionState, ExtractedTerm, Finding, PriceTerm, TermStatus
 
 FIXTURE_ENGINE = "fixture"
 
@@ -232,6 +243,117 @@ class DbStore:
         if a is None:
             raise NotFound(action_id)
         return a
+
+    # --- Vendors (C5) -----------------------------------------------------------------------
+
+    @staticmethod
+    def _duplicate_paths(ledger: Ledger) -> set[str]:
+        """Documents linked as a probable duplicate of another: their facts count once, under
+        the original."""
+        return {d.path for d in ledger.documents if d.probable_duplicate_of}
+
+    @staticmethod
+    def _vendor_terms(ledger: Ledger, vendor_id: str, dups: set[str]) -> list[ExtractedTerm]:
+        return [t for t in ledger.terms if t.vendor == vendor_id and t.document not in dups]
+
+    @staticmethod
+    def _vendor_transactions(ledger: Ledger, vendor_id: str):
+        return [
+            t for t in ledger.transactions if ledger.transaction_vendor_map.get(t.id) == vendor_id
+        ]
+
+    def vendors(self) -> list[VendorSummary]:
+        ledger, findings, _ = self._view()
+        dups = self._duplicate_paths(ledger)
+        out = []
+        for v in ledger.vendors:
+            mine = [f for f in findings if f.vendor == v.id]
+            out.append(
+                VendorSummary(
+                    id=v.id,
+                    canonical_name=v.canonical_name,
+                    aliases=v.aliases,
+                    terms=len(self._vendor_terms(ledger, v.id, dups)),
+                    transactions=len(self._vendor_transactions(ledger, v.id)),
+                    open_findings=len(mine),
+                    at_stake=sum((f.impact.headline_amount for f in mine), start=0),
+                )
+            )
+        return out
+
+    def vendor(self, vendor_id: str) -> VendorDetail:
+        vid = _uuid(vendor_id)
+        ledger, findings, actions = self._view()
+        vendor = next((v for v in ledger.vendors if v.id == vendor_id), None)
+        if vendor is None:
+            raise NotFound(vendor_id)
+        cites = load_citations(self.session, self.tenant_id)
+        dups = self._duplicate_paths(ledger)
+        terms = {t.id: t for t in ledger.terms}
+
+        def term_out(t: ExtractedTerm) -> TermOut:
+            return TermOut(term=t, citations=[_quote(c) for c in cites.get(t.id, [])])
+
+        history = []
+        for series in load_price_history(self.session, self.tenant_id, vid):
+            points: list[PricePoint] = []
+            prev: PriceTerm | None = None
+            for tid in series.terms:
+                t = terms[tid]
+                assert isinstance(t, PriceTerm)
+                change = None
+                if (
+                    prev is not None
+                    and prev.value.amount is not None
+                    and t.value.amount is not None
+                    and (prev.value.currency, prev.value.per) == (t.value.currency, t.value.per)
+                ):
+                    change = t.value.amount - prev.value.amount
+                points.append(
+                    PricePoint(
+                        term=term_out(t),
+                        in_effect=t.effective_date is None or t.effective_date <= self.today,
+                        change=change,
+                    )
+                )
+                prev = t
+            history.append(
+                PriceSeries(
+                    agreement_ref=series.agreement_ref,
+                    plan_label=series.plan_label,
+                    points=points,
+                )
+            )
+
+        mine = [f for f in findings if f.vendor == vendor_id]
+        invoice_for = {
+            f.matches_transaction: f
+            for f in ledger.invoice_facts
+            if f.matches_transaction
+            and f.document not in dups
+            and f.status != TermStatus.needs_review
+        }
+        transactions = [
+            MatchedTransaction(
+                transaction=t,
+                plan_label=ledger.transaction_plan_map.get(t.id),
+                invoice_fact=invoice_for.get(t.id),
+                findings=[f.id for f in mine if t.id in f.transactions],
+            )
+            for t in self._vendor_transactions(ledger, vendor_id)
+        ]
+        return VendorDetail(
+            vendor=vendor,
+            findings=self._sorted_summaries(mine, actions),
+            price_history=history,
+            terms=[term_out(t) for t in self._vendor_terms(ledger, vendor_id, dups)],
+            transactions=transactions,
+            linked_duplicates=sorted(
+                d.path
+                for d in ledger.documents
+                if d.vendor == vendor_id and d.probable_duplicate_of
+            ),
+        )
 
     # --- Action transitions -----------------------------------------------------------------
 

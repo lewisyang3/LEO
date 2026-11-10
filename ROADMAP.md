@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** C4 (export) is done on `lewis/c4-export`, waiting for review. It branches from C3 (PR #14, in review).
+**Now (2026-11-10).** C5 (vendor view) is done on `lewis/c5-vendor-view`, in review against main. C3 (PR #14) and C4 (PR #15) have merged.
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -421,7 +421,16 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Findings.** The dashboard's rows and order. `impact` and `computation` are `key=value; …` text, because their shapes differ by kind.
   - **Formatting.** Decimals are exact (`str`, as stored), dates are ISO, and the file has a UTF-8 BOM for Excel. A text cell starting with `= + - @`, a tab or a CR gets a leading `'`, because quotes come from vendor emails. Numbers are never prefixed.
   - **Tests** (`tests/test_api.py`): every key term exported, Kestrel's cap exact, superseded rows linked, findings in dashboard order with the key's `at_stake`, and the cell formatting.
-- [ ] **C5 [should] Vendor view.** A vendor's terms, price history (a query per the design doc, leaving out terms from linked duplicates) and matched transactions.
+- [x] **C5 [should] Vendor view.** A vendor's terms, price history (a query per the design doc, leaving out terms from linked duplicates) and matched transactions.
+
+  Done, in `load_price_history` (`leo/db/read.py`), `DbStore.vendors`/`vendor` and `web/src/Vendors.tsx`/`VendorDetail.tsx`.
+  - **Price history.** The design doc's query: the vendor's `price` terms, one series per `agreement_ref` and `plan_label`, ordered by effective date (undated last). Terms on a document linked as a `probable_duplicate` of another are left out, so a forward counts once (D2). `needs_review` prices are left out too, as in the reconciler, and so are `needs_review` invoice facts when matching charges to invoices.
+    - Each point has `in_effect` (effective on or before the clock's today) and `change`, the amount minus the previous point's. `change` is empty when the currency or `per` differs.
+    - The UI labels the latest point in effect as current, earlier ones as superseded, and later ones as not yet in effect.
+  - **Endpoints.** `GET /api/vendors` lists each vendor's term, transaction and open-finding counts and its dollars at stake. `GET /api/vendors/{id}` returns the vendor's findings in dashboard order, its price history, its terms in every status (duplicates left out), its transactions by date and its linked duplicates. Each transaction carries its plan, the invoice fact that matches it and the findings that cite it. An unknown id, a non-UUID or another tenant's vendor gives a 404.
+  - **UI.** A Vendors tab with the vendor list, sorted by dollars at stake. A vendor page laid out like the finding detail: totals, findings, a price timeline, the other terms, and card charges with their invoices. Quotes open in the source viewer. Vendor names on the dashboard and the finding detail link to it.
+  - **Tests** (`tests/test_api.py`): the list's counts match the key and sum to the dashboard, Lumenpost's history is D4's, a term added on the forwarded email (02) stays out, unvalidated (`needs_review`) prices and invoice facts stay out of the history and the matches, Kestrel's invoices sit on the key's transactions, every key term appears once under its vendor, and the 404s.
+  - **Not done:** `load_ledger` still returns terms and invoice facts from linked duplicates, though the `Ledger` docstring says it leaves them out. The seed has none, so nothing breaks yet. The vendor view filters them itself.
 
 ---
 

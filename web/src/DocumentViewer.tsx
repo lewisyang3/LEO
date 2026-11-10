@@ -3,7 +3,13 @@ import type { DocumentOut, QuoteRef } from './api'
 import { useFetch } from './useFetch'
 
 /** The source document, with the cited quote highlighted and scrolled into view. */
-export default function DocumentViewer({ citation }: { citation: QuoteRef | null }) {
+export default function DocumentViewer({
+  citation,
+  hint = 'Click any number or quote to see where it came from.',
+}: {
+  citation: QuoteRef | null
+  hint?: string
+}) {
   const path = citation?.document ?? null
   const { data: doc, error } = useFetch<DocumentOut>(
     path && `/api/documents?path=${encodeURIComponent(path)}`,
@@ -16,7 +22,7 @@ export default function DocumentViewer({ citation }: { citation: QuoteRef | null
   }, [doc, citation])
 
   if (!citation) {
-    return <p className="muted hint">Click any number or quote to see where it came from.</p>
+    return <p className="muted hint">{hint}</p>
   }
   if (error) return <p className="error">{error}</p>
   if (!doc) return <p className="muted">Loading…</p>

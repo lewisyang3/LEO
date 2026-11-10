@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Dashboard, FindingSummary } from './api'
 import { humanize, longDate, money, upload } from './api'
-import { findingHref } from './route'
+import { findingHref, vendorHref } from './route'
 import { useFetch } from './useFetch'
 
 /** Days until the recommended send-by date. `long` spells it out for headers. */
@@ -98,7 +98,11 @@ export default function DashboardPage({ dash, version }: { dash: Dashboard | nul
               <td>
                 <DaysLeft days={r.days_left} />
               </td>
-              <td>{r.vendor_name}</td>
+              <td>
+                <a href={vendorHref(r.vendor)} onClick={(e) => e.stopPropagation()}>
+                  {r.vendor_name}
+                </a>
+              </td>
               <td>
                 <a href={findingHref(r.id)}>{r.title}</a>
                 <div className="muted small">

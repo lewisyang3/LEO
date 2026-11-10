@@ -62,7 +62,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `leo/eval/` | Eval harness: scores stage output against `expected.json` | B |
 | `leo/actions/` | Action drafting | B |
 | `leo/reconcile/` | Reconciliation rules and deadlines | C |
-| `leo/api/` | FastAPI app on Postgres: findings, documents, the approval queue, upload and stats (C3), and CSV export (C4) | C |
+| `leo/api/` | FastAPI app on Postgres: findings, documents, the approval queue, upload and stats (C3), CSV export (C4), and the vendor view (C5) | C |
 | `web/` | React + Vite + TypeScript UI | C |
 | `tests/` | pytest | All |
 | `scripts/validate_answer_key.py` | Checks `expected.json` against the dataset | All |

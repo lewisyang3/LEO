@@ -1,5 +1,5 @@
-"""Findings, documents, the approval queue, upload, stats (ROADMAP C2, C3) and CSV export (C4),
-from Postgres."""
+"""Findings, documents, the approval queue, upload, stats (ROADMAP C2, C3), CSV export (C4) and
+vendors (C5), from Postgres."""
 
 from collections.abc import Iterator
 from typing import Annotated
@@ -17,6 +17,8 @@ from leo.api.schemas import (
     FindingSummary,
     Stats,
     UploadOut,
+    VendorDetail,
+    VendorSummary,
 )
 from leo.api.store import DbStore, InvalidTransition, NotFound
 from leo.clock import get_clock
@@ -74,6 +76,21 @@ def finding(finding_id: str, store: Store) -> FindingDetail:
         return store.detail(finding_id)
     except NotFound:
         raise _not_found("finding", finding_id) from None
+
+
+@router.get("/vendors")
+def vendors(store: Store) -> list[VendorSummary]:
+    """By name, with counts of terms, transactions and open findings."""
+    return store.vendors()
+
+
+@router.get("/vendors/{vendor_id}")
+def vendor(vendor_id: str, store: Store) -> VendorDetail:
+    """Findings, price history, terms and matched transactions (C5)."""
+    try:
+        return store.vendor(vendor_id)
+    except NotFound:
+        raise _not_found("vendor", vendor_id) from None
 
 
 @router.get("/documents")

@@ -147,3 +147,45 @@ class Stats(LeoModel):
     findings: int
     actions_by_state: dict[str, int]
     jobs: list[JobCount]
+
+
+class VendorSummary(LeoModel):
+    """One row of the vendor list (ROADMAP C5). Counts leave out linked duplicates' terms."""
+
+    id: str
+    canonical_name: str
+    aliases: list[str]
+    terms: int
+    transactions: int
+    open_findings: int
+    at_stake: Money
+
+
+class PricePoint(LeoModel):
+    term: TermOut
+    in_effect: bool  # effective on or before today (an undated price counts as in effect)
+    change: Money | None  # amount minus the previous point's; None first or when units differ
+
+
+class PriceSeries(LeoModel):
+    """A price history: one agreement and plan, by effective date."""
+
+    agreement_ref: str | None
+    plan_label: str | None
+    points: list[PricePoint]
+
+
+class MatchedTransaction(LeoModel):
+    transaction: Transaction
+    plan_label: str | None
+    invoice_fact: InvoiceFact | None  # the invoice that matches this charge
+    findings: list[str]  # ids of current findings that cite it
+
+
+class VendorDetail(LeoModel):
+    vendor: Vendor
+    findings: list[FindingSummary]  # dashboard order
+    price_history: list[PriceSeries]
+    terms: list[TermOut]  # every status; linked duplicates' terms left out
+    transactions: list[MatchedTransaction]  # by date
+    linked_duplicates: list[str]  # paths of this vendor's documents counted under another
