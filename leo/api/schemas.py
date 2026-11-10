@@ -90,8 +90,8 @@ class FindingSummary(LeoModel):
     recommended_send_by: datetime.date | None
     days_left: int | None  # to the send-by date (else the deadline); None without a deadline
     at_stake: Money
-    action_id: str
-    action_state: ActionState
+    action_id: str | None  # None until the pipeline drafts one (2.1)
+    action_state: ActionState | None
 
 
 class FindingDetail(LeoModel):
@@ -104,7 +104,7 @@ class FindingDetail(LeoModel):
     transactions: list[Transaction]
     documents: list[SourceDocument]
     linked_duplicates: list[str]
-    action: ActionOut
+    action: ActionOut | None  # the finding's primary (oldest) action; None until drafted
 
 
 class DocumentOut(LeoModel):

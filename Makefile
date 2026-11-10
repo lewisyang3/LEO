@@ -1,4 +1,4 @@
-.PHONY: setup up down migrate test lint api api-gmail web seed reset eval e2e worker gmail-connect gmail-sync gmail-import
+.PHONY: setup up down migrate test lint api api-gmail api-pipeline web seed reset ingest eval e2e worker gmail-connect gmail-sync gmail-import
 
 setup:
 	uv sync
@@ -31,6 +31,10 @@ api:
 api-gmail:
 	LEO_TENANT=$${LEO_GMAIL_TENANT:-gmail-demo} uv run uvicorn leo.api.app:app --reload
 
+# The pipeline's tenant (ROADMAP 2.1): `make ingest`, then `make worker ARGS=--drain`.
+api-pipeline:
+	LEO_TENANT=$${LEO_PIPELINE_TENANT:-brightwater-pipeline} uv run uvicorn leo.api.app:app --reload
+
 web:
 	cd web && npm run dev
 
@@ -40,8 +44,12 @@ seed:
 reset:
 	uv run python -m leo.db.reset
 
+# Load the synthetic documents into the pipeline's tenant and queue them (2.1).
+ingest:
+	uv run python -m leo.ingest.folder $(ARGS)
+
 worker:
-	uv run python -m leo.worker
+	uv run python -m leo.worker $(ARGS)
 
 gmail-connect:
 	uv run python -m leo.ingest.gmail connect $(ARGS)

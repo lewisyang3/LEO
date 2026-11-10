@@ -47,6 +47,14 @@ from leo.types import ActionState, ActionType, FindingKind, TermStatus, TermType
 FINDING_STATUSES = ("current", "superseded")
 INVOICE_STATUSES = (TermStatus.current, TermStatus.needs_review)
 JOB_STATUSES = ("pending", "running", "done", "failed", "parked")
+# A flagged (needs_review) invoice fact is stored as extracted, so its period may not parse.
+INVOICE_PERIOD_CHECK = (
+    "status = 'needs_review'"
+    " OR billing_period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+    " OR billing_period ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
+)
+# Only the per-tenant reconcile job has no document (2.1).
+JOB_DOCUMENT_CHECK = "document_id IS NOT NULL OR stage = 'reconcile'"
 
 
 def new_uuid7() -> UUID:
@@ -202,7 +210,8 @@ class Transaction(NaturalKeyRow):
 
 class ContractTerm(NaturalKeyRow):
     __tablename__ = "contract_term"
-    vendor_id: Mapped[UUID] = mapped_column(nullable=False)
+    # NULL when validation failed closed (no vendor created, item needs_review; 2.1)
+    vendor_id: Mapped[UUID | None]
     document_id: Mapped[UUID] = mapped_column(nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     value: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -229,7 +238,7 @@ class ContractTerm(NaturalKeyRow):
 
 class InvoiceFact(NaturalKeyRow):
     __tablename__ = "invoice_fact"
-    vendor_id: Mapped[UUID] = mapped_column(nullable=False)
+    vendor_id: Mapped[UUID | None]  # NULL when validation failed closed (2.1)
     document_id: Mapped[UUID] = mapped_column(nullable=False)
     # YYYY-MM or YYYY-MM-DD/YYYY-MM-DD
     billing_period: Mapped[str] = mapped_column(Text, nullable=False)
@@ -248,11 +257,7 @@ class InvoiceFact(NaturalKeyRow):
         _fk("invoice_fact", "vendor_id", "vendor"),
         _fk("invoice_fact", "document_id", "source_document"),
         _fk("invoice_fact", "matches_transaction", "transaction"),
-        CheckConstraint(
-            "billing_period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
-            " OR billing_period ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}$'",
-            name="ck_invoice_period",
-        ),
+        CheckConstraint(INVOICE_PERIOD_CHECK, name="ck_invoice_period"),
         _check_in("invoice_fact", "status", INVOICE_STATUSES),
     )
 
@@ -494,7 +499,7 @@ class Job(NaturalKeyRow):
     """A queue row, claimed with FOR UPDATE SKIP LOCKED (A4)."""
 
     __tablename__ = "job"
-    document_id: Mapped[UUID] = mapped_column(nullable=False)
+    document_id: Mapped[UUID | None]  # NULL for the per-tenant reconcile job
     stage: Mapped[str] = mapped_column(String(48), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     processed_by: Mapped[str | None] = mapped_column(Text)
@@ -515,6 +520,7 @@ class Job(NaturalKeyRow):
         _nk("job"),
         _fk("job", "document_id", "source_document"),
         _check_in("job", "status", JOB_STATUSES),
+        CheckConstraint(JOB_DOCUMENT_CHECK, name="ck_job_document"),
         Index("ix_job_claim", "status", "created_at"),
     )
 

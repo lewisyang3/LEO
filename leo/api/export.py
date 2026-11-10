@@ -154,7 +154,7 @@ def findings_csv(
     rows = []
     for s in summaries:
         f = by_id[s.id]
-        a = actions[s.id]
+        a = actions.get(s.id)
         rows.append(
             {
                 "vendor": s.vendor_name,
@@ -167,8 +167,8 @@ def findings_csv(
                 "at_stake": s.at_stake,
                 "impact": _pairs(f.impact),
                 "computation": _pairs(getattr(f, "computation", None)),
-                "action_type": a.type,
-                "action_state": a.state,
+                "action_type": a.type if a else None,
+                "action_state": a.state if a else None,
                 "documents": JOIN.join(f.documents),
                 "linked_duplicates": JOIN.join(f.linked_duplicates),
                 "id": f.id,

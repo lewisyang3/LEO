@@ -59,6 +59,11 @@ def job(doc_key: str, stage: str) -> str:
     return f"{PREFIX}:job:{doc_key}:{stage}"
 
 
+def tenant_job(tenant_id: str, stage: str) -> str:
+    """A job that runs over the whole tenant (2.1's reconcile), not one document."""
+    return f"{PREFIX}:job:tenant:{tenant_id}:{stage}"
+
+
 def action(finding_key: str, action_type: str) -> str:
     return f"{PREFIX}:action:{finding_key}:{action_type}"
 

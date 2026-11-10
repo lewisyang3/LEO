@@ -31,8 +31,8 @@ export type FindingSummary = {
   recommended_send_by: string | null
   days_left: number | null
   at_stake: number
-  action_id: string
-  action_state: ActionState
+  action_id: string | null // null until the pipeline drafts one
+  action_state: ActionState | null
 }
 
 export type QuoteRef = { document: string; quote: string; start: number | null; end: number | null }
@@ -115,7 +115,7 @@ export type FindingDetail = {
   transactions: Transaction[]
   documents: SourceDocument[]
   linked_duplicates: string[]
-  action: Action
+  action: Action | null
 }
 
 export type VendorSummary = {

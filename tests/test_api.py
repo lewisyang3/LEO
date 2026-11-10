@@ -231,6 +231,68 @@ def test_edit_approve_send(client, session):
         assert row.decided_at and row.sent_at and row.edited_at
 
 
+def test_a_finding_with_no_action_is_still_served(client, session, tenant):
+    """The worker writes a finding before its draft (2.1)."""
+    fid = _by_kind(client, FindingKind.seats_over_commitment)["id"]
+    session.execute(m.Action.__table__.delete().where(m.Action.finding_id == UUID(fid)))
+    session.commit()
+
+    row = _by_kind(client, FindingKind.seats_over_commitment)
+    assert (row["action_id"], row["action_state"]) == (None, None)
+    assert len(client.get("/api/findings").json()) == 5
+    detail = client.get(f"/api/findings/{fid}")
+    assert detail.status_code == 200 and detail.json()["action"] is None
+    assert len(client.get("/api/actions").json()) == 4
+    assert client.get("/api/dashboard").json()["open_findings"] == 5
+    assert client.get("/api/export/findings.csv").status_code == 200
+    vendor = row["vendor"]
+    assert client.get(f"/api/vendors/{vendor}").status_code == 200
+
+
+def test_a_second_action_of_a_finding_can_be_approved(client, session, tenant):
+    """Every action of a current finding is served, not only the first (PR #14 review)."""
+    fid = _by_kind(client, FindingKind.price_increase_notice)["id"]
+    first = session.scalars(select(m.Action).where(m.Action.finding_id == UUID(fid))).one()
+    repo = Repo(session, tenant)
+    second = repo.upsert_action(
+        first.natural_key + ":extra",
+        finding_id=first.finding_id,
+        action_type="negotiation_email",
+        recipient="sales@vendor.example",
+        subject="Second",
+        body="Another draft.",
+    )
+    session.commit()
+
+    r = client.post(f"/api/actions/{second}/approve")
+    assert r.status_code == 200 and r.json()["state"] == "approved"
+    queue = [a["id"] for a in client.get("/api/actions").json()]
+    assert queue.index(str(first.id)) + 1 == queue.index(str(second))
+    # The finding's row shows its primary (oldest) action.
+    assert _by_kind(client, FindingKind.price_increase_notice)["action_id"] == str(first.id)
+
+
+def test_a_sent_action_stays_in_the_outbox_after_its_finding_is_superseded(client, session):
+    """The worker supersedes a finding the reconciler no longer produces; the record that its
+    email was sent must stay (2.1 review)."""
+    row = _by_kind(client, FindingKind.auto_renewal_deadline)
+    aid = row["action_id"]
+    client.post(f"/api/actions/{aid}/approve")
+    client.post(f"/api/actions/{aid}/send")
+    session.execute(
+        m.Finding.__table__.update()
+        .where(m.Finding.id == UUID(row["id"]))
+        .values(status="superseded")
+    )
+    session.commit()
+
+    outbox = client.get("/api/outbox").json()
+    assert [(o["id"], o["state"], o["finding"]) for o in outbox] == [(aid, "sent", row["id"])]
+    assert client.post(f"/api/actions/{aid}/send").status_code == 409  # not a 404
+    assert aid not in [a["id"] for a in client.get("/api/actions").json()]
+    assert len(client.get("/api/findings").json()) == 4
+
+
 def test_reject_and_restore(client):
     aid = _action(client, FindingKind.seats_over_commitment)
     assert client.post(f"/api/actions/{aid}/restore").status_code == 409  # still a draft

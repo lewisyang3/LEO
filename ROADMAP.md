@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** Track A is done, and next is 2.1 (wire the pipeline). A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** 2.1 (wire the pipeline) is done: the worker takes an empty tenant to F1–F5 with drafts. Next is 2.2 (`make e2e`). A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -401,7 +401,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
 
     The drafter retries up to 3 times, with the problems and the attempt number in the prompt, so a retry misses the cache. If every attempt fails, or a call stops early, it falls back to a fixed template. `TemplateDrafter` is that template alone, with no LLM.
   - **Billing disputes carry no deadline fact.** Their deadline is the last day *we* can raise the dispute. The model misread it as a deadline for the vendor, and the vendor doesn't need it. The approval UI shows it.
-  - **No redraft.** `draft_new` skips `(finding, type)` pairs that already exist, before any call. The worker builds the pairs from `v1:action:…` keys.
+  - **No redraft.** `draft_new` skips the `(finding, type)` pairs it's given, before any call. Since 2.1 the worker passes only actions the user decided (approved, sent, rejected) or edited. An unedited draft is redrafted on each reconcile, so it follows its finding's figures, and when nothing changed the draft cache answers.
   - **Cache:** `data/llm_cache/draft/`, committed (7 answers, including 2 retries).
   - **Eval:** `--drafter none|fixture|stub|template|llm` drafts the key's five findings on `fixture.ledger()`. C1 is now built, but it is wired into the eval and the worker in 2.1. It checks type, alternative, `to`, whether there is a pre-step, and every `must_include` string, and it prints each draft.
   - **Results** (`LEO_LLM_OFFLINE=1 uv run python -m leo.eval --drafter llm`): 5/5 drafts pass with no template fallback. The template drafter also scores 5/5.
@@ -520,7 +520,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
 
 **Starts when** A2–A6, B3, B4, B7 and C1 have landed. Pair up across tracks here instead of working alone.
 
-- [ ] **2.1 [must] Wire the pipeline.** The worker runs these stages in order, writing to Postgres at each step:
+- [x] **2.1 [must] Wire the pipeline.** The worker runs these stages in order, writing to Postgres at each step:
   1. ingest
   2. classify
   3. script or LLM extract
@@ -540,6 +540,36 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Any database error (in `claim`, `_failed` or `_recover`) stops `serve()`. The job stays `running` until `recover_stale` picks it up after a restart. Before running the worker unattended, add a supervisor restart policy or retry with backoff around the loop.
 
   Prior terms come from the store with their validated status, so a `needs_review` prior isn't compared. The eval (`leo/eval/runner.py`) builds priors from raw extractions, all `current`; make it match the worker here (PR #3 review).
+
+  Done, in `leo/worker/` (`run.py`, `writes.py`, `pipeline.py`, `queue.py`), `leo/db/write.py`, `leo/ingest/folder.py` and migration `b21a9e0c4d17`:
+  - **Run.** `make ingest` loads the synthetic documents into their own tenant (`brightwater-pipeline`, `LEO_PIPELINE_TENANT`) and queues them. `make worker ARGS="--drain --tenant brightwater-pipeline"` runs them, and `make api-pipeline` serves the result. `make seed` still serves the key's rows, in its own tenant.
+  - **Engines** (`Pipeline.default`, `python -m leo.worker --help`): Jev classifier (`--classifier fixture` for the key's classes), B5's scripts then B3's LLM extractor, the rules validator (`--validator jev` adds Jev's prior comparison), `DbVendorResolver`, C1's `RuleReconciler`, and B7's `LLMDrafter` (`--drafter template`). `--stubs` keeps A4's stubs.
+  - **Writes, per stage, in the job's transaction.**
+    - classify: the document's class.
+    - validate: the vendor (created only on `vendor_ok`) and the terms, invoice facts and contacts, through `leo/db/write.py`, which the seed now uses too. Prior terms come from the store, `needs_review` ones left out. A document that fails closed stores its items as `needs_review` with no vendor: the migration makes `vendor_id` nullable on terms and invoice facts, and lets a `needs_review` fact keep a period that doesn't parse.
+    - reconcile: `sync_transactions` (after the documents, so vendor names come from documents first), `link_duplicates`, `match_plans` and `match_invoice_facts`, then the reconciler. Supersessions are recomputed whole. Findings are keyed `keys.finding(anchor term key, anchor txn key, kind)` from the stored natural keys, and their links are replaced as a set. A finding no longer produced becomes `superseded`, and comes back `current` if it reappears. `draft_new` drafts each (finding, type) whose action the user hasn't decided or edited, with the finding's natural key as its id, so the draft cache survives `make reset`. An unedited draft therefore carries the finding's current figures. Approved, sent, rejected and edited actions are never rewritten. An LLM draft that fell back to the template records `engine: template`.
+  - **One reconcile per tenant.** The reconcile job is keyed `v1:job:tenant:{tenant}:reconcile`, with no document. Each validated document requests it (`queue.request_reconcile`): a pending request is left alone, and a finished one goes back to `pending`. `claim` takes it only once the tenant has no other job pending or running, so N documents give one round of drafting. Jobs are created with `clock_timestamp()`, so jobs queued in one transaction run in the order they were queued, and the first document of each vendor names it the same way every run. `--drain` waits out a retry's backoff instead of stopping, because stopping would leave the reconcile unrun. `run_after` and `claim` use the wall clock for that reason. It doesn't wait for a reconcile that `claim` would refuse because another job is running (`seconds_until_due` shares claim's check), and it recovers stale jobs before each wait.
+  - **API.** `DbStore` serves every current finding, with or without an action. A finding's row shows its oldest action, and the queue, outbox and action routes see every action of a current finding, so approving a second action no longer commits and then 404s (PR #14 review). The actions of a superseded finding are kept: the outbox still lists a sent one, and a transition on one answers normally. The queue only offers current findings' actions. The UI shows "no draft" for a finding without one.
+  - **Fixes the end-to-end run needed.**
+    - F3 never fired: the LLM wrote the Kestrel price cap's `agreement_ref` as "MSA No. KCH-MSA-2209" and the renewal's as "KCH-MSA-2209", and `price_caps` joins on exact equality. `LLMExtractor` now keeps only the identifier (`agreement_ref()`). The eval scores `agreement_ref` from now on, but leaves it out of finding coverage, and a test checks that a vendor's cached terms agree on it.
+    - From the A6 and B5 follow-ups: the forward check reads the decoded email body, numbers in term values are normalized before fingerprinting, scripts match CRLF mail (Gmail), and `ScriptExtractor.records` keeps the latest 100.
+    - The eval's prior terms carry their own validated status, as in the worker.
+    - A failed-closed invoice fact (no vendor) never matches a charge with no vendor (code review).
+  - **Result** (`make reset && make ingest`, then the worker with Jev and the LLM drafter, 2026-11-10): 54 jobs, none stuck. F1–F5 match the key on kind, anchor, deadline, send-by date, impact amount, linked items and duplicates. The one difference is F1's free-text impact `basis`, which is C1's template. No near-miss produced anything. D2's forward is linked, and there is one supersession (Growth v1 → v2). The dashboard shows $17,184 at stake, the same as the seed. 13 of 16 extracted documents reach the LLM. A second reconcile round changes no row or id. Re-recording the draft cache added 7 answers (`data/llm_cache/draft/`), and an offline run after `make reset` hits all of them.
+  - **Draft quality.** 4 of 5 drafts are the LLM's. F4's billing dispute (Quillstack) fails `check_body` three times (it repeats the invoice list before the `{invoices}` placeholder), so it uses the template and shows `engine: template`. The eval's `--drafter llm` still passes 5/5 on the key's findings, whose facts differ slightly. 2.3 should look at it.
+  - **Eval.** With `agreement_ref` scored, `--extractor script+llm` shows 20/31 terms right on it: the LLM leaves it empty on Lumenpost's and Ferrolink's terms. No finding depends on it.
+  - **Tests.** `tests/test_pipeline.py` covers the stage writes, fail-closed storage, file order, one reconcile after the rest, re-requests and the debounce. On the synthetic set (offline, `--classifier fixture`, template drafts) it covers F1–F5 and nothing else, D2, one supersession, a draft per finding, the vendors, an idempotent second round, no redraft of an edited action, and findings that vanish and come back. `tests/test_api.py` covers a finding with no action and approving a second action.
+  - **Not done here.**
+    - Several workers: a validate that finishes while reconcile is running isn't seen until the next request. The worker-robustness items from PR #17 (`STALE_AFTER` heartbeat, `serve()` retry on database errors) still apply.
+    - A document re-extracted with different quote spans leaves its old terms. The cached extraction always gives the same spans.
+    - Vendors are named by their first document, as written: `CORVANA, INC.` and `Lumenpost Billing` appear in titles and drafts.
+    - Gmail mail is CRLF and keyed differently, so the LLM extract cache misses for it and the worker calls the API.
+    - Contacts are keyed per vendor, email and purpose, so 01's and 02's shared contact is one row cited by the later document.
+    - Each validate job loads the tenant's whole ledger for its prior terms. That's fine at demo scale.
+    - `agreement_ref()` keeps the last token with a digit, so a ref written with a trailing date or amendment number ("MSA KCH-2209 dated 2025-01-01") keeps the wrong token. The cache has none.
+    - The migration's downgrade fails if rows were stored with no vendor or a period that doesn't parse. Delete them first.
+    - A script quote that spans lines wouldn't be found in CRLF text. Both scripts quote single lines.
+
 - [ ] **2.2 [must] End-to-end test** (`make e2e`):
   - reset and seed, then run the pipeline on the synthetic set
   - assert F1–F5 are found, N1–N8 are not, and D1–D5 pass

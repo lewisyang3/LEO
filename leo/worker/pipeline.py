@@ -1,23 +1,59 @@
-"""The components the worker runs (ROADMAP A4). Stubs now; 2.1 swaps in Track B and C's."""
+"""The components the worker runs (ROADMAP A4, wired in 2.1).
+
+Tenant-scoped parts are built per job from the job's `Repo`: the vendor resolver, and the
+prior terms validation compares with. `Pipeline.stubs()` keeps the A4 stubs for the stages
+but resolves vendors in the database, because vendor ids are stored as UUIDs.
+"""
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
+from uuid import UUID
 
-from leo.interfaces import Classifier, Drafter, Extractor, Reconciler, Validator, VendorResolver
-from leo.stubs import (
-    StubClassifier,
-    StubDrafter,
-    StubExtractor,
-    StubReconciler,
-    StubValidator,
-    StubVendorResolver,
+from sqlalchemy.orm import Session
+
+from leo.actions.draft import LLMDrafter, TemplateDrafter
+from leo.config import Settings, get_settings
+from leo.db.read import load_ledger
+from leo.db.repo import Repo
+from leo.fixtures import FixtureClassifier, load_fixture
+from leo.interfaces import (
+    Classifier,
+    Clock,
+    Drafter,
+    Extractor,
+    Reconciler,
+    TransactionSource,
+    Validator,
+    VendorResolver,
 )
-from leo.types import ExtractedTerm
+from leo.jev import jev_client
+from leo.llm import ResponseCache
+from leo.match.transactions import CsvTransactionSource
+from leo.match.vendors import DbVendorResolver
+from leo.pipeline.classify import JevClassifier
+from leo.pipeline.extract_llm import LLMExtractor
+from leo.pipeline.extract_script import script_extractor
+from leo.pipeline.validate import JevPriorComparer, RuleValidator
+from leo.reconcile.reconciler import RuleReconciler
+from leo.stubs import StubClassifier, StubDrafter, StubExtractor, StubReconciler, StubValidator
+from leo.types import ExtractedTerm, TermStatus
+
+DEFAULT_TRANSACTIONS = Path("data/synthetic/transactions.csv")
+PriorTerms = Callable[[Session, UUID, str, str], list[ExtractedTerm]]
 
 
-def no_prior_terms(vendor_id: str) -> list[ExtractedTerm]:
-    """A4 has no stored terms to compare with. 2.1 reads the vendor's terms from the store."""
-    return []
+def stored_prior_terms(
+    session: Session, tenant_id: UUID, vendor_id: str, path: str
+) -> list[ExtractedTerm]:
+    """The vendor's stored terms from other documents, with their validated status. A
+    `needs_review` prior isn't compared (ROADMAP 2.1). Linked duplicates' terms are already
+    left out by `load_ledger`."""
+    return [
+        t
+        for t in load_ledger(session, tenant_id).terms
+        if t.vendor == vendor_id and t.document != path and t.status != TermStatus.needs_review
+    ]
 
 
 @dataclass
@@ -25,10 +61,58 @@ class Pipeline:
     classifier: Classifier
     extractors: Sequence[Extractor]  # scripts first, the LLM extractor last
     validator: Validator
-    vendors: VendorResolver
     reconciler: Reconciler
     drafter: Drafter
-    prior_terms: Callable[[str], list[ExtractedTerm]] = field(default=no_prior_terms)
+    vendors: Callable[[Repo], VendorResolver] = field(default=DbVendorResolver)
+    prior_terms: PriorTerms = field(default=stored_prior_terms)
+    transactions: TransactionSource | None = None  # synced at the start of each reconcile
+
+    @classmethod
+    def default(
+        cls,
+        clock: Clock,
+        classifier: str = "jev",
+        validator: str = "rules",
+        drafter: str = "llm",
+        transactions: Path | None = DEFAULT_TRANSACTIONS,
+        sender: str = "",
+        settings: Settings | None = None,
+    ) -> "Pipeline":
+        """The real components (2.1). `classifier`: `jev` (live, needs `JEV_API_KEY`) or
+        `fixture` (the answer key's classes, by dataset path). `validator`: `rules` (no
+        network, the same result every run) or `jev` (adds Jev's prior comparison).
+        `drafter`: `llm` (B7, cached under `LEO_LLM_CACHE_DIR`) or `template`. Extraction is
+        B5's scripts, then B3's LLM extractor (cached)."""
+        settings = settings or get_settings()
+        cache = ResponseCache(settings.leo_llm_cache_dir)
+        clf: Classifier
+        if classifier == "jev":
+            clf = JevClassifier(jev_client(settings))
+        elif classifier == "fixture":
+            clf = FixtureClassifier(load_fixture())
+        else:
+            raise ValueError(f"unknown classifier {classifier!r}")
+        if validator == "rules":
+            val = RuleValidator(clock)
+        elif validator == "jev":
+            val = RuleValidator(clock, extra=[JevPriorComparer(jev_client(settings))])
+        else:
+            raise ValueError(f"unknown validator {validator!r}")
+        drf: Drafter
+        if drafter == "llm":
+            drf = LLMDrafter(cache, settings=settings, sender=sender)
+        elif drafter == "template":
+            drf = TemplateDrafter(sender=sender)
+        else:
+            raise ValueError(f"unknown drafter {drafter!r}")
+        return cls(
+            classifier=clf,
+            extractors=[script_extractor(), LLMExtractor(clock, cache, settings=settings)],
+            validator=val,
+            reconciler=RuleReconciler(),
+            drafter=drf,
+            transactions=CsvTransactionSource(transactions) if transactions else None,
+        )
 
     @classmethod
     def stubs(cls) -> "Pipeline":
@@ -36,7 +120,6 @@ class Pipeline:
             classifier=StubClassifier(),
             extractors=[StubExtractor()],
             validator=StubValidator(),
-            vendors=StubVendorResolver(),
             reconciler=StubReconciler(),
             drafter=StubDrafter(),
         )

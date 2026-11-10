@@ -1,12 +1,18 @@
 """The worker (ROADMAP A4): claim a job, run its stage, record the result, queue the next stage.
 
-Stages, one job each per document: classify -> extract -> validate -> reconcile. A noise
-document stops after classify. Each stage reads the previous stage's output from that job's
-`raw_model_output`, so a retry reruns one stage, not the chain.
+Stages, one job each per document: classify -> extract -> validate, then one reconcile job per
+tenant. A noise document stops after classify. Each stage reads the previous stage's output
+from that job's `raw_model_output`, so a retry reruns one stage, not the chain. `processed_by`
+is the engine that produced the output.
 
-A4 writes only `job` rows: stage outputs live in `raw_model_output`, and `processed_by` is
-the engine that produced them. Writing documents, terms, findings and actions through `Repo`
-is 2.1, in the same transaction that marks the job done.
+Each stage also writes its results through `Repo`, in the same transaction that marks the job
+done (2.1, `leo.worker.writes`):
+- classify: the document's class
+- validate: the vendor (created only on `vendor_ok`), terms, invoice facts and contacts; then
+  it requests the tenant's reconcile (`queue.request_reconcile`), which waits until the
+  tenant's other jobs are through
+- reconcile: sync transactions, link duplicates, match plans and invoices, reconcile the
+  ledger, write supersessions and findings, and draft each new (finding, action type)
 
 Failures: a non-retryable error marks the job `failed`. Any other error retries with backoff
 (`run_after`), and after `max_attempts` the job is `parked` for a person. So a document whose
@@ -29,13 +35,17 @@ from leo.db import keys
 from leo.db.models import Job
 from leo.db.models import SourceDocument as DocumentRow
 from leo.db.read import load_ledger
+from leo.db.repo import Repo
 from leo.ingest.store import RawStore
 from leo.interfaces import Classification, Clock, DocumentText, Extraction
 from leo.llm import LLMOfflineMiss
+from leo.match.duplicates import link_duplicates
+from leo.match.transactions import match_invoice_facts, match_plans, sync_transactions
 from leo.rules import read_source_text
 from leo.types import DocumentClass, SourceDocument, TermStatus
 from leo.worker import queue
 from leo.worker.pipeline import Pipeline
+from leo.worker.writes import store_drafts, store_reconciliation, store_validated
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +115,9 @@ class Worker:
             job.last_error = None
             job.run_after = None
             job.updated_at = func.now()
-            if result.next_stage is not None:
+            if result.next_stage == queue.RECONCILE:
+                queue.request_reconcile(s, job.tenant_id)
+            elif result.next_stage is not None:
                 doc_key = self._doc(job).natural_key
                 queue.enqueue(s, job.tenant_id, job.document_id, doc_key, result.next_stage)
             s.commit()
@@ -120,12 +132,23 @@ class Worker:
         return True
 
     def drain(self) -> int:
-        """Run jobs until none is due. Returns how many ran."""
+        """Run jobs until none is left to run. Returns how many ran.
+
+        A job waiting out a retry's backoff is waited for, not left behind: the tenant's
+        reconcile runs only after its documents' jobs, so stopping early would end the run with
+        no findings. Jobs that are `running` elsewhere aren't waited for."""
         self._recover()
         n = 0
-        while self.run_one():
-            n += 1
-        return n
+        while True:
+            if self.run_one():
+                n += 1
+                continue
+            self._recover()  # a job a dead worker left `running` may be blocking reconcile
+            wait = queue.seconds_until_due(self.session, self.tenant_id)
+            self.session.commit()
+            if wait is None:
+                return n
+            time.sleep(wait + 0.05)
 
     def serve(self, poll_seconds: float = 1.0) -> None:
         """Poll forever. Stale jobs are recovered at startup and after every idle poll, so a
@@ -167,7 +190,7 @@ class Worker:
             job.status = queue.FAILED
         elif job.attempts < self.max_attempts:
             job.status = queue.PENDING
-            job.run_after = func.now() + self.backoff * 2 ** (job.attempts - 1)
+            job.run_after = func.clock_timestamp() + self.backoff * 2 ** (job.attempts - 1)
         else:
             job.status = queue.PARKED
 
@@ -176,20 +199,24 @@ class Worker:
     def _run(self, job: Job) -> StageResult:
         if job.stage == queue.RECONCILE:
             return self._reconcile(job)
+        if job.document_id is None:
+            raise Permanent(f"{job.stage} job has no document")
         row = self._doc(job)
+        repo = Repo(self.session, job.tenant_id)
         if job.stage == queue.CLASSIFY:
-            return self._classify(self._text(row, None))
+            return self._classify(repo, row, self._text(row, None))
         classification = Classification.model_validate(self._output(job, row, queue.CLASSIFY))
         doc = self._text(row, classification.doc_class)
         if job.stage == queue.EXTRACT:
             return self._extract(doc)
         if job.stage == queue.VALIDATE:
             extraction = Extraction.model_validate(self._output(job, row, queue.EXTRACT))
-            return self._validate(doc, extraction)
+            return self._validate(repo, row, doc, extraction)
         raise Permanent(f"unknown stage {job.stage!r}")
 
-    def _classify(self, doc: DocumentText) -> StageResult:
+    def _classify(self, repo: Repo, row: DocumentRow, doc: DocumentText) -> StageResult:
         c = self.pipeline.classifier.classify(doc)
+        repo.update_document(row.id, doc_class=str(c.doc_class))
         nxt = None if c.doc_class == DocumentClass.noise else NEXT_STAGE[queue.CLASSIFY]
         return StageResult(c.model_dump(mode="json"), c.engine, nxt)
 
@@ -199,16 +226,27 @@ class Worker:
                 return StageResult(x.model_dump(mode="json"), x.engine, NEXT_STAGE[queue.EXTRACT])
         raise Permanent("no extractor matched")
 
-    def _validate(self, doc: DocumentText, extraction: Extraction) -> StageResult:
+    def _validate(
+        self, repo: Repo, row: DocumentRow, doc: DocumentText, extraction: Extraction
+    ) -> StageResult:
         """Vendor resolution in the order `leo.interfaces` sets: look up (never create), validate
-        against that vendor's prior terms, and create the vendor only if `vendor_ok`."""
+        against that vendor's stored prior terms, and create the vendor only if `vendor_ok`.
+        Then store the document's vendor and items."""
         p = self.pipeline
+        vendors = p.vendors(repo)
         name = extraction.vendor_name
-        found = p.vendors.find_vendor(name) if name is not None else None
-        prior = p.prior_terms(found) if found is not None else []
+        found = vendors.find_vendor(name) if name is not None else None
+        prior = (
+            p.prior_terms(self.session, repo.tenant_id, found, row.path)
+            if found is not None
+            else []
+        )
         v = p.validator.validate(doc, extraction, prior)
+        vendor_id: UUID | None = None
         if v.vendor_ok:
-            out = v.extraction.with_vendor(p.vendors.vendor_for_name(v.extraction.vendor_name))
+            vid = vendors.vendor_for_name(v.extraction.vendor_name)
+            vendor_id = UUID(vid)
+            out = v.extraction.with_vendor(vid)
         else:  # fail closed: no vendor, every item for review
             x = v.extraction.with_vendor("")
             review = {"status": TermStatus.needs_review}
@@ -219,20 +257,33 @@ class Worker:
                 }
             )
         v = v.model_copy(update={"extraction": out})
+        store_validated(repo, row, doc.text, v, vendor_id)
         return StageResult(v.model_dump(mode="json"), v.engine, NEXT_STAGE[queue.VALIDATE])
 
     def _reconcile(self, job: Job) -> StageResult:
-        """The whole tenant's ledger, then a draft per finding."""
+        """The whole tenant, in ROADMAP 2.1's order: transactions (after the documents' vendors,
+        so names come from documents first, as in the seed), duplicate links, plan and invoice
+        matching, then reconcile, findings, and a draft per new (finding, type)."""
+        p = self.pipeline
+        repo = Repo(self.session, job.tenant_id)
+        if p.transactions is not None:
+            sync_transactions(repo, p.transactions, p.vendors(repo))
+        links = link_duplicates(repo, self.raw)
+        match_plans(repo)
+        match_invoice_facts(repo)
         ledger = load_ledger(self.session, job.tenant_id)
         today = self.clock.today()
-        rec = self.pipeline.reconciler.reconcile(ledger, today)
-        drafts = [self.pipeline.drafter.draft(f, ledger) for f in rec.findings]
+        rec = p.reconciler.reconcile(ledger, today)
+        findings, ids = store_reconciliation(repo, rec)
+        drafts = store_drafts(repo, p.drafter, _engine(p.drafter), findings, ids, ledger)
         output = {
             "today": today.isoformat(),
-            "reconciliation": rec.model_dump(mode="json"),
-            "drafts": [d.model_dump(mode="json") for d in drafts],
+            "duplicate_links": len(links),
+            "findings": [f.id for f in findings],
+            "supersessions": len(rec.supersessions),
+            "drafts": drafts,
         }
-        return StageResult(output, _engine(self.pipeline.reconciler), None)
+        return StageResult(output, _engine(p.reconciler), None)
 
     # --- Reads -------------------------------------------------------------------------------
 
@@ -245,7 +296,7 @@ class Worker:
         return row
 
     def _text(self, row: DocumentRow, doc_class: DocumentClass | None) -> DocumentText:
-        """`doc_class` comes from the classify job: A4 doesn't write it to the row."""
+        """`doc_class` comes from the classify job's output, the stage input of record."""
         document = SourceDocument(
             path=row.path,
             doc_class=doc_class,

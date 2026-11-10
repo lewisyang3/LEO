@@ -52,6 +52,22 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `gmail-sync` | Sync every connected account once, or `ARGS="--watch 10"` to poll |
 | `gmail-import` | Import `.eml` files into the demo Gmail account (`scripts/seed_gmail.py`; `ARGS="--drip 5"` or `ARGS="--only FILE"`) |
 | `api-gmail` | `make api` serving the Gmail tenant (`LEO_GMAIL_TENANT`) instead of the seeded one |
+| `ingest` | Load the synthetic documents into the pipeline's tenant (`LEO_PIPELINE_TENANT`, default `brightwater-pipeline`) and queue them (`python -m leo.ingest.folder`) |
+| `worker` | Run the pipeline on queued jobs, polling. `ARGS="--drain"` stops when nothing is due. See [Run the pipeline](#run-the-pipeline) |
+| `api-pipeline` | `make api` serving the pipeline's tenant instead of the seeded one |
+
+## Run the pipeline
+
+`make seed` serves the answer key's results. To have LEO find them itself, put the documents through the worker (ROADMAP 2.1). It writes to its own tenant, so the two never mix:
+
+```sh
+make reset                                   # optional: a clean database
+make ingest                                  # 21 documents queued
+make worker ARGS="--drain --tenant brightwater-pipeline"
+make api-pipeline                            # then make web
+```
+
+The worker classifies with Jev (live, `JEV_API_KEY`), extracts with the scripts and then the LLM, validates with rules, syncs `transactions.csv`, links duplicates, matches charges, reconciles and drafts each finding with the LLM. Extractions and drafts come from the committed caches (`data/llm_cache/`). `LEO_LLM_OFFLINE=1` turns a cache miss into an error instead of an API call. For a run with no network at all, add `--classifier fixture --drafter template`. `python -m leo.worker --help` lists the engines.
 
 ## Gmail sync (optional)
 

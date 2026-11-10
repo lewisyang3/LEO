@@ -1,0 +1,28 @@
+{
+  "doc_hash": "93fbd6e5ef65eda69845f9a236f0dd03d41c74ffc38e5ae548c542e3e466eb18",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nI am writing to dispute charges on {agreement}. Our commitment under this agreement covers {contracted_seats} seats, but {invoices} bills us for {billed_seats} seats. That is {extra_seats} seats more than the commitment, billed at {price_per_seat}.\n\nThe agreement states: \"{increase_requires}\". We have not signed any written order form increasing our seat count, so the additional seats were not authorized under the agreement.\n\nThe overcharge to date is {overcharged_to_date}, and it adds {overcharge_monthly} each month the seats remain on our bill, which is {annualized} per year at the current rate.\n\nPlease issue a credit for the overcharged amount of {overcharged_to_date} and send a corrected invoice reflecting {contracted_seats} seats going forward. Please confirm once the credit and corrected bill are in place.\n\nThank you for your prompt attention to this matter.\n\nBest regards,\n{sender}"
+  },
+  "prompt_version": "draft-v5",
+  "request_id": "req_011CguizAarmjC1ySz57NwBT",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 758,
+    "inference_geo": "global",
+    "input_tokens": 408,
+    "output_tokens": 345,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

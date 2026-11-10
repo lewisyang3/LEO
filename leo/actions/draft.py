@@ -614,6 +614,8 @@ class LLMDrafter:
 class TemplateDrafter:
     """The same draft with the fallback template and no LLM call."""
 
+    engine = "template"  # stored on the action; the approval queue flags it
+
     def __init__(self, sender: str = "") -> None:
         self.sender = sender
 
@@ -640,8 +642,9 @@ def draft_new(
     ledger: Ledger,
     existing: Collection[tuple[str, ActionType]],
 ) -> list[ActionDraft]:
-    """Drafts for the findings that have no action of their planned type yet. `existing` holds
-    (finding id, action type) pairs; the worker builds it from stored `v1:action:…` keys."""
+    """Drafts for the findings whose action of their planned type isn't in `existing`: the
+    (finding id, action type) pairs not to redraft. The worker passes the actions the user
+    decided or edited (`Repo.action_pairs`), so an unedited draft follows its finding."""
     out = []
     for f in findings:
         if (f.id, action_plan(f).type) in existing:

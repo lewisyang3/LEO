@@ -193,12 +193,18 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
 
           <section className="action-card">
             <h2>Drafted fix</h2>
-            <p>
-              <strong>{humanize(d.action.type)}</strong> to <code>{d.action.to}</code>{' '}
-              <StateBadge state={d.action.state} />
-            </p>
-            <p className="muted">{d.action.subject}</p>
-            <a href="#/actions">Review in the approval queue →</a>
+            {d.action ? (
+              <>
+                <p>
+                  <strong>{humanize(d.action.type)}</strong> to <code>{d.action.to}</code>{' '}
+                  <StateBadge state={d.action.state} />
+                </p>
+                <p className="muted">{d.action.subject}</p>
+                <a href="#/actions">Review in the approval queue →</a>
+              </>
+            ) : (
+              <p className="muted">No draft yet. The worker drafts one after reconciling.</p>
+            )}
           </section>
         </div>
 

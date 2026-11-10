@@ -1,0 +1,28 @@
+{
+  "doc_hash": "eec28b021a22264008952dbaa26dcfbb1602884d5050e54635c583ccb7193bcf",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nWe are writing to dispute charges on {agreement}. The agreement states: \"{escalator_clause}\" The increase is therefore not effective until {first_application}, the first anniversary of the Effective Date.\n\nOn {applied_from}, the {escalator_pct} increase was applied early. Invoice {invoices} bills the Monthly Service Fee at {charged_monthly}, while the contract rate is {contract_monthly}. That is an overcharge of {overcharge_monthly} per month, or {overcharged_to_date} to date.\n\nPlease issue a credit for {overcharged_to_date} against our account. Please also issue a corrected bill that applies the contract rate of {contract_monthly} until {first_application}, and confirm that future invoices will reflect the correct fee.\n\nThank you for your prompt attention to this matter. Please reply to confirm receipt and the expected date of the credit.\n\nBest regards,\n\n{sender}"
+  },
+  "prompt_version": "draft-v5",
+  "request_id": "req_011CguiznSdZvLVAdgPoGVN9",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 758,
+    "inference_geo": "global",
+    "input_tokens": 481,
+    "output_tokens": 339,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

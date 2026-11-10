@@ -15,15 +15,14 @@ Fixture ids (`lp_growth_price_v1`, `F2`, `txn_0001`) live only in this module's 
 database keys rows on natural keys and UUIDs.
 """
 
-from typing import Any
 from uuid import UUID
 
-from pydantic_core import to_jsonable_python
 from sqlalchemy.orm import Session
 
 from leo.config import get_settings
 from leo.db import keys
 from leo.db.repo import Repo, upsert_tenant
+from leo.db.write import jsonb, write_contact, write_invoice_fact, write_term
 from leo.fixtures import Fixture, FixtureDrafter, load_fixture
 from leo.ingest.ingest import ingest
 from leo.ingest.store import RawStore
@@ -38,13 +37,8 @@ from leo.match.transactions import (
     sync_transactions,
 )
 from leo.match.vendors import DbVendorResolver
-from leo.rules import read_source_text, span_key
+from leo.rules import read_source_text
 from leo.types import DocumentClass, ExtractedTerm, InvoiceFact
-
-
-def _jsonb(value: Any) -> Any:
-    """JSON-ready values for JSONB: the engine's json.dumps can't take Decimal, date or models."""
-    return None if value is None else to_jsonable_python(value)
 
 
 class _Seeder:
@@ -133,44 +127,28 @@ class _Seeder:
 
     def _term(self, t: ExtractedTerm, path: str) -> tuple[str, UUID]:
         """Upsert the key's term as found in document `path` (its own, or a forward's)."""
-        text = self.texts[path]
-        key = keys.term(self.doc_keys[path], str(t.type), span_key(text, t.quotes[0]))
-        tid = self.repo.upsert_term(
-            key,
-            vendor_id=self.vendors[t.vendor],
-            document_id=self.docs[path],
-            type=str(t.type),
-            value=_jsonb(t.value),
-            old_value=_jsonb(t.old_value),
-            plan_label=t.plan_label,
-            agreement_ref=t.agreement_ref,
-            effective_date=t.effective_date,
-            status=str(t.status),
-            notes=t.notes,
+        return write_term(
+            self.repo,
+            self.docs[path],
+            self.doc_keys[path],
+            self.texts[path],
+            t,
+            self.vendors[t.vendor],
         )
-        self.repo.set_citations("term_id", tid, self.docs[path], text, t.quotes)
-        return key, tid
 
     def seed_invoice_facts(self) -> None:
         for f in self.fx.invoice_facts:
             self.facts[f.id] = self._invoice_fact(f, f.document)
 
     def _invoice_fact(self, f: InvoiceFact, path: str) -> UUID:
-        text = self.texts[path]
-        key = keys.invoice_fact(self.doc_keys[path], span_key(text, f.quotes[0]))
-        fid = self.repo.upsert_invoice_fact(
-            key,
-            vendor_id=self.vendors[f.vendor],
-            document_id=self.docs[path],
-            billing_period=f.billing_period,
-            invoice_date=f.invoice_date,
-            amount=f.amount,
-            invoice_number=f.invoice_number,
-            seats_billed=f.seats_billed,
-            notes=f.notes,
-            status=str(f.status),
+        _, fid = write_invoice_fact(
+            self.repo,
+            self.docs[path],
+            self.doc_keys[path],
+            self.texts[path],
+            f,
+            self.vendors[f.vendor],
         )
-        self.repo.set_citations("invoice_fact_id", fid, self.docs[path], text, f.quotes)
         return fid
 
     def seed_forward_copies(self) -> None:
@@ -187,11 +165,8 @@ class _Seeder:
     def seed_contacts(self) -> None:
         for v in self.fx.vendors:
             for c in v.contacts:
-                cid = self.repo.upsert_contact(self.vendors[v.id], c.email, c.purpose)
                 doc = self.docs[c.document]
-                self.repo.set_citations(
-                    "vendor_contact_id", cid, doc, self.texts[c.document], [c.quote]
-                )
+                write_contact(self.repo, self.vendors[v.id], doc, self.texts[c.document], c)
 
     def seed_findings(self) -> None:
         drafter = FixtureDrafter(self.fx)
@@ -209,13 +184,13 @@ class _Seeder:
                 kind=str(f.kind),
                 title=f.title,
                 plan_label=f.plan_label,
-                computation=_jsonb(getattr(f, "computation", None)),
+                computation=jsonb(getattr(f, "computation", None)),
                 anchor_term_id=self.terms[f.anchor.term],
                 anchor_transaction_id=self.txns[anchor_txn] if anchor_txn else None,
                 deadline=f.deadline,
                 recommended_send_by=f.recommended_send_by,
                 deadline_notes=f.deadline_notes,
-                impact=_jsonb(f.impact),
+                impact=jsonb(f.impact),
             )
             basis = f.deadline_basis
             for term in f.terms:

@@ -21,7 +21,8 @@ export function DaysLeft({ days, long = false }: { days: number | null; long?: b
   )
 }
 
-export function StateBadge({ state }: { state: string }) {
+export function StateBadge({ state }: { state: string | null }) {
+  if (state === null) return <span className="badge">no draft</span>
   return <span className={`badge state-${state}`}>{state}</span>
 }
 
