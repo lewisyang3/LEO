@@ -20,6 +20,7 @@ make up        # start Postgres 16 and wait until it's healthy
 make migrate   # apply Alembic migrations
 make test      # run pytest (includes the answer-key validator)
 make seed      # load the Brightwater demo tenant (the API and UI read it)
+make reset     # later: wipe the database and reseed, for a clean demo
 ```
 
 Then, in two terminals:
@@ -43,9 +44,40 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `lint` | `ruff check` and `ruff format --check` |
 | `api` | Run FastAPI with reload |
 | `web` | Run the Vite dev server |
-| `seed` | Load the answer key into the database as the demo tenant (`python -m leo.db.seed`). `make reset` comes with ROADMAP A7 |
+| `seed` | Load the answer key into the database as the demo tenant (`python -m leo.db.seed`). A reseed keeps approvals and edits |
+| `reset` | Drop the schema, migrate and seed, for a clean demo (`python -m leo.db.reset`). Stop the API and worker first. Refuses a non-local database without `--force` |
 | `eval` | Score the classifier, extractor, validator and drafter against the answer key (`python -m leo.eval --help`). The held-out classifier set runs with `python -m leo.eval.holdout`. No database needed. The default fixture engines need no API keys |
 | `e2e` | Placeholder until ROADMAP 2.2 (exits 1) |
+| `gmail-connect` | Connect a Gmail account, read-only (opens the browser). See [Gmail sync](#gmail-sync-optional) |
+| `gmail-sync` | Sync every connected account once, or `ARGS="--watch 10"` to poll |
+| `gmail-import` | Import `.eml` files into the demo Gmail account (`scripts/seed_gmail.py`; `ARGS="--drip 5"` or `ARGS="--only FILE"`) |
+| `api-gmail` | `make api` serving the Gmail tenant (`LEO_GMAIL_TENANT`) instead of the seeded one |
+
+## Gmail sync (optional)
+
+The demo never depends on this: the `.eml` path (`make seed`, uploads) is the fallback. Sync reads the inbox with the `gmail.readonly` scope and stores each new email through `ingest()`, which queues its `classify` job. Its tokens are encrypted at rest. It writes to its own tenant (`gmail-demo`), so it never doubles the seeded one.
+
+One-time setup:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and enable the Gmail API.
+2. Configure the OAuth consent screen as **External**, in **Testing** mode, and add the demo Gmail account as a test user.
+3. Create an OAuth client of type **Desktop app**, download its JSON to `var/google_client_secret.json` (gitignored), or point `LEO_GOOGLE_CLIENT_SECRETS` at it.
+4. Generate `LEO_SECRET_KEY` and put it in `.env`:
+   `uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+
+Then:
+
+```sh
+make gmail-connect                   # consent in the browser (read-only); stores the account
+make gmail-import ARGS="--drip 5"    # fill the demo inbox from data/synthetic/inbox (asks its own insert consent)
+make gmail-sync ARGS="--watch 10"    # poll the inbox; each new email is a document with a classify job
+make worker                          # run the jobs
+make api-gmail                       # the API on the Gmail tenant
+```
+
+- `gmail-import` isn't idempotent: a second run imports every email again under new Gmail ids, so use a fresh demo account or delete the emails first. Its insert token is never stored.
+- `make reset` drops the connected account and its token, so run `make gmail-connect` again afterwards.
+- Don't put `LEO_TENANT=gmail-demo` in `.env`: `make seed` and `make reset` read it too, and would seed the answer key into the Gmail tenant. `make api-gmail` sets it for the API only.
 
 ## Layout
 
@@ -57,7 +89,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `leo/clock.py` | `Clock`: `LEO_TODAY`, or the system date | Shared |
 | `leo/fixtures.py` | The answer key as typed fixtures, plus fixture-backed stages | Shared |
 | `leo/db/` | Engine, models, Alembic migrations (`leo/db/migrations/`), repositories | A |
-| `leo/ingest/` | Raw-file store, `.eml` parser, `ingest()` and folder loaders. Gmail sync later (A8) | A |
+| `leo/ingest/` | Raw-file store, `.eml` parser, `ingest()`, folder loaders, Gmail sync (A8) and token encryption | A |
 | `leo/pipeline/` | Classify, extract, validate | B |
 | `leo/eval/` | Eval harness: scores stage output against `expected.json` | B |
 | `leo/actions/` | Action drafting | B |
@@ -66,3 +98,4 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `web/` | React + Vite + TypeScript UI | C |
 | `tests/` | pytest | All |
 | `scripts/validate_answer_key.py` | Checks `expected.json` against the dataset | All |
+| `scripts/seed_gmail.py` | Imports `.eml` files into the demo Gmail account (A8) | A |

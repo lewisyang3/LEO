@@ -29,6 +29,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -517,6 +518,7 @@ class Job(NaturalKeyRow):
         Index("ix_job_claim", "status", "created_at"),
     )
 
+<<<<<<< HEAD
 class StageExecution(Row):
     """Tracks each execution of a pipeline stage for B6 analytics."""
 
@@ -603,3 +605,39 @@ class ModelUsage(Row):
         ),
         Index("ix_model_usage_stage_execution", "stage_execution_id"),
     )
+=======
+
+class ConnectedAccount(Row):
+    """A mailbox LEO syncs (A8). Its id, not the address, goes into document keys
+    (`v1:gmail:{id}:{message id}`), and it upserts on the address, so a reconnect keeps it."""
+
+    __tablename__ = "connected_account"
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    email_address: Mapped[str] = mapped_column(Text, nullable=False)
+    history_id: Mapped[str | None] = mapped_column(Text)  # the sync cursor
+    last_synced_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        _tenant_id_key("connected_account"),
+        UniqueConstraint(
+            "tenant_id", "provider", "email_address", name="uq_connected_account_address"
+        ),
+    )
+
+
+class OAuthCredential(Row):
+    """An account's OAuth token, encrypted (`leo.ingest.secrets`), and kept apart from the
+    extracted data: nothing in the read layer or the API touches this table (A8)."""
+
+    __tablename__ = "oauth_credential"
+    account_id: Mapped[UUID] = mapped_column(nullable=False)
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    scopes: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    __table_args__ = (
+        _tenant_id_key("oauth_credential"),
+        _fk("oauth_credential", "account_id", "connected_account"),
+        UniqueConstraint("tenant_id", "account_id", name="uq_oauth_credential_account"),
+    )
+>>>>>>> origin/main

@@ -52,9 +52,18 @@ Set by A3 (`leo/ingest/`). Every document is written by `leo.ingest.ingest`: upl
 
 - **Raw bytes** go to the raw store (`LEO_RAW_DIR`, default `var/raw`), under their content hash. `storage_path` is relative to that folder, and `content_sha256` is the hash of the bytes. Citation offsets index these stored bytes (`read_source_text`).
 - **`path`** is the display path: dataset-relative for folder loads (`inbox/01_….eml`, `contracts/….md`), and `uploads/{first 8 hex of the SHA-256}-{filename}` for API uploads (C3), so two different files with one name don't share a path. `ingest()` called with no `path` still defaults to `uploads/{filename}`. Like the other provenance columns, it keeps its first value, so D1's re-synced copy keeps the original's path.
-- **`source_kind`** is `eml`, `file` or `attachment`.
+- **`source_kind`** is `eml`, `file`, `attachment` or `gmail` (A8).
 - **Attachments.** Each attachment is its own row. Its key comes from its bytes, so it is the same row as that file uploaded on its own (except an attached email, which is stored re-serialized; see ROADMAP A3). Its `path` is `{email path}#attachments/{filename}`. `parent_document_id` is the first email that carried it, and every email carrying it gets a `document_link` with `link_type = "attachment"` (`document_id` is the email, `linked_document_id` the attachment).
 - **Headers** (`sender`, `recipient`, `subject`, `message_id`, `received_at`) are decoded attributes and never part of a key. `received_at` is timezone-aware, or null when the `Date` is missing or malformed.
+
+## Gmail accounts
+
+Set by A8 (`leo/ingest/gmail.py`).
+
+- **`connected_account`** is one synced mailbox: `provider` (`gmail`), `email_address`, and `history_id`, the sync cursor. It upserts on (tenant, provider, address), so a reconnect keeps its id.
+- **Synced emails** key on `v1:gmail:{connected_account.id}:{gmail message id}`, never on the address or the bytes. Their `path` is `gmail/{message id}.eml`, their `source_kind` is `gmail`, and `thread_id` holds Gmail's `threadId`. Their attachments key on their bytes, as everywhere else. A synced email and the same email uploaded as an `.eml` are two rows.
+- **`oauth_credential`** holds one account's token, encrypted with Fernet under `LEO_SECRET_KEY` (`leo/ingest/secrets.py`), with its scope (always `gmail.readonly`). It is kept apart from the extracted data: the read layer and the API never touch it.
+- **Tenant.** The synced mailbox has its own tenant (`LEO_GMAIL_TENANT`, default `gmail-demo`), so it never doubles the seeded demo tenant's documents.
 
 ## Natural keys built from spans
 

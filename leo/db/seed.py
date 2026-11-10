@@ -9,7 +9,7 @@ facts, cited in its own text, as an extractor would give it; `link_duplicates` (
 it from the stored items, never from the key. Every write is an upsert on a natural key, so
 seeding twice changes nothing. Documents go through
 `leo.ingest.ingest` (A3), which stores real raw copies. `make seed` runs `main()` (C3);
-`make reset` is A7.
+`make reset` (A7) wipes the schema and reseeds.
 
 Fixture ids (`lp_growth_price_v1`, `F2`, `txn_0001`) live only in this module's maps; the
 database keys rows on natural keys and UUIDs.

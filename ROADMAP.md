@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** A6 (duplicate linking) is done on `lewis/a6-duplicate-links`, in review against main. B5 (script extractors) is on main. A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** Track A is done, and next is 2.1 (wire the pipeline). A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -134,7 +134,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - citations upsert by (owner, ordinal) and drop stale ordinals
     - an alias that already names another vendor raises `AliasConflict`
   - **Tenants.** `tenant.slug` is the tenant's natural key. The seed's slug is the dataset name.
-  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) came straight from the key. A5 replaced the vendors and mappings with matching, and A6 replaced the D2 link with a computed one. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. A7 wires this to `make seed`.
+  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) came straight from the key. A5 replaced the vendors and mappings with matching, and A6 replaced the D2 link with a computed one. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. `make seed` runs it (C3), and `make reset` wipes the schema and reseeds (A7).
   - **Not done here.** `.eml` header decoding with `email.policy.default` and a guarded date parse belong to A3 (done there). The read methods B and C need to switch over belong to C3.
 - [x] **A3 [must] Ingestion function.**
   - An `.eml` parser covering headers, text body, and attachments stored once by hash.
@@ -156,7 +156,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Loaders.** `ingest_folder` reads one folder in name order, skipping dotfiles, READMEs and subfolders, and stores `{folder}/{name}` paths. `ingest_folder(…, "contracts")` is the contracts loader, and `ingest_dataset` reads `inbox/` then `contracts/`.
   - **Seed.** `seed()` now goes through `ingest`, so it stores real raw copies (still 223 rows). `Repo.update_document` sets the key's class, vendor and notes once per row, so D1's copy still doesn't overwrite the original's.
   - **Tests.** Every test's `LEO_RAW_DIR` points at a temp folder (`tests/conftest.py`).
-  - **Not done here.** Queueing jobs on ingest (A4), and reading the text of binary attachments such as PDFs. Those are stored but not converted to text, and the dataset has none. Attached emails aren't parsed for their own headers or attachments. An attached email is stored re-serialized, so its bytes, and its key, differ from the same email loaded on its own. A6's fingerprint links the two.
+  - **Not done here.** Queueing jobs on ingest (A4), and reading the text of binary attachments such as PDFs. Those are stored but not converted to text, and the dataset has none. Attached emails aren't parsed for their own headers or attachments. An attached email is stored re-serialized, so its bytes, and its key, differ from the same email loaded on its own. A6's fingerprint gives the two the same value, but A6 links them only when one reads as a forward, so they usually stay unlinked.
 - [x] **A4 [must] Job queue and worker.**
   - Jobs are rows claimed with `FOR UPDATE SKIP LOCKED`.
   - The worker runs each item through the stage interfaces in `leo/interfaces.py`, using `leo/stubs.py` until B and C plug in.
@@ -226,13 +226,38 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
       - The forward check reads the raw stored text. A base64 or quoted-printable body with no `Fwd:` subject isn't recognized, so decode the body first.
       - Term values are hashed as stored. Normalize numbers in the value JSON (`339` and `339.0`) before fingerprinting, so two extractors' copies agree.
 
-- [ ] **A7 [should] Seed and reset.** `make seed` loads the synthetic tenant, and `make reset` reruns migrations and seed. Deterministic keys make this safe.
-  - `make seed` was built in C3 (`python -m leo.db.seed`). `make reset` is still to do.
-- [ ] **A8 [should] Gmail sync.**
+- [x] **A7 [should] Seed and reset.** `make seed` loads the synthetic tenant, and `make reset` reruns migrations and seed. Deterministic keys make this safe.
+  - `make seed` was built in C3 (`python -m leo.db.seed`).
+
+  Done, in `leo/db/reset.py`:
+  - **Reset.** `make reset` drops and recreates the `public` schema, runs `alembic upgrade head`, then seeds, all in one process. It drops the schema rather than running `alembic downgrade base`, so it doesn't depend on any downgrade working. The init migration recreates `pg_trgm`. A reseed keeps approvals and edits, but a reset brings every action back as an unapproved draft.
+  - **Guards.** It refuses a database whose host isn't `localhost`, loopback or `db` unless `--force` is passed, and it prints the URL with the password hidden. The drop waits at most 5s for locks (`lock_timeout`). If the API or worker is mid-transaction, it stops and says to stop them first.
+  - **Not done here.** `LEO_RAW_DIR` isn't emptied: it's content-addressed, and the seed rewrites the same files. Uploaded bytes stay there with no row pointing to them, which does no harm.
+    - Small follow-ups: `Config("alembic.ini")` is relative, so it only works from the repo root (as `make` runs it). A Unix-socket `DATABASE_URL` (no host) counts as non-local and needs `--force`.
+  - **Tests** (`tests/test_reset.py`): the local-host check, and the refusal of a remote database without dropping anything. No test drops the dev schema, because `make test` shares it. The reset itself was checked by hand: two runs in a row give the same row counts, and an approval made before a reset is back to a draft afterwards.
+- [x] **A8 [should] Gmail sync.**
   - Read-only OAuth into a seeded demo Gmail account.
   - Incremental sync by `historyId`.
   - Tokens encrypted at rest.
   - The `.eml` path stays as the fallback, so the demo never depends on this.
+
+  Done, in `leo/ingest/gmail.py`, `leo/ingest/secrets.py`, `scripts/seed_gmail.py` and migration `0f19fbbdb783`:
+  - **Accounts.** `connected_account` upserts on (tenant, provider, address), so a reconnect keeps its id. Its `history_id` is the sync cursor. `oauth_credential` holds the token, encrypted with Fernet under `LEO_SECRET_KEY`, in its own table: the read layer and the API never touch it.
+  - **Tenant.** The mailbox gets its own tenant (`gmail-demo`). It holds the same emails the seed loads, under different keys, so syncing into `brightwater-v1` would double every document. `make api-gmail` serves it.
+  - **Sync.** `GmailClient` is a Protocol, like `TransactionSource`, with `GoogleGmailClient` over the Gmail API. The first sync, or a sync whose cursor has expired (404), lists the inbox, reading the profile's `historyId` first. After that, it reads `history.list` (`messageAdded`, `INBOX`). Each new message goes through `ingest()` with the key `v1:gmail:{account id}:{message id}`, the path `gmail/{id}.eml`, `source_kind` `gmail` and `thread_id`, which queues `classify`. A message already stored is skipped without being fetched. A message deleted before the fetch (404) is skipped and counted, so it can't stall the cursor. Documents and the cursor commit together, one account at a time. An account that fails is rolled back, and the rest still sync. An expired access token is refreshed and stored again, encrypted.
+  - **Commands.** `make gmail-connect` (consent in the browser, read-only), `make gmail-sync` (`ARGS="--watch 10"` polls), and `make gmail-import` (`scripts/seed_gmail.py`). The import uses `messages.import` with the dates taken from the headers, and offers `--drip SECONDS` and `--only FILE`. Its `gmail.insert` token is never stored. It isn't idempotent.
+  - **Tests** (`tests/test_gmail.py`, with a `FakeGmail`):
+    - full and incremental sync, and an unchanged rerun that makes no fetches
+    - expired history, and a deleted message
+    - a reconnect keeps the account id
+    - the token is encrypted at rest, and a missing key explains how to make one
+    - a synced email and its upload are separate rows
+    - `sync_all` keeps going past a failing account
+  - **Not done here.**
+    - The live run against a real account waits on a Google Cloud OAuth client and a demo Gmail account (README, "Gmail sync"): connect, import, a sync giving 16 then 0 new, a `--watch` pickup of one `--only` import, and a check that the stored ciphertext has no readable token.
+    - A message that gets the `INBOX` label after it arrives (`labelAdded`) isn't picked up.
+    - 2.1 turns the queued jobs into terms.
+    - A larger dataset belongs to its own task, because every new email changes the answer key. `seed_gmail.py --folder` takes any folder.
 
 ### Track B: AI pipeline (stages 1–4 and drafting) (Lewis and Omar, first)
 
@@ -462,7 +487,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - The outbox is the sent actions.
   - **Upload.** `POST /api/documents` (multipart) calls `ingest` and commits. The path is `uploads/{sha8}-{name}`, and bytes already stored keep their row and path. A dashboard file picker uses it. Since A4 it queues a `classify` job.
   - **Stats.** `GET /api/stats` counts documents by class, terms and invoice facts by status, current findings, actions by state, and jobs by stage, `processed_by` and status (empty until A4). Cost comes with B6.
-  - **Seed.** `make seed` runs `python -m leo.db.seed` and commits. `make reset` is still A7. A reseed doesn't undo decisions, so a clean demo needs `make reset`.
+  - **Seed.** `make seed` runs `python -m leo.db.seed` and commits. A reseed doesn't undo decisions, so a clean demo needs `make reset` (A7).
   - **Tests** (`tests/test_api.py`, which now needs Postgres): each test seeds under a random tenant slug, so the dev database never affects a test. `tests/test_repo.py` does the same now, because `make seed` commits the default tenant to that database. They cover:
     - C2's checks, run on the database
     - `load_findings` matching the key's F1–F5 on every field but the ids
@@ -571,7 +596,7 @@ From the design doc's Open Questions. Track B questions belong to Lewis and Omar
 | --- | --- | --- | --- |
 | Jev noise threshold | Lewis and Omar | Resolved 2026-11-05: 0.5, see B2 | B2 |
 | Ramp data: sandbox or synthetic | Lewis | Phase 0 | A5 (synthetic is the default) |
-| Where dedup runs: before or after triage | A owner (TBD) | Before A6 | A6 |
+| Where dedup runs: before or after triage | Lewis | Resolved 2026-11-10: after extraction, on the stored terms and invoice facts, see A6 | A6 |
 | Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | Resolved 2026-11-10: processor-prefix list, then trigram candidates on suffix-stripped names confirmed by a word check, see A5 | A5 |
 | Accuracy bar | All | Phase 2 start | 2.4 |
 | Inbox scopes and retention we promise | A owner (TBD) | Before A8 | A8, pitch |

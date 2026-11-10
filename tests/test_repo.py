@@ -29,7 +29,13 @@ from leo.types import FindingKind
 # Not the default slug: `make seed` commits that tenant to the same database, and its rows
 # (an approved action, an upload) would leak into these tests. Each test rolls back.
 SLUG = f"test-{new_uuid7()}"
-UNSEEDED = {"extractor_script", "feedback_event", "job"}  # written by A4 and later
+UNSEEDED = {
+    "extractor_script",
+    "feedback_event",
+    "job",
+    "connected_account",
+    "oauth_credential",
+}  # written by A4 and later (A8: Gmail)
 
 
 def _ids(s: Session) -> dict[str, list]:
