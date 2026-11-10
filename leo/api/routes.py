@@ -1,9 +1,10 @@
-"""Findings, documents, the approval queue, upload and stats (ROADMAP C2, C3), from Postgres."""
+"""Findings, documents, the approval queue, upload, stats (ROADMAP C2, C3) and CSV export (C4),
+from Postgres."""
 
 from collections.abc import Iterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -97,6 +98,26 @@ def upload_document(file: UploadFile, store: Store) -> UploadOut:
 @router.get("/stats")
 def stats(store: Store) -> Stats:
     return store.stats()
+
+
+def _csv(name: str, body: str, store: DbStore) -> Response:
+    return Response(
+        content=body,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="leo-{name}-{store.today}.csv"'},
+    )
+
+
+@router.get("/export/terms.csv")
+def export_terms(store: Store) -> Response:
+    """The term record: every stored term, in every status."""
+    return _csv("terms", store.export_terms(), store)
+
+
+@router.get("/export/findings.csv")
+def export_findings(store: Store) -> Response:
+    """The findings, in the dashboard's order."""
+    return _csv("findings", store.export_findings(), store)
 
 
 @router.get("/actions")

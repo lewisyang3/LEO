@@ -5,6 +5,10 @@ slug, inside the rolled-back `session` from conftest.py. The dev database that `
 and `make api` commit to is never touched, so an approval made in the UI can't break a test.
 """
 
+import csv
+import datetime
+import io
+from decimal import Decimal
 from uuid import UUID
 
 import pytest
@@ -13,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from leo.api.app import app
+from leo.api.export import BOM, FINDING_COLUMNS, TERM_COLUMNS, _cell
 from leo.api.routes import get_session
 from leo.config import get_settings
 from leo.db import models as m
@@ -299,3 +304,57 @@ def test_stats_count_the_seed(client):
     assert s["findings"] == 5
     assert s["actions_by_state"] == {"draft": 5}
     assert s["jobs"] == []  # the worker (A4) writes jobs
+
+
+# --- Export (C4) ----------------------------------------------------------------------------
+
+
+def _csv(client, name: str) -> list[dict[str, str]]:
+    r = client.get(f"/api/export/{name}.csv")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    assert r.headers["content-disposition"] == f'attachment; filename="leo-{name}-2026-11-02.csv"'
+    assert r.text.startswith(BOM)
+    reader = csv.DictReader(io.StringIO(r.text.removeprefix(BOM)))
+    rows = list(reader)
+    assert reader.fieldnames == (TERM_COLUMNS if name == "terms" else FINDING_COLUMNS)
+    return rows
+
+
+def test_export_terms_has_every_term(client):
+    rows = _csv(client, "terms")
+    fixture = load_fixture()
+    assert len(rows) == len(fixture.terms)
+
+    key_cap = next(t for t in fixture.terms if t.type == "price_cap" and t.document == KESTREL_DOC)
+    cap = next(r for r in rows if r["type"] == "price_cap" and r["document"] == KESTREL_DOC)
+    assert cap["max_increase_pct"] == str(key_cap.value.max_increase_pct)
+    assert cap["amount"] == ""  # not a price_cap key
+
+    superseded = [r for r in rows if r["status"] == "superseded"]
+    assert superseded and all(r["superseded_by"] for r in superseded)
+    ids = {r["id"] for r in rows}
+    assert {r["superseded_by"] for r in superseded} <= ids
+
+
+def test_export_findings_in_dashboard_order(client):
+    rows = _csv(client, "findings")
+    assert [r["kind"] for r in rows] == KIND_ORDER
+    assert [r["id"] for r in rows] == [s["id"] for s in client.get("/api/findings").json()]
+    fixture = load_fixture()
+    for r in rows:
+        f = next(x for x in fixture.findings if x.kind == r["kind"])
+        assert r["at_stake"] == str(f.impact.headline_amount)
+        assert r["action_state"] == "draft"
+        assert r["impact"]
+
+
+def test_export_cell_formatting():
+    assert _cell("=SUM(A1)") == "'=SUM(A1)"
+    assert _cell("-1 for you") == "'-1 for you"
+    assert _cell("@here") == "'@here"
+    assert _cell(Decimal("-12.50")) == "-12.50"
+    assert _cell(None) == ""
+    assert _cell(True) == "true"
+    assert _cell(datetime.date(2026, 11, 2)) == "2026-11-02"
+    assert _cell(FindingKind.price_cap_exceeded) == "price_cap_exceeded"

@@ -19,6 +19,7 @@ make setup     # install Python and web dependencies, create .env from .env.exam
 make up        # start Postgres 16 and wait until it's healthy
 make migrate   # apply Alembic migrations
 make test      # run pytest (includes the answer-key validator)
+make seed      # load the Brightwater demo tenant (the API and UI read it)
 ```
 
 Then, in two terminals:
@@ -42,7 +43,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `lint` | `ruff check` and `ruff format --check` |
 | `api` | Run FastAPI with reload |
 | `web` | Run the Vite dev server |
-| `seed` | Placeholder until ROADMAP A7 (exits 1) |
+| `seed` | Load the answer key into the database as the demo tenant (`python -m leo.db.seed`). `make reset` comes with ROADMAP A7 |
 | `eval` | Score the classifier, extractor, validator and drafter against the answer key (`python -m leo.eval --help`). The held-out classifier set runs with `python -m leo.eval.holdout`. No database needed. The default fixture engines need no API keys |
 | `e2e` | Placeholder until ROADMAP 2.2 (exits 1) |
 
@@ -61,7 +62,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `leo/eval/` | Eval harness: scores stage output against `expected.json` | B |
 | `leo/actions/` | Action drafting | B |
 | `leo/reconcile/` | Reconciliation rules and deadlines | C |
-| `leo/api/` | FastAPI app: findings, documents and the approval queue, on the fixture until C3 | C |
+| `leo/api/` | FastAPI app on Postgres: findings, documents, the approval queue, upload and stats (C3), and CSV export (C4) | C |
 | `web/` | React + Vite + TypeScript UI | C |
 | `tests/` | pytest | All |
 | `scripts/validate_answer_key.py` | Checks `expected.json` against the dataset | All |
