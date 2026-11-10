@@ -4,8 +4,10 @@ Terms, invoice facts, contacts and findings come from the key, the way the fixtu
 `leo.fixtures` serve them. Vendors and matches don't (A5): each document's vendor name, as
 `FixtureExtractor` reports it, goes through `DbVendorResolver`; transactions come from
 `transactions.csv` and resolve by descriptor; plans and invoice-to-charge links are matched
-from the stored terms. Duplicate links still come from the key until A6. Every write is an
-upsert on a natural key, so seeding twice changes nothing. Documents go through
+from the stored terms. A forward (D2) gets its own copy of its original's terms and invoice
+facts, cited in its own text, as an extractor would give it; `link_duplicates` (A6) then links
+it from the stored items, never from the key. Every write is an upsert on a natural key, so
+seeding twice changes nothing. Documents go through
 `leo.ingest.ingest` (A3), which stores real raw copies. `make seed` runs `main()` (C3);
 `make reset` is A7.
 
@@ -25,6 +27,7 @@ from leo.db.repo import Repo, upsert_tenant
 from leo.fixtures import Fixture, FixtureDrafter, load_fixture
 from leo.ingest.ingest import ingest
 from leo.ingest.store import RawStore
+from leo.match.duplicates import link_duplicates
 from leo.match.transactions import (
     SOURCE as TXN_SOURCE,
 )
@@ -36,9 +39,7 @@ from leo.match.transactions import (
 )
 from leo.match.vendors import DbVendorResolver
 from leo.rules import read_source_text, span_key
-from leo.types import DocumentClass
-
-PROBABLE_DUPLICATE = "probable_duplicate"
+from leo.types import DocumentClass, ExtractedTerm, InvoiceFact
 
 
 def _jsonb(value: Any) -> Any:
@@ -69,8 +70,10 @@ class _Seeder:
         self.seed_transactions()
         self.seed_terms()
         self.seed_invoice_facts()
+        self.seed_forward_copies()
         match_plans(self.repo)
         match_invoice_facts(self.repo)
+        link_duplicates(self.repo, self.store)
         self.seed_contacts()
         self.seed_findings()
 
@@ -112,11 +115,6 @@ class _Seeder:
                 vendor_id=self._resolve(d.vendor, create=not is_noise) if d.vendor else None,
                 notes=d.notes,
             )
-        for d in self.fx.documents:
-            if d.probable_duplicate_of:
-                self.repo.link_documents(
-                    self.docs[d.path], self.docs[d.probable_duplicate_of], PROBABLE_DUPLICATE
-                )
 
     def seed_transactions(self) -> None:
         source = CsvTransactionSource(self.fx.root / "transactions.csv")
@@ -125,24 +123,7 @@ class _Seeder:
 
     def seed_terms(self) -> None:
         for t in self.fx.terms:
-            text = self.texts[t.document]
-            key = keys.term(self.doc_keys[t.document], str(t.type), span_key(text, t.quotes[0]))
-            self.term_keys[t.id] = key
-            tid = self.repo.upsert_term(
-                key,
-                vendor_id=self.vendors[t.vendor],
-                document_id=self.docs[t.document],
-                type=str(t.type),
-                value=_jsonb(t.value),
-                old_value=_jsonb(t.old_value),
-                plan_label=t.plan_label,
-                agreement_ref=t.agreement_ref,
-                effective_date=t.effective_date,
-                status=str(t.status),
-                notes=t.notes,
-            )
-            self.terms[t.id] = tid
-            self.repo.set_citations("term_id", tid, self.docs[t.document], text, t.quotes)
+            self.term_keys[t.id], self.terms[t.id] = self._term(t, t.document)
         for t in self.fx.terms:
             self.repo.set_supersession(
                 self.terms[t.id],
@@ -150,24 +131,58 @@ class _Seeder:
                 self.terms[t.supersedes] if t.supersedes else None,
             )
 
+    def _term(self, t: ExtractedTerm, path: str) -> tuple[str, UUID]:
+        """Upsert the key's term as found in document `path` (its own, or a forward's)."""
+        text = self.texts[path]
+        key = keys.term(self.doc_keys[path], str(t.type), span_key(text, t.quotes[0]))
+        tid = self.repo.upsert_term(
+            key,
+            vendor_id=self.vendors[t.vendor],
+            document_id=self.docs[path],
+            type=str(t.type),
+            value=_jsonb(t.value),
+            old_value=_jsonb(t.old_value),
+            plan_label=t.plan_label,
+            agreement_ref=t.agreement_ref,
+            effective_date=t.effective_date,
+            status=str(t.status),
+            notes=t.notes,
+        )
+        self.repo.set_citations("term_id", tid, self.docs[path], text, t.quotes)
+        return key, tid
+
     def seed_invoice_facts(self) -> None:
         for f in self.fx.invoice_facts:
-            text = self.texts[f.document]
-            key = keys.invoice_fact(self.doc_keys[f.document], span_key(text, f.quotes[0]))
-            fid = self.repo.upsert_invoice_fact(
-                key,
-                vendor_id=self.vendors[f.vendor],
-                document_id=self.docs[f.document],
-                billing_period=f.billing_period,
-                invoice_date=f.invoice_date,
-                amount=f.amount,
-                invoice_number=f.invoice_number,
-                seats_billed=f.seats_billed,
-                notes=f.notes,
-                status=str(f.status),
-            )
-            self.facts[f.id] = fid
-            self.repo.set_citations("invoice_fact_id", fid, self.docs[f.document], text, f.quotes)
+            self.facts[f.id] = self._invoice_fact(f, f.document)
+
+    def _invoice_fact(self, f: InvoiceFact, path: str) -> UUID:
+        text = self.texts[path]
+        key = keys.invoice_fact(self.doc_keys[path], span_key(text, f.quotes[0]))
+        fid = self.repo.upsert_invoice_fact(
+            key,
+            vendor_id=self.vendors[f.vendor],
+            document_id=self.docs[path],
+            billing_period=f.billing_period,
+            invoice_date=f.invoice_date,
+            amount=f.amount,
+            invoice_number=f.invoice_number,
+            seats_billed=f.seats_billed,
+            notes=f.notes,
+            status=str(f.status),
+        )
+        self.repo.set_citations("invoice_fact_id", fid, self.docs[path], text, f.quotes)
+        return fid
+
+    def seed_forward_copies(self) -> None:
+        """A forward (02) holds its original's items in its own text. Store them on the
+        forward, as an extractor would, with no supersession and no findings: the key's
+        findings anchor on the original. Contacts aren't copied (their key would collide)."""
+        for d in self.fx.documents:
+            if d.probable_duplicate_of:
+                for t in self.fx.terms_for(d.probable_duplicate_of):
+                    self._term(t, d.path)
+                for f in self.fx.invoice_facts_for(d.probable_duplicate_of):
+                    self._invoice_fact(f, d.path)
 
     def seed_contacts(self) -> None:
         for v in self.fx.vendors:

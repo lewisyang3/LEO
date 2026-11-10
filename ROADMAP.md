@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** B5 (script extractors) is done on `lewis/b5-script-extractors`, in review against main. Next in Track A is A6 (duplicate linking). A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** A6 (duplicate linking) is done on `lewis/a6-duplicate-links`, in review against main. B5 (script extractors) is on main. A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -115,7 +115,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **CHECKs.** Their value lists come from the `leo.types` enums. Finding status is `current` or `superseded`, and job status is `pending`, `running`, `done`, `failed` or `parked`. An `approved` or `sent` action must have an `approver`.
   - **Design-doc columns.** `action.approver`/`decided_at`, `extractor_script.code`/`accuracy`/`promoted_at`, the correction fields on `feedback_event`, and `job.claimed_at`/`updated_at` with a claim index.
   - **Migrations.** `make migration msg=…` autogenerates one. Add extensions by hand, because autogenerate can't emit them. `leo/db/migrations/versions/` is exempt from ruff's line-length rule, for the generated CHECK SQL.
-  - **Open.** `source_document` has both the `*_duplicate_of_id` columns and the `document_link` table. A2's seed writes only `document_link`. Pick one representation in A6.
+  - **Duplicates.** `document_link` is the one representation. A6 dropped the `*_duplicate_of_id` columns.
 - [x] **A2 [must] Keys and upserts.**
   - Natural-key builders: `v1:gmail:…`, `v1:eml-hash:…`, `v1:file:…`, `v1:term:…`, `v1:invoice-fact:{doc key}:{first quote start}:{first quote end}`, `v1:finding:{anchor term key}:{anchor txn key or -}:{kind}`, `v1:txn:{source}:{external_id}`, `v1:job:{doc key}:{stage}` and `v1:action:{finding key}:{action type}`.
   - A repository layer where every write is an upsert.
@@ -134,7 +134,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - citations upsert by (owner, ordinal) and drop stale ordinals
     - an alias that already names another vendor raises `AliasConflict`
   - **Tenants.** `tenant.slug` is the tenant's natural key. The seed's slug is the dataset name.
-  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) came straight from the key. A5 replaced the vendors and mappings with matching; the D2 link waits for A6. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. A7 wires this to `make seed`.
+  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) came straight from the key. A5 replaced the vendors and mappings with matching, and A6 replaced the D2 link with a computed one. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. A7 wires this to `make seed`.
   - **Not done here.** `.eml` header decoding with `email.policy.default` and a guarded date parse belong to A3 (done there). The read methods B and C need to switch over belong to C3.
 - [x] **A3 [must] Ingestion function.**
   - An `.eml` parser covering headers, text body, and attachments stored once by hash.
@@ -201,7 +201,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Transactions** (`transactions.py`). `CsvTransactionSource` reads the CSV. `sync_transactions` upserts each charge with `vendor_for_descriptor`. `match_plans` labels a charge only for a vendor with two or more plans, when exactly one plan's price in force on the charge date equals the amount. `match_invoice_facts` takes the nearest charge of the same vendor and amount within 7 days, each charge at most once. Those two are the only writers of `plan_label` and `matches_transaction`.
   - **Seed.** Vendors now come from each document's vendor name (as `FixtureExtractor` reports it) through the resolver, non-noise first. Noise only looks up, so ZapLedger never becomes a vendor. The key's aliases and vendor notes are no longer written. Transactions come from the CSV, and plans and invoice links are matched. The key is only used to check results (`tests/test_match.py`), including as-written names from the extract cache resolved names-first and descriptors-first.
   - **Not done here (2.1).** The worker still uses `StubVendorResolver`; 2.1 swaps in `DbVendorResolver` and runs `sync_transactions`, `match_plans` and `match_invoice_facts` before reconcile.
-- [ ] **A6 [must] Duplicate linking.**
+- [x] **A6 [must] Duplicate linking.**
   - Compute `context_fingerprint` and suggest links per the design doc's table, linking on the fingerprint alone plus a forwarded-message check (`Fwd:` subject, forwarded header block), because the dataset has no attachments.
   - Build and test it on the fixture's terms first, so it doesn't wait on B.
   - Terms from a linked duplicate are not counted again.
@@ -210,6 +210,22 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - D2: the forward is linked.
     - D3: monthly invoices stay separate.
     - D4: a two-plan vendor keeps separate price histories.
+
+  Done, in `leo/match/duplicates.py` and migration `ce73cab1a6ed`:
+  - **Fingerprint.** `context_fingerprint` is `v1:` plus a SHA-256 of a document's stored items:
+    - terms as (vendor, type, value, plan, agreement, effective date)
+    - invoice facts as (vendor, invoice number, billing period, invoice date, amount)
+
+    Quotes, offsets, ids, status and notes are left out. A document with no items has no fingerprint. It is stored on `source_document.context_fingerprint` and on the link row.
+  - **Links.** `link_duplicates(repo, store)` groups documents by fingerprint, and the original is the earliest document in the group that isn't a forward. A forward (`Fwd:`/`Fw:` subject, or a `Forwarded message`/`Original Message` block) links to it as `probable_duplicate`. A non-forward links only if the two emails carry the same attachment (A3's `attachment` links). Everything else stays separate. The links are recomputed each run: stale `probable_duplicate` links are deleted (`Repo.prune_links`).
+  - **Counted once.** `load_ledger` leaves out a linked duplicate's terms and invoice facts, as `leo/interfaces.py` requires. `load_price_history` already did.
+  - **Seed.** The forward (02) now stores its own copy of 01's terms, cited in its own text, as an extractor would give it (contacts aren't copied). `link_duplicates` runs after matching, and the key's link is no longer copied.
+  - **Tests** (`tests/test_duplicates.py`): D2, D3 and D4, the attachment signal, rerun stability, and stale-link removal.
+  - **Not done here.** Confirming or rejecting a link in the UI, with its feedback event. Wiring into the worker is left to 2.1, which runs `link_duplicates` after storing terms, next to `match_plans`.
+    - 2.1 follow-ups from review:
+      - The forward check reads the raw stored text. A base64 or quoted-printable body with no `Fwd:` subject isn't recognized, so decode the body first.
+      - Term values are hashed as stored. Normalize numbers in the value JSON (`339` and `339.0`) before fingerprinting, so two extractors' copies agree.
+
 - [ ] **A7 [should] Seed and reset.** `make seed` loads the synthetic tenant, and `make reset` reruns migrations and seed. Deterministic keys make this safe.
   - `make seed` was built in C3 (`python -m leo.db.seed`). `make reset` is still to do.
 - [ ] **A8 [should] Gmail sync.**

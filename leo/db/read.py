@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from leo.db import models as m
 from leo.interfaces import Ledger
+from leo.match.duplicates import PROBABLE_DUPLICATE
 from leo.types import (
     Contact,
     ExtractedTerm,
@@ -32,7 +33,6 @@ from leo.types import (
     finding_adapter,
 )
 
-PROBABLE_DUPLICATE = "probable_duplicate"
 CURRENT = "current"
 
 
@@ -112,6 +112,7 @@ def load_ledger(session: Session, tenant_id: UUID) -> Ledger:
         for v in r.rows(m.Vendor, m.Vendor.canonical_name)
     ]
 
+    # A linked duplicate's terms and facts are left out: they count once, under the original.
     dup_of = {
         link.document_id: paths[link.linked_document_id]
         for link in r.rows(m.DocumentLink, m.DocumentLink.id)
@@ -151,6 +152,7 @@ def load_ledger(session: Session, tenant_id: UUID) -> Ledger:
         for t in r.rows(
             m.ContractTerm, m.ContractTerm.type, m.ContractTerm.effective_date, m.ContractTerm.id
         )
+        if t.document_id not in dup_of
     ]
     facts = [
         InvoiceFact(
@@ -168,6 +170,7 @@ def load_ledger(session: Session, tenant_id: UUID) -> Ledger:
             notes=f.notes,
         )
         for f in r.rows(m.InvoiceFact, m.InvoiceFact.invoice_date, m.InvoiceFact.id)
+        if f.document_id not in dup_of
     ]
     txn_rows = r.rows(m.Transaction, m.Transaction.date, m.Transaction.id)
     transactions = [
@@ -198,8 +201,25 @@ def load_findings(session: Session, tenant_id: UUID, ledger: Ledger | None = Non
     loaded; it supplies the documents, order and duplicate links of the linked items."""
     r = _Reader(session, tenant_id)
     ledger = ledger or load_ledger(session, tenant_id)
-    term_docs = {t.id: t.document for t in ledger.terms}
-    fact_docs = {f.id: f.document for f in ledger.invoice_facts}
+    # From every stored row, not the ledger: the ledger leaves out a linked duplicate's items,
+    # and a finding written before the link may still cite them.
+    paths = r.doc_paths()
+    term_docs = {
+        str(i): paths[d]
+        for i, d in session.execute(
+            select(m.ContractTerm.id, m.ContractTerm.document_id).where(
+                m.ContractTerm.tenant_id == tenant_id
+            )
+        )
+    }
+    fact_docs = {
+        str(i): paths[d]
+        for i, d in session.execute(
+            select(m.InvoiceFact.id, m.InvoiceFact.document_id).where(
+                m.InvoiceFact.tenant_id == tenant_id
+            )
+        )
+    }
     dup_of = {d.path: d.probable_duplicate_of for d in ledger.documents}
     order = {
         x.id: i for i, x in enumerate([*ledger.terms, *ledger.invoice_facts, *ledger.transactions])

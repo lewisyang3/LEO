@@ -286,3 +286,15 @@ class Repo:
         }
         key = ("tenant_id", "document_id", "linked_document_id", "link_type")
         return self._put(DocumentLink, key, values)
+
+    def prune_links(self, link_type: str, keep: set[tuple[UUID, UUID]]) -> None:
+        """Delete this tenant's `link_type` links other than the (document, linked document)
+        pairs in `keep`. For links that are recomputed whole (A6's duplicates)."""
+        rows = self.session.execute(
+            select(
+                DocumentLink.id, DocumentLink.document_id, DocumentLink.linked_document_id
+            ).where(DocumentLink.tenant_id == self.tenant_id, DocumentLink.link_type == link_type)
+        ).all()
+        stale = [r.id for r in rows if (r.document_id, r.linked_document_id) not in keep]
+        if stale:
+            self.session.execute(delete(DocumentLink).where(DocumentLink.id.in_(stale)))

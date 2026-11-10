@@ -167,8 +167,7 @@ class SourceDocument(NaturalKeyRow):
     filename: Mapped[str | None] = mapped_column(Text)
     path: Mapped[str] = mapped_column(Text, nullable=False)  # source document path in shared types
     notes: Mapped[str | None] = mapped_column(Text)
-    exact_duplicate_of_id: Mapped[UUID | None]
-    probable_duplicate_of_id: Mapped[UUID | None]
+    context_fingerprint: Mapped[str | None] = mapped_column(Text)  # duplicate signal (A6)
     content_sha256: Mapped[str | None] = mapped_column(String(64))
     storage_path: Mapped[str] = mapped_column(Text, nullable=False)
     classification_raw: Mapped[dict | None] = mapped_column(JSONB)
@@ -178,8 +177,6 @@ class SourceDocument(NaturalKeyRow):
         _nk("source_document"),
         _fk("source_document", "vendor_id", "vendor"),
         _fk("source_document", "parent_document_id", "source_document", deferred=True),
-        _fk("source_document", "exact_duplicate_of_id", "source_document", deferred=True),
-        _fk("source_document", "probable_duplicate_of_id", "source_document", deferred=True),
     )
 
 
