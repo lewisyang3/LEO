@@ -150,8 +150,7 @@ def structured_call(
     if offline:
         raise LLMOfflineMiss(f"no cached {stage} answer for document {doc_hash[:12]} ({key[:12]})")
 
-    # We own the worker retries. New SDK clients must not silently amplify requests.
-    client = client or anthropic.Anthropic(api_key=api_key, max_retries=0)
+    client = client or anthropic.Anthropic(api_key=api_key)
     try:
         response = client.messages.create(
             model=model,
@@ -162,7 +161,8 @@ def structured_call(
         )
     except anthropic.APIError as exc:
         record_usage(
-            "claude", model,
+            "claude",
+            model,
             status="rate_limited" if getattr(exc, "status_code", None) == 429 else "failed",
         )
         raise
