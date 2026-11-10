@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** Next in Track A is A7 (seed and reset). A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** A7 (seed and reset) is done. The next task isn't chosen yet: A8 (Gmail sync) or 2.1 integration. A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -226,8 +226,14 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
       - The forward check reads the raw stored text. A base64 or quoted-printable body with no `Fwd:` subject isn't recognized, so decode the body first.
       - Term values are hashed as stored. Normalize numbers in the value JSON (`339` and `339.0`) before fingerprinting, so two extractors' copies agree.
 
-- [ ] **A7 [should] Seed and reset.** `make seed` loads the synthetic tenant, and `make reset` reruns migrations and seed. Deterministic keys make this safe.
-  - `make seed` was built in C3 (`python -m leo.db.seed`). `make reset` is still to do.
+- [x] **A7 [should] Seed and reset.** `make seed` loads the synthetic tenant, and `make reset` reruns migrations and seed. Deterministic keys make this safe.
+  - `make seed` was built in C3 (`python -m leo.db.seed`).
+
+  Done, in `leo/db/reset.py`:
+  - **Reset.** `make reset` drops and recreates the `public` schema, runs `alembic upgrade head`, then seeds, all in one process. It drops the schema rather than running `alembic downgrade base`, so it doesn't depend on any downgrade working. The init migration recreates `pg_trgm`. A reseed keeps approvals and edits, but a reset brings every action back as an unapproved draft.
+  - **Guards.** It refuses a database whose host isn't `localhost`, loopback or `db` unless `--force` is passed, and it prints the URL with the password hidden. The drop waits at most 5s for locks (`lock_timeout`). If the API or worker is mid-transaction, it stops and says to stop them first.
+  - **Not done here.** `LEO_RAW_DIR` isn't emptied: it's content-addressed, and the seed rewrites the same files. Uploaded bytes stay there with no row pointing to them, which does no harm.
+  - **Tests** (`tests/test_reset.py`): the local-host check, and the refusal of a remote database without dropping anything. No test drops the dev schema, because `make test` shares it. The reset itself was checked by hand: two runs in a row give the same row counts, and an approval made before a reset is back to a draft afterwards.
 - [ ] **A8 [should] Gmail sync.**
   - Read-only OAuth into a seeded demo Gmail account.
   - Incremental sync by `historyId`.
@@ -462,7 +468,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - The outbox is the sent actions.
   - **Upload.** `POST /api/documents` (multipart) calls `ingest` and commits. The path is `uploads/{sha8}-{name}`, and bytes already stored keep their row and path. A dashboard file picker uses it. Since A4 it queues a `classify` job.
   - **Stats.** `GET /api/stats` counts documents by class, terms and invoice facts by status, current findings, actions by state, and jobs by stage, `processed_by` and status (empty until A4). Cost comes with B6.
-  - **Seed.** `make seed` runs `python -m leo.db.seed` and commits. `make reset` is still A7. A reseed doesn't undo decisions, so a clean demo needs `make reset`.
+  - **Seed.** `make seed` runs `python -m leo.db.seed` and commits. A reseed doesn't undo decisions, so a clean demo needs `make reset` (A7).
   - **Tests** (`tests/test_api.py`, which now needs Postgres): each test seeds under a random tenant slug, so the dev database never affects a test. `tests/test_repo.py` does the same now, because `make seed` commits the default tenant to that database. They cover:
     - C2's checks, run on the database
     - `load_findings` matching the key's F1–F5 on every field but the ids

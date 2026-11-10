@@ -20,6 +20,7 @@ make up        # start Postgres 16 and wait until it's healthy
 make migrate   # apply Alembic migrations
 make test      # run pytest (includes the answer-key validator)
 make seed      # load the Brightwater demo tenant (the API and UI read it)
+make reset     # later: wipe the database and reseed, for a clean demo
 ```
 
 Then, in two terminals:
@@ -43,7 +44,8 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `lint` | `ruff check` and `ruff format --check` |
 | `api` | Run FastAPI with reload |
 | `web` | Run the Vite dev server |
-| `seed` | Load the answer key into the database as the demo tenant (`python -m leo.db.seed`). `make reset` comes with ROADMAP A7 |
+| `seed` | Load the answer key into the database as the demo tenant (`python -m leo.db.seed`). A reseed keeps approvals and edits |
+| `reset` | Drop the schema, migrate and seed, for a clean demo (`python -m leo.db.reset`). Stop the API and worker first. Refuses a non-local database without `--force` |
 | `eval` | Score the classifier, extractor, validator and drafter against the answer key (`python -m leo.eval --help`). The held-out classifier set runs with `python -m leo.eval.holdout`. No database needed. The default fixture engines need no API keys |
 | `e2e` | Placeholder until ROADMAP 2.2 (exits 1) |
 
