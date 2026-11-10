@@ -632,3 +632,54 @@ def test_vendor_from_another_tenant_404(client, session):
     other = seed(session, slug=f"test-{new_uuid7()}")
     vid = session.scalar(select(m.Vendor.id).where(m.Vendor.tenant_id == other).limit(1))
     assert client.get(f"/api/vendors/{vid}").status_code == 404
+
+
+# --- B6 analytics ------------------------------------------------------------------------
+
+
+def test_analytics_summary_and_job_report_spend(client, session, tenant):
+    from leo.worker import queue
+
+    queue.request_reconcile(session, tenant)  # a tenant job: document_id is NULL
+    job = session.scalar(select(m.Job).where(m.Job.tenant_id == tenant))
+    execution = m.StageExecution(
+        tenant_id=tenant, job_id=job.id, stage=job.stage, status="completed"
+    )
+    session.add(execution)
+    session.flush()
+    session.add(
+        m.ModelUsage(
+            tenant_id=tenant,
+            stage_execution_id=execution.id,
+            provider="claude",
+            model="claude-haiku-5-5",
+            attempt_number=1,
+            input_tokens=450,
+            output_tokens=900,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=5125,
+            cost_usd=Decimal("0.00051125"),
+            status="success",
+        )
+    )
+    session.commit()
+
+    summary = client.get("/api/analytics/summary").json()
+    assert summary["reached_by_stage"] == {"reconcile": 1}
+    assert summary["providers"] == [
+        {
+            "provider": "claude",
+            "api_attempts": 1,
+            "input_tokens": 450,
+            "output_tokens": 900,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 5125,
+            "known_cost_usd": "0.00051125",
+            "unpriced_attempts": 0,
+        }
+    ]
+
+    report = client.get(f"/api/analytics/jobs/{job.id}").json()
+    assert report["document_id"] is None
+    [call] = report["executions"][0]["api_calls"]
+    assert (call["cache_read_input_tokens"], call["cost_usd"]) == (5125, "0.00051125")

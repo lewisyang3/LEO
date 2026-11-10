@@ -18,6 +18,7 @@ from typing import Any
 
 from typesafe_sdk import Choice, TypeSafeError
 
+from leo.analytics.usage import record_usage
 from leo.interfaces import Classification, DocumentText
 from leo.types import DocumentClass
 
@@ -81,11 +82,16 @@ class JevClassifier:
                     JEV_QUESTION: Choice(instructions=JEV_INSTRUCTIONS, criteria=JEV_CRITERIA)
                 },
             )
+            record_usage(
+                "jev", getattr(resp, "model", "jev-latest"), getattr(resp, "usage", None)
+            )
             probabilities = {
                 str(k): float(v) for k, v in resp.choices[JEV_QUESTION].probabilities.items()
             }
             p_noise = probabilities[DocumentClass.noise.value]
         except (TypeSafeError, KeyError) as e:
+            if isinstance(e, TypeSafeError):
+                record_usage("jev", "jev-latest", status="failed")
             log.warning("Jev classification failed for %s: %r", path, e)
             raise ClassificationFailed(f"Jev classification failed: {e!r}") from e
 

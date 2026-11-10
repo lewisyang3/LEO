@@ -31,8 +31,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from leo import stubs
+from leo.analytics.usage import collect_usage
 from leo.db import keys
-from leo.db.models import Job
+from leo.db.models import Job, ModelUsage, StageExecution
 from leo.db.models import SourceDocument as DocumentRow
 from leo.db.read import load_ledger
 from leo.db.repo import Repo
@@ -106,30 +107,80 @@ class Worker:
             return False
         job_id = job.id
         s.commit()
-        try:
-            result = self._run(job)
-            job = s.get(Job, job_id)
-            job.raw_model_output = result.output
-            job.processed_by = result.processed_by
-            job.status = queue.DONE
-            job.last_error = None
-            job.run_after = None
-            job.updated_at = func.now()
-            if result.next_stage == queue.RECONCILE:
-                queue.request_reconcile(s, job.tenant_id)
-            elif result.next_stage is not None:
-                doc_key = self._doc(job).natural_key
-                queue.enqueue(s, job.tenant_id, job.document_id, doc_key, result.next_stage)
-            s.commit()
-        except Exception as e:
-            s.rollback()
-            log.warning("job %s failed: %r", job_id, e)
-            self._failed(job_id, e)
-            s.commit()
-        except BaseException:
-            self._release(job_id)
-            raise
+        execution = StageExecution(tenant_id=job.tenant_id, job_id=job.id, stage=job.stage)
+        s.add(execution)
+        s.commit()
+        execution_id = execution.id
+        # Model calls register into this in-memory list. Even if _run raises, keep them.
+        with collect_usage() as calls:
+            try:
+                result = self._run(job)
+                job = s.get(Job, job_id)
+                job.raw_model_output = result.output
+                job.processed_by = result.processed_by
+                job.status = queue.DONE
+                job.last_error = None
+                job.run_after = None
+                job.updated_at = func.now()
+                if result.next_stage == queue.RECONCILE:
+                    queue.request_reconcile(s, job.tenant_id)
+                elif result.next_stage is not None:
+                    doc_key = self._doc(job).natural_key
+                    queue.enqueue(s, job.tenant_id, job.document_id, doc_key, result.next_stage)
+                # Stage and API usage commit with successful job outcome.
+                filtered = job.stage == queue.CLASSIFY and result.next_stage is None
+                self._finish_execution(
+                    execution_id,
+                    calls,
+                    "filtered" if filtered else "completed",
+                    "classified_noise" if filtered else None,
+                )
+                s.commit()
+            except Exception as e:
+                s.rollback()
+                log.warning("job %s failed: %r", job_id, e)
+                self._failed(job_id, e)
+                self._finish_execution(execution_id, calls, "failed", f"{type(e).__name__}: {e}")
+                s.commit()
+            except BaseException:
+                # Hand the claim back first; analytics must never block it or replace the error.
+                self._release(job_id)
+                self._record_interrupted(execution_id, calls)
+                raise
         return True
+
+    def _finish_execution(self, execution_id, calls, status: str, reason: str | None) -> None:
+        """Record each real API call, including failed attempts; no cached-call billing."""
+        execution = self.session.get(StageExecution, execution_id)
+        execution.status = status
+        execution.stop_reason = reason[:4000] if reason else None
+        execution.finished_at = func.now()
+        for index, call in enumerate(calls, start=1):
+            self.session.add(
+                ModelUsage(
+                    tenant_id=execution.tenant_id,
+                    stage_execution_id=execution_id,
+                    provider=call.provider,
+                    model=call.model,
+                    attempt_number=index,
+                    input_tokens=call.input_tokens,
+                    output_tokens=call.output_tokens,
+                    cost_usd=call.cost_usd,
+                    status=call.status,
+                    cache_creation_input_tokens=call.cache_creation_input_tokens,
+                    cache_read_input_tokens=call.cache_read_input_tokens,
+                )
+            )
+
+    def _record_interrupted(self, execution_id: UUID, calls) -> None:
+        """Best effort, like `_release`: a broken connection here only loses the analytics."""
+        s = self.session
+        try:
+            s.rollback()
+            self._finish_execution(execution_id, calls, "failed", "worker interrupted")
+            s.commit()
+        except Exception:
+            log.exception("could not record interrupted execution %s", execution_id)
 
     def drain(self) -> int:
         """Run jobs until none is left to run. Returns how many ran.

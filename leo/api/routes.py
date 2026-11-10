@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
-from sqlalchemy import select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from leo.api.schemas import (
@@ -23,7 +23,7 @@ from leo.api.schemas import (
 from leo.api.store import DbStore, InvalidTransition, NotFound
 from leo.clock import get_clock
 from leo.config import get_settings
-from leo.db.models import Tenant
+from leo.db.models import Job, ModelUsage, SourceDocument, StageExecution, Tenant
 from leo.db.session import get_sessionmaker
 from leo.ingest.store import RawStore
 
@@ -115,6 +115,143 @@ def upload_document(file: UploadFile, store: Store) -> UploadOut:
 @router.get("/stats")
 def stats(store: Store) -> Stats:
     return store.stats()
+
+
+@router.get("/analytics/jobs/{job_id}")
+def analytics_job(job_id: str, store: Store) -> dict:
+    """Attempts and individual provider calls for a single stage job."""
+    from uuid import UUID
+
+    try:
+        uid = UUID(job_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="invalid job UUID") from None
+    s = store.session
+    job = s.scalar(select(Job).where(Job.id == uid, Job.tenant_id == store.tenant_id))
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    executions = s.scalars(
+        select(StageExecution)
+        .where(StageExecution.job_id == job.id, StageExecution.tenant_id == store.tenant_id)
+        .order_by(StageExecution.started_at, StageExecution.id)
+    ).all()
+    items = []
+    for execution in executions:
+        usages = s.scalars(
+            select(ModelUsage)
+            .where(
+                ModelUsage.stage_execution_id == execution.id,
+                ModelUsage.tenant_id == store.tenant_id,
+            )
+            .order_by(ModelUsage.attempt_number)
+        ).all()
+        items.append(
+            {
+                "stage_execution_id": str(execution.id),
+                "status": execution.status,
+                "stop_reason": execution.stop_reason,
+                "started_at": execution.started_at.isoformat(),
+                "finished_at": execution.finished_at.isoformat() if execution.finished_at else None,
+                "api_calls": [
+                    {
+                        "provider": usage.provider,
+                        "model": usage.model,
+                        "attempt_number": usage.attempt_number,
+                        "status": usage.status,
+                        "input_tokens": usage.input_tokens,
+                        "output_tokens": usage.output_tokens,
+                        "cache_creation_input_tokens": usage.cache_creation_input_tokens,
+                        "cache_read_input_tokens": usage.cache_read_input_tokens,
+                        "cost_usd": str(usage.cost_usd) if usage.cost_usd is not None else None,
+                    }
+                    for usage in usages
+                ],
+            }
+        )
+    return {
+        "job_id": str(job.id),
+        "document_id": str(job.document_id) if job.document_id else None,
+        "stage": job.stage,
+        "status": job.status,
+        "executions": items,
+    }
+
+
+@router.get("/analytics/summary")
+def analytics_summary(store: Store) -> dict:
+    """Tenant-scoped B6 funnel, per-provider spend, and stage outcome counts.
+
+    Reached counts distinct jobs, not retry attempts. API counts include failed
+    outbound calls; costs are partial if provider rates or usage are unavailable.
+    """
+    s = store.session
+    tenant = store.tenant_id
+    ingested = (
+        s.scalar(select(func.count(SourceDocument.id)).where(SourceDocument.tenant_id == tenant))
+        or 0
+    )
+    mail = (
+        s.scalar(
+            select(func.count(SourceDocument.id)).where(
+                SourceDocument.tenant_id == tenant,
+                SourceDocument.source_kind.in_(("eml", "gmail")),
+            )
+        )
+        or 0
+    )
+    reached = s.execute(
+        select(StageExecution.stage, func.count(distinct(StageExecution.job_id)))
+        .where(StageExecution.tenant_id == tenant)
+        .group_by(StageExecution.stage)
+    ).all()
+    outcomes = s.execute(
+        select(StageExecution.stage, StageExecution.status, func.count(StageExecution.id))
+        .where(StageExecution.tenant_id == tenant)
+        .group_by(StageExecution.stage, StageExecution.status)
+    ).all()
+    stops = s.execute(
+        select(Job.stage, Job.status, func.count(Job.id))
+        .where(Job.tenant_id == tenant, Job.status.in_(("failed", "parked")))
+        .group_by(Job.stage, Job.status)
+    ).all()
+    api = s.execute(
+        select(
+            ModelUsage.provider,
+            func.count(ModelUsage.id),
+            func.coalesce(func.sum(ModelUsage.input_tokens), 0),
+            func.coalesce(func.sum(ModelUsage.output_tokens), 0),
+            func.coalesce(func.sum(ModelUsage.cache_creation_input_tokens), 0),
+            func.coalesce(func.sum(ModelUsage.cache_read_input_tokens), 0),
+            func.coalesce(func.sum(ModelUsage.cost_usd), 0),
+            func.count(ModelUsage.id).filter(ModelUsage.cost_usd.is_(None)),
+        )
+        .where(ModelUsage.tenant_id == tenant)
+        .group_by(ModelUsage.provider)
+    ).all()
+    return {
+        "documents_ingested": ingested,
+        "emails_ingested": mail,
+        "reached_by_stage": dict(reached),
+        "attempt_outcomes": [
+            {"stage": stage, "status": status, "count": count} for stage, status, count in outcomes
+        ],
+        "terminal_failures": [
+            {"stage": stage, "status": status, "count": count} for stage, status, count in stops
+        ],
+        "providers": [
+            {
+                "provider": provider,
+                "api_attempts": count,
+                "input_tokens": int(inp),
+                "output_tokens": int(out),
+                "cache_creation_input_tokens": int(cw),
+                "cache_read_input_tokens": int(cr),
+                "known_cost_usd": str(cost),
+                "unpriced_attempts": missing,
+            }
+            for provider, count, inp, out, cw, cr, cost, missing in api
+        ],
+    }
 
 
 def _csv(name: str, body: str, store: DbStore) -> Response:
