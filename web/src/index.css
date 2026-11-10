@@ -196,13 +196,35 @@ th {
   font-weight: 600;
 }
 
-table.findings tbody tr {
+table.findings tbody tr,
+table.rows tbody tr {
   cursor: pointer;
+  transition: background-color 120ms ease-out;
 }
 
 table.findings tbody tr:hover,
-table.findings tbody tr:focus-within {
+table.findings tbody tr:focus-within,
+table.rows tbody tr:hover,
+table.rows tbody tr:focus-within {
   background: #f1f4fb;
+}
+
+/* Feedback on press, not on release */
+table.findings tbody tr:active,
+table.rows tbody tr:active {
+  background: #e6ecf9;
+}
+
+table.vendors tr.quiet td {
+  color: var(--muted);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.block {
+  display: block;
 }
 
 table.findings td:nth-child(4),
@@ -460,7 +482,111 @@ mark {
   padding: 0.6rem 1.8rem;
 }
 
+/* --- Price history (vendor view) --- */
+
+.series-head {
+  margin-bottom: 0.5rem;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  border-left: 2px solid var(--line);
+}
+
+.point {
+  position: relative;
+  padding: 0.15rem 0 0.7rem 0.6rem;
+}
+
+.point:last-child {
+  padding-bottom: 0.1rem;
+}
+
+/* A dot on the line: filled for the price in effect, hollow for one still to come */
+.point::before {
+  content: '';
+  position: absolute;
+  left: calc(-1rem - 6px);
+  top: 0.5rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  border: 1px solid white;
+}
+
+.point.current::before {
+  background: var(--accent);
+}
+
+/* Hollow ring: the price is known but not yet in effect */
+.point.upcoming::before {
+  background: white;
+  box-shadow: inset 0 0 0 2px var(--soon);
+  border-color: white;
+}
+
+.point-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.7rem;
+}
+
+.point .when {
+  color: var(--muted);
+  font-size: 0.88rem;
+  min-width: 6.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.point .amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.point.superseded .amount {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.change {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.change.up {
+  color: var(--soon);
+  font-weight: 600;
+}
+
+.change.down {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.point .badge {
+  margin-left: 0;
+}
+
+.badge.status-current {
+  background: #e3ecff;
+  color: var(--accent);
+}
+
+.badge.status-upcoming {
+  background: #fdf0d9;
+  color: var(--soon);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  table.findings tbody tr,
+  table.rows tbody tr {
+    transition: none;
+  }
+
   button,
   pre.doc {
     transition: none;

@@ -3,6 +3,7 @@ import type { FindingDetail as Detail, NumberRef, QuoteRef } from './api'
 import { formatNumber, formatTermValue, humanize, longDate, money } from './api'
 import { DaysLeft, StateBadge } from './Dashboard'
 import DocumentViewer from './DocumentViewer'
+import { vendorHref } from './route'
 import { useFetch } from './useFetch'
 
 export default function FindingDetail({ id, version }: { id: string; version: number }) {
@@ -54,7 +55,7 @@ export default function FindingDetail({ id, version }: { id: string; version: nu
       </p>
       <h1>{s.title}</h1>
       <p className="muted">
-        {d.vendor.canonical_name} · {humanize(s.kind)}
+        <a href={vendorHref(d.vendor.id)}>{d.vendor.canonical_name}</a> · {humanize(s.kind)}
         {s.plan_label && ` · ${s.plan_label}`} · <DaysLeft days={s.days_left} long />
         {s.deadline && ` · deadline ${longDate(s.deadline)}`}
       </p>

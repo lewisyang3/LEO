@@ -118,6 +118,38 @@ export type FindingDetail = {
   action: Action
 }
 
+export type VendorSummary = {
+  id: string
+  canonical_name: string
+  aliases: string[]
+  terms: number
+  transactions: number
+  open_findings: number
+  at_stake: number
+}
+
+export type TermOut = { term: Term; citations: QuoteRef[] }
+
+export type PricePoint = { term: TermOut; in_effect: boolean; change: number | null }
+
+export type PriceSeries = { agreement_ref: string | null; plan_label: string | null; points: PricePoint[] }
+
+export type MatchedTransaction = {
+  transaction: Transaction
+  plan_label: string | null
+  invoice_fact: InvoiceFact | null
+  findings: string[]
+}
+
+export type VendorDetail = {
+  vendor: { id: string; canonical_name: string; aliases: string[] }
+  findings: FindingSummary[]
+  price_history: PriceSeries[]
+  terms: TermOut[]
+  transactions: MatchedTransaction[]
+  linked_duplicates: string[]
+}
+
 export type DocumentOut = { path: string; doc_class: string | null; vendor: string | null; text: string }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {

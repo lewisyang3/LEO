@@ -25,6 +25,7 @@ from leo.types import (
     Finding,
     InvoiceFact,
     SourceDocument,
+    TermStatus,
     Transaction,
     Vendor,
     extracted_term_adapter,
@@ -41,6 +42,15 @@ class StoredCitation:
     quote: str
     start: int | None
     end: int | None
+
+
+@dataclass(frozen=True)
+class PriceSeries:
+    """One price history (ROADMAP C5): a vendor's price terms for one agreement and plan."""
+
+    agreement_ref: str | None
+    plan_label: str | None
+    terms: list[str]  # term ids, by effective date (undated last)
 
 
 def _s(x: UUID | None) -> str | None:
@@ -244,3 +254,37 @@ def load_findings(session: Session, tenant_id: UUID, ledger: Ledger | None = Non
             data["computation"] = f.computation
         out.append(finding_adapter.validate_python(data))
     return out
+
+
+def _duplicate_documents(tenant_id: UUID):
+    """Ids of documents linked as a probable duplicate of another (the forward, not the
+    original). Their facts are counted once, under the original."""
+    return select(m.DocumentLink.document_id).where(
+        m.DocumentLink.tenant_id == tenant_id, m.DocumentLink.link_type == PROBABLE_DUPLICATE
+    )
+
+
+def load_price_history(session: Session, tenant_id: UUID, vendor_id: UUID) -> list[PriceSeries]:
+    """The design doc's price history: a vendor's `price` terms, one series per agreement_ref
+    and plan_label, by effective date. Terms from probable-duplicate documents are left out, and so
+    are `needs_review` terms, which failed validation (the reconciler ignores them too)."""
+    q = (
+        select(m.ContractTerm.id, m.ContractTerm.agreement_ref, m.ContractTerm.plan_label)
+        .where(
+            m.ContractTerm.tenant_id == tenant_id,
+            m.ContractTerm.vendor_id == vendor_id,
+            m.ContractTerm.type == "price",
+            m.ContractTerm.status != TermStatus.needs_review,
+            m.ContractTerm.document_id.not_in(_duplicate_documents(tenant_id)),
+        )
+        .order_by(m.ContractTerm.effective_date.asc().nulls_last(), m.ContractTerm.id)
+    )
+    series: dict[tuple[str | None, str | None], list[str]] = defaultdict(list)
+    for term_id, ref, plan in session.execute(q).all():
+        series[(ref, plan)].append(str(term_id))
+    return [
+        PriceSeries(agreement_ref=ref, plan_label=plan, terms=ids)
+        for (ref, plan), ids in sorted(
+            series.items(), key=lambda kv: (kv[0][1] or "", kv[0][0] or "")
+        )
+    ]

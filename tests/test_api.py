@@ -1,4 +1,4 @@
-"""The API on Postgres (ROADMAP C2 routes, C3 store).
+"""The API on Postgres (ROADMAP C2 routes, C3 store, C4 export, C5 vendors).
 
 Needs `make up && make migrate`. Each test seeds the answer key under its own random tenant
 slug, inside the rolled-back `session` from conftest.py. The dev database that `make seed`
@@ -23,6 +23,7 @@ from leo.config import get_settings
 from leo.db import models as m
 from leo.db.models import new_uuid7
 from leo.db.read import load_findings, load_ledger
+from leo.db.repo import Repo
 from leo.db.seed import seed
 from leo.fixtures import load_fixture
 from leo.types import FindingKind
@@ -358,3 +359,214 @@ def test_export_cell_formatting():
     assert _cell(True) == "true"
     assert _cell(datetime.date(2026, 11, 2)) == "2026-11-02"
     assert _cell(FindingKind.price_cap_exceeded) == "price_cap_exceeded"
+
+
+# --- Vendors (C5) ---------------------------------------------------------------------------
+
+LUMENPOST_FWD = "inbox/02_fw_lumenpost_price_change_notice.eml"
+
+
+def _vendor_ids(client) -> dict[str, str]:
+    """Fixture vendor slug -> API vendor id, matched by canonical name."""
+    by_name = {v["canonical_name"]: v["id"] for v in client.get("/api/vendors").json()}
+    return {v.id: by_name[v.canonical_name] for v in load_fixture().vendors}
+
+
+def _vendor(client, slug: str) -> dict:
+    r = client.get(f"/api/vendors/{_vendor_ids(client)[slug]}")
+    assert r.status_code == 200
+    return r.json()
+
+
+def _history(detail: dict) -> dict[str | None, list[tuple[str, float, bool, float | None]]]:
+    """plan label -> [(effective date, amount, in effect, change)]"""
+    return {
+        s["plan_label"]: [
+            (
+                p["term"]["term"]["effective_date"],
+                p["term"]["term"]["value"]["amount"],
+                p["in_effect"],
+                p["change"],
+            )
+            for p in s["points"]
+        ]
+        for s in detail["price_history"]
+    }
+
+
+def test_vendor_list_counts_match_the_key(client):
+    fixture = load_fixture()
+    rows = {v["id"]: v for v in client.get("/api/vendors").json()}
+    ids = _vendor_ids(client)
+    assert len(rows) == len(fixture.vendors) == 10
+    for v in fixture.vendors:
+        row = rows[ids[v.id]]
+        assert row["terms"] == sum(t.vendor == v.id for t in fixture.terms), v.id
+        txns = sum(vid == v.id for vid in fixture.transaction_vendor_map.values())
+        assert row["transactions"] == txns, v.id
+        assert row["open_findings"] == sum(f.vendor == v.id for f in fixture.findings), v.id
+    dash = client.get("/api/dashboard").json()
+    assert sum(r["open_findings"] for r in rows.values()) == dash["open_findings"]
+    assert sum(r["at_stake"] for r in rows.values()) == pytest.approx(dash["at_stake"])
+
+
+def test_lumenpost_price_history_is_d4(client):
+    """D4: two plans, a change on one only, histories kept apart. Today is 2026-11-02, so the
+    Dec 1 prices are known but not in effect."""
+    d = _vendor(client, "lumenpost")
+    assert _history(d) == {
+        "Growth": [("2025-03-03", 299.0, True, None), ("2026-12-01", 339.0, False, 40.0)],
+        "Transactional Email add-on": [
+            ("2025-03-03", 49.0, True, None),
+            ("2026-12-01", 49.0, False, 0.0),
+        ],
+    }
+    assert {s["agreement_ref"] for s in d["price_history"]} == {"LP-204417"}
+    assert d["linked_duplicates"] == [LUMENPOST_FWD]
+    assert [f["kind"] for f in d["findings"]] == ["price_increase_notice"]
+
+
+def test_price_history_leaves_out_linked_duplicates(client, session, tenant):
+    """D2: a term extracted from the forward is counted once, under the original."""
+    fwd = session.scalar(
+        select(m.SourceDocument).where(
+            m.SourceDocument.tenant_id == tenant, m.SourceDocument.path == LUMENPOST_FWD
+        )
+    )
+    quote = "the price of the Growth plan will change from $299/month to $339/month"
+    repo = Repo(session, tenant)
+    tid = repo.upsert_term(
+        "test:c5:fwd-growth-price",
+        vendor_id=fwd.vendor_id,
+        document_id=fwd.id,
+        type="price",
+        value={"amount": 339.0, "currency": "USD", "per": "month"},
+        plan_label="Growth",
+        agreement_ref="LP-204417",
+        effective_date=datetime.date(2026, 12, 1),
+    )
+    repo.set_citations("term_id", tid, fwd.id, quote, [quote])
+    session.flush()
+
+    d = _vendor(client, "lumenpost")
+    assert [p[1] for p in _history(d)["Growth"]] == [299.0, 339.0]
+    assert str(tid) not in {t["term"]["id"] for t in d["terms"]}
+    assert len(d["terms"]) == sum(t.vendor == "lumenpost" for t in load_fixture().terms)
+    row = next(v for v in client.get("/api/vendors").json() if v["id"] == str(fwd.vendor_id))
+    assert row["terms"] == len(d["terms"])
+
+
+def test_unvalidated_items_stay_out_of_history_and_matches(client, session, tenant):
+    """`needs_review` items failed validation. The reconciler ignores them, so the price history
+    and the invoice matches do too. The terms list keeps every status."""
+
+    def doc(path: str) -> m.SourceDocument:
+        return session.scalar(
+            select(m.SourceDocument).where(
+                m.SourceDocument.tenant_id == tenant, m.SourceDocument.path == path
+            )
+        )
+
+    repo = Repo(session, tenant)
+    order = doc("inbox/03_lumenpost_order_confirmation.eml")
+    tid = repo.upsert_term(
+        "test:c5:unvalidated-growth-price",
+        vendor_id=order.vendor_id,
+        document_id=order.id,
+        type="price",
+        value={"amount": 999.0, "currency": "USD", "per": "month"},
+        plan_label="Growth",
+        agreement_ref="LP-204417",
+        effective_date=datetime.date(2026, 6, 1),
+        status="needs_review",
+    )
+    repo.set_citations("term_id", tid, order.id, "Growth: $999/month", ["Growth: $999/month"])
+
+    invoice = doc("inbox/05_kestrel_invoice_2026_09.eml")
+    june = session.scalar(
+        select(m.Transaction.id).where(
+            m.Transaction.tenant_id == tenant,
+            m.Transaction.vendor_id == invoice.vendor_id,
+            m.Transaction.date == datetime.date(2026, 6, 1),
+        )
+    )
+    fid = repo.upsert_invoice_fact(
+        "test:c5:unvalidated-invoice",
+        vendor_id=invoice.vendor_id,
+        document_id=invoice.id,
+        billing_period="2026-06",
+        invoice_date=datetime.date(2026, 6, 1),
+        amount=Decimal("1200"),
+        invoice_number="INV-BAD-0601",
+        matches_transaction=june,
+        status="needs_review",
+    )
+    repo.set_citations("invoice_fact_id", fid, invoice.id, "INV-BAD-0601", ["INV-BAD-0601"])
+    session.flush()
+
+    lp = _vendor(client, "lumenpost")
+    growth = _history(lp)["Growth"]
+    assert [(p[1], p[3]) for p in growth] == [(299.0, None), (339.0, 40.0)]
+    term = next(t["term"] for t in lp["terms"] if t["term"]["id"] == str(tid))
+    assert term["status"] == "needs_review"
+
+    kc = _vendor(client, "kestrel")
+    charge = next(x for x in kc["transactions"] if x["transaction"]["id"] == str(june))
+    assert charge["invoice_fact"] is None
+
+
+def test_kestrel_transactions_matched_to_invoices(client):
+    fixture = load_fixture()
+    d = _vendor(client, "kestrel")
+    txns = d["transactions"]
+    key = sorted(
+        (t for t in fixture.transactions if fixture.transaction_vendor_map[t.id] == "kestrel"),
+        key=lambda t: t.date,
+    )
+    assert [(x["transaction"]["date"], x["transaction"]["amount"]) for x in txns] == [
+        (t.date.isoformat(), float(t.amount)) for t in key
+    ]
+    # API ids are UUIDs: match the key's invoice -> transaction pairs by date and amount.
+    key_txn = {t.id: (t.date.isoformat(), float(t.amount)) for t in key}
+    expected = {
+        key_txn[f.matches_transaction]: f.invoice_number
+        for f in fixture.invoice_facts
+        if f.vendor == "kestrel"
+    }
+    got = {
+        (x["transaction"]["date"], x["transaction"]["amount"]): x["invoice_fact"]["invoice_number"]
+        for x in txns
+        if x["invoice_fact"]
+    }
+    assert (
+        got
+        == expected
+        == {
+            ("2026-09-01", 1308.0): "INV-KCH-260901",
+            ("2026-10-01", 1308.0): "INV-KCH-261001",
+        }
+    )
+    # Every finding a charge cites is one of this vendor's findings.
+    finding_ids = {f["id"] for f in d["findings"]}
+    cited = {fid for x in txns for fid in x["findings"]}
+    assert cited and cited <= finding_ids
+
+
+def test_vendor_terms_every_key_term_once(client):
+    fixture = load_fixture()
+    for slug in _vendor_ids(client):
+        d = _vendor(client, slug)
+        got = sorted((t["term"]["type"], t["citations"][0]["quote"]) for t in d["terms"])
+        key = sorted((str(t.type), t.quotes[0]) for t in fixture.terms if t.vendor == slug)
+        assert got == key, slug
+
+
+@pytest.mark.parametrize("bad", ["nope", "00000000-0000-0000-0000-000000000000"])
+def test_unknown_vendor_404(client, bad):
+    assert client.get(f"/api/vendors/{bad}").status_code == 404
+
+
+def test_vendor_from_another_tenant_404(client, session):
+    other = seed(session, slug=f"test-{new_uuid7()}")
+    vid = session.scalar(select(m.Vendor.id).where(m.Vendor.tenant_id == other).limit(1))
+    assert client.get(f"/api/vendors/{vid}").status_code == 404
