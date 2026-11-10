@@ -142,7 +142,8 @@ class Reconciliation(LeoModel):
 
 @runtime_checkable
 class Classifier(Protocol):
-    """Stage 1. Jev, with the Haiku investigate step for unsure items (B2)."""
+    """Stage 1. Jev (B2). Raises when the engine gives no usable answer; the worker keeps that
+    document unclassified for review, never noise."""
 
     def classify(self, doc: DocumentText) -> Classification: ...
 

@@ -114,10 +114,23 @@ class DocClassification(LeoModel):
     confidence: float | None
     matters: bool  # cited by a planted finding (F1-F5)
     error: str | None = None
+    probabilities: dict[str, float] | None = None  # the engine's, when it records them (Jev)
+
+    @property
+    def p_noise(self) -> float | None:
+        return self.probabilities.get(DocumentClass.noise.value) if self.probabilities else None
 
     @property
     def ok(self) -> bool:
         return self.predicted == self.expected
+
+
+class ThresholdPoint(LeoModel):
+    """Matters-recall and noise false-pass if noise were P(noise) >= `threshold`."""
+
+    threshold: float
+    matters_recall: Rate
+    noise_false_pass: Rate
 
 
 class ClassificationSummary(LeoModel):
@@ -126,6 +139,11 @@ class ClassificationSummary(LeoModel):
     noise_false_pass: Rate  # key-noise documents predicted non-noise
     mean_confidence: float | None
     confusion: dict[str, dict[str, int]]  # key class -> predicted class ("error") -> count
+    # Only when the engine recorded probabilities (B2's threshold tuning).
+    threshold_sweep: list[ThresholdPoint] = []
+    # The lowest threshold that keeps every document that matters out of noise. A higher one
+    # labels fewer documents noise, so it only adds false-passes. None if no threshold does.
+    recommended_threshold: float | None = None
 
 
 class DocValidation(LeoModel):
@@ -333,13 +351,45 @@ def summarize_classification(docs: Sequence[DocClassification]) -> Classificatio
         predicted = d.predicted.value if d.predicted else "error"
         confusion.setdefault(d.expected.value, Counter())[predicted] += 1
     confidences = [d.confidence for d in docs if d.confidence is not None]
+    sweep, recommended = threshold_sweep(docs)
     return ClassificationSummary(
         accuracy=accuracy,
         matters_recall=matters,
         noise_false_pass=noise,
         mean_confidence=sum(confidences) / len(confidences) if confidences else None,
         confusion={k: dict(v) for k, v in confusion.items()},
+        threshold_sweep=sweep,
+        recommended_threshold=recommended,
     )
+
+
+SWEEP_GRID = tuple(round(0.5 + 0.05 * i, 2) for i in range(10))  # 0.50 .. 0.95
+
+
+def threshold_sweep(
+    docs: Sequence[DocClassification],
+) -> tuple[list[ThresholdPoint], float | None]:
+    """Rescore noise at each candidate threshold (the grid plus every recorded P(noise)), from
+    each document's P(noise). A document without probabilities (an error) never passes, as in
+    `summarize_classification`. Returns the sweep and the recommended threshold: the lowest
+    candidate above every matters document's P(noise), or None if one of them has no P(noise)."""
+    if not any(d.p_noise is not None for d in docs):
+        return [], None
+    candidates = sorted({*SWEEP_GRID, *(d.p_noise for d in docs if d.p_noise is not None)})
+    sweep = []
+    for t in candidates:
+        matters, noise = Rate(), Rate()
+        for d in docs:
+            passed = d.p_noise is not None and d.p_noise < t
+            if d.matters:
+                matters.add(passed)
+            if d.expected == DocumentClass.noise:
+                noise.add(passed)
+        sweep.append(ThresholdPoint(threshold=t, matters_recall=matters, noise_false_pass=noise))
+    recommended = next(
+        (p.threshold for p in sweep if p.matters_recall.hit == p.matters_recall.total), None
+    )
+    return sweep, recommended
 
 
 # --- Extraction ------------------------------------------------------------------------------
