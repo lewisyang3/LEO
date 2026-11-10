@@ -6,6 +6,7 @@ from alembic import context
 from sqlalchemy import create_engine, pool
 
 from leo.config import get_settings
+from leo.db.models import Base
 
 config = context.config
 
@@ -13,7 +14,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # A1 sets this to the models' Base.metadata so autogenerate works.
-target_metadata = None
+target_metadata = Base.metadata
 
 DATABASE_URL = get_settings().database_url
 
