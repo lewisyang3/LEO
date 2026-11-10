@@ -130,7 +130,9 @@ class Worker:
                 # Stage and API usage commit with successful job outcome.
                 filtered = job.stage == queue.CLASSIFY and result.next_stage is None
                 self._finish_execution(
-                    execution_id, calls, "filtered" if filtered else "completed",
+                    execution_id,
+                    calls,
+                    "filtered" if filtered else "completed",
                     "classified_noise" if filtered else None,
                 )
                 s.commit()
@@ -141,10 +143,9 @@ class Worker:
                 self._finish_execution(execution_id, calls, "failed", f"{type(e).__name__}: {e}")
                 s.commit()
             except BaseException:
-                s.rollback()
-                self._finish_execution(execution_id, calls, "failed", "worker interrupted")
-                s.commit()
+                # Hand the claim back first; analytics must never block it or replace the error.
                 self._release(job_id)
+                self._record_interrupted(execution_id, calls)
                 raise
         return True
 
@@ -155,17 +156,31 @@ class Worker:
         execution.stop_reason = reason[:4000] if reason else None
         execution.finished_at = func.now()
         for index, call in enumerate(calls, start=1):
-            self.session.add(ModelUsage(
-                tenant_id=execution.tenant_id,
-                stage_execution_id=execution_id,
-                provider=call.provider,
-                model=call.model,
-                attempt_number=index,
-                input_tokens=call.input_tokens,
-                output_tokens=call.output_tokens,
-                cost_usd=call.cost_usd,
-                status=call.status,
-            ))
+            self.session.add(
+                ModelUsage(
+                    tenant_id=execution.tenant_id,
+                    stage_execution_id=execution_id,
+                    provider=call.provider,
+                    model=call.model,
+                    attempt_number=index,
+                    input_tokens=call.input_tokens,
+                    output_tokens=call.output_tokens,
+                    cost_usd=call.cost_usd,
+                    status=call.status,
+                    cache_creation_input_tokens=call.cache_creation_input_tokens,
+                    cache_read_input_tokens=call.cache_read_input_tokens,
+                )
+            )
+
+    def _record_interrupted(self, execution_id: UUID, calls) -> None:
+        """Best effort, like `_release`: a broken connection here only loses the analytics."""
+        s = self.session
+        try:
+            s.rollback()
+            self._finish_execution(execution_id, calls, "failed", "worker interrupted")
+            s.commit()
+        except Exception:
+            log.exception("could not record interrupted execution %s", execution_id)
 
     def drain(self) -> int:
         """Run jobs until none is left to run. Returns how many ran.

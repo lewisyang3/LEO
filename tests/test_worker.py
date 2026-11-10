@@ -12,9 +12,10 @@ import pytest
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.orm import Session
 
+from leo.analytics.usage import record_usage
 from leo.clock import FixedClock
 from leo.db import keys
-from leo.db.models import Job, SourceDocument, Tenant
+from leo.db.models import Job, ModelUsage, SourceDocument, StageExecution, Tenant
 from leo.db.repo import Repo, upsert_tenant
 from leo.db.seed import seed
 from leo.db.session import get_engine
@@ -362,3 +363,79 @@ def test_claim_skips_a_locked_row():
             cleanup.execute(delete(SourceDocument).where(SourceDocument.tenant_id == tenant))
             cleanup.execute(delete(Tenant).where(Tenant.id == tenant))
             cleanup.commit()
+
+
+# --- B6 analytics: one stage_execution per attempt, with its model_usage rows ----------------
+
+
+class Metered(Flaky):
+    """`Flaky`, but each call is a recorded Jev call, as `JevClassifier` makes."""
+
+    def __init__(self, fails: int, doc_class: DocumentClass = DocumentClass.contract) -> None:
+        super().__init__(fails)
+        self.doc_class = doc_class
+
+    def classify(self, doc: DocumentText) -> Classification:
+        record_usage("jev", "jev-latest", {"input_tokens": 7, "output_tokens": 0})
+        super().classify(doc)  # raises on the first `fails` calls
+        return StubClassifier(self.doc_class).classify(doc)
+
+
+def _executions(repo: Repo, stage: str) -> list[tuple[str, str | None, list[str]]]:
+    repo.session.flush()
+    rows = repo.session.scalars(
+        select(StageExecution).where(
+            StageExecution.tenant_id == repo.tenant_id, StageExecution.stage == stage
+        )
+    ).all()
+    out = []
+    for e in rows:
+        usage = repo.session.scalars(
+            select(ModelUsage.status).where(ModelUsage.stage_execution_id == e.id)
+        ).all()
+        out.append((e.status, e.stop_reason, list(usage)))
+    return sorted(out)  # one transaction: started_at ties, so don't rely on order
+
+
+def test_each_attempt_is_an_execution_with_its_api_calls(repo, raw_store):
+    """The failed attempt keeps its call even though its transaction rolled back."""
+    _ingest(repo, raw_store)
+    pipeline = Pipeline.stubs()
+    pipeline.classifier = Metered(fails=1)
+    w = _worker(repo, raw_store, pipeline)
+    w.run_one()
+    _due_now(repo)
+    w.run_one()
+
+    assert _executions(repo, "classify") == [
+        ("completed", None, ["success"]),
+        ("failed", "ConnectionError: Jev timed out", ["success"]),
+    ]
+
+
+def test_noise_execution_is_filtered(repo, raw_store):
+    _ingest(repo, raw_store)
+    pipeline = Pipeline.stubs()
+    pipeline.classifier = Metered(fails=0, doc_class=DocumentClass.noise)
+    _worker(repo, raw_store, pipeline).drain()
+
+    assert _executions(repo, "classify") == [("filtered", "classified_noise", ["success"])]
+
+
+def test_interrupt_releases_the_claim_even_if_analytics_fail(repo, raw_store, monkeypatch):
+    """Analytics after an interrupt are best effort: they never keep the claim or hide the
+    KeyboardInterrupt."""
+    _ingest(repo, raw_store)
+    pipeline = Pipeline.stubs()
+    pipeline.classifier = Interrupted()
+    w = _worker(repo, raw_store, pipeline)
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(w, "_finish_execution", broken)
+    with pytest.raises(KeyboardInterrupt):
+        w.run_one()
+    job = _by_stage(repo)["classify"]
+    repo.session.refresh(job)
+    assert (job.status, job.attempts, job.claimed_at) == ("pending", 0, None)

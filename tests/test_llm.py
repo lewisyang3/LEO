@@ -1,13 +1,15 @@
 """`structured_call`: the default client keeps the SDK's retries, and every outbound call is
 recorded for B6, including one that fails."""
 
+from decimal import Decimal
+
 import anthropic
 import httpx2
 import pytest
 from anthropic.types import Message
 
 from leo import llm
-from leo.analytics.usage import UsageCall, collect_usage
+from leo.analytics.usage import UsageCall, collect_usage, estimated_cost
 from leo.llm import ResponseCache, structured_call
 
 
@@ -98,3 +100,26 @@ def test_rate_limit_is_recorded_and_raised(tmp_path):
         _call(tmp_path, FakeClient(raise_))
 
     assert calls == [UsageCall("claude", "claude-haiku-5-5", None, None, None, "rate_limited")]
+
+
+def test_cache_tokens_are_priced_at_their_own_rates(monkeypatch):
+    for kind, rate in (
+        ("INPUT", "1"),
+        ("OUTPUT", "5"),
+        ("CACHE_WRITE", "1.25"),
+        ("CACHE_READ", "0.1"),
+    ):
+        monkeypatch.setenv(f"LEO_B6_CLAUDE_{kind}_PER_M", rate)
+    # 450 + 900*5 + 1000*1.25 + 5000*0.1 = 6700 per million
+    assert estimated_cost(
+        "claude", "claude-haiku-5-5", 450, 900, cache_write=1000, cache_read=5000
+    ) == Decimal("0.00670000")
+
+
+def test_cache_tokens_without_a_rate_are_unpriced_not_free(monkeypatch):
+    monkeypatch.setenv("LEO_B6_CLAUDE_INPUT_PER_M", "1")
+    monkeypatch.setenv("LEO_B6_CLAUDE_OUTPUT_PER_M", "5")
+    assert estimated_cost("claude", "m", 450, 900, cache_read=5000) is None
+    assert estimated_cost("claude", "m", 450, 900, cache_write=0, cache_read=0) == Decimal(
+        "0.00495000"
+    )

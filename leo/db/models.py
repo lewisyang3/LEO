@@ -534,9 +534,7 @@ class StageExecution(Row):
 
     stage: Mapped[str] = mapped_column(String(48), nullable=False)
 
-    status: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="running"
-    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
     # running, completed, filtered, failed, needs_review
 
     stop_reason: Mapped[str | None] = mapped_column(Text)
@@ -547,9 +545,7 @@ class StageExecution(Row):
         server_default=func.now(),
     )
 
-    finished_at: Mapped[dt.datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         _tenant_id_key("stage_execution"),
@@ -575,12 +571,13 @@ class ModelUsage(Row):
 
     model: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    attempt_number: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1
-    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     input_tokens: Mapped[int | None] = mapped_column(Integer)
     output_tokens: Mapped[int | None] = mapped_column(Integer)
+    # Prompt-cache tokens, billed apart from input_tokens (Claude only).
+    cache_creation_input_tokens: Mapped[int | None] = mapped_column(Integer)
+    cache_read_input_tokens: Mapped[int | None] = mapped_column(Integer)
 
     cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 8))
 
@@ -606,7 +603,8 @@ class ModelUsage(Row):
             name="ck_model_usage_attempt_number",
         ),
         CheckConstraint(
-            "input_tokens >= 0 AND output_tokens >= 0 AND cost_usd >= 0",
+            "input_tokens >= 0 AND output_tokens >= 0 AND cost_usd >= 0"
+            " AND cache_creation_input_tokens >= 0 AND cache_read_input_tokens >= 0",
             name="ck_model_usage_nonnegative",
         ),
         Index("ix_model_usage_stage_execution", "stage_execution_id"),
