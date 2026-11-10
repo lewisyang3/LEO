@@ -42,7 +42,7 @@ Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. T
 | `api` | Run FastAPI with reload |
 | `web` | Run the Vite dev server |
 | `seed` | Placeholder until ROADMAP A7 (exits 1) |
-| `eval` | Score the classifier and extractor against the answer key (`python -m leo.eval --help`). No database or API keys needed |
+| `eval` | Score the classifier, extractor, validator and drafter against the answer key (`python -m leo.eval --help`). The held-out classifier set runs with `python -m leo.eval.holdout`. No database needed. The default fixture engines need no API keys |
 | `e2e` | Placeholder until ROADMAP 2.2 (exits 1) |
 
 ## Layout
