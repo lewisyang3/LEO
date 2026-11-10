@@ -51,7 +51,7 @@ The span is the first quote's (ordinal 0) `start:end`. When that quote isn't fou
 | Term | `v1:term:{document key}:{term type}:{start}:{end}` |
 | Invoice fact | `v1:invoice-fact:{document key}:{start}:{end}` |
 
-The answer key has no clashes under these keys: each `(document, type, span)` is unique across its terms, and each `(document, span)` across its invoice facts. A2 builds the key strings.
+The answer key has no clashes under these keys: each `(document, type, span)` is unique across its terms, and each `(document, span)` across its invoice facts. `leo/db/keys.py` builds the key strings (A2).
 
 ## Deadlines
 
