@@ -11,6 +11,10 @@ Live by default: the Jev classifier (`JEV_API_KEY`), scripts then the cached LLM
 the rules validator and the cached LLM drafter. `--offline` uses the key's classes and sets
 `LEO_LLM_OFFLINE=1`, so a cache miss fails instead of calling the API. The clock is pinned to
 the key's today. Exits 1 if any check fails.
+
+Script generation (Phase 4): `--no-builtin-scripts` leaves out the hand-written scripts, so
+their formats go to the LLM. `--keep-scripts` carries the pipeline tenant's promoted generated
+scripts (`make scriptgen`) across the reset, so the run extracts with them.
 """
 
 import argparse
@@ -39,6 +43,16 @@ def main(argv: list[str] | None = None) -> int:
         "--offline",
         action="store_true",
         help="the key's classes and cached LLM answers only (no network)",
+    )
+    parser.add_argument(
+        "--no-builtin-scripts",
+        action="store_true",
+        help="leave out the hand-written scripts (B5)",
+    )
+    parser.add_argument(
+        "--keep-scripts",
+        action="store_true",
+        help="keep the promoted generated scripts across the reset (make scriptgen)",
     )
     args = parser.parse_args(argv)
 
@@ -77,11 +91,20 @@ def main(argv: list[str] | None = None) -> int:
             drafter="llm",
             sender=fx.customer.name,
             settings=settings,
+            builtin_scripts=not args.no_builtin_scripts,
         )
     except JevUnavailable as e:
         parser.error(f"{e} (or pass --offline)")
     mode = "offline: key classes, cached LLM only" if args.offline else "live: Jev classifier"
+    if args.no_builtin_scripts:
+        mode += ", no hand-written scripts"
     print(f"make e2e ({mode}), today {fx.demo_today}, tenant {slug}", flush=True)
+
+    kept = []
+    if args.keep_scripts:
+        with get_sessionmaker()() as session:
+            kept = saved_scripts(session, slug)
+        print(f"   keeping {len(kept)} promoted generated script(s)", flush=True)
 
     # No session may be open here: it would block the reset's DROP SCHEMA.
     with _step("reset"):
@@ -91,6 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     with get_sessionmaker()() as session:
         with _step("ingest"):
             tenant_id, new = folder.load(session, DATA, slug, store)
+            restore_scripts(session, tenant_id, kept)
             session.commit()
             print(f"   {new} documents")
         worker = Worker(session, pipeline, store, clock, tenant_id=tenant_id)
@@ -110,10 +134,14 @@ def main(argv: list[str] | None = None) -> int:
             checks.append(check_rerun(session, tenant_id, rerun))
 
         engines = draft_engines(session, tenant_id)
+        extract = extract_engines(session, tenant_id)
 
     print()
     for c in checks:
         print(f"{'PASS' if c.ok else 'FAIL'}  {c.id:<6} {c.detail}")
+    print("\nExtraction:")
+    for engine, n in extract.items():
+        print(f"  {n:>3}  {engine}")
     print("\nDrafts:")
     for title, engine in engines.items():
         print(f"  {engine:<28} {title}")
@@ -123,6 +151,46 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n{passed}/{len(checks)} checks passed in {total:.0f}s", end="")
     print(f"; failed: {', '.join(failed)}" if failed else "")
     return 1 if failed else 0
+
+
+def saved_scripts(session, slug: str) -> list[dict]:
+    """The tenant's promoted generated scripts, as plain values that outlive the reset."""
+    from leo.db.models import Tenant
+    from leo.db.repo import Repo
+
+    tenant_id = session.query(Tenant.id).filter(Tenant.slug == slug).scalar()
+    if tenant_id is None:
+        return []
+    return [
+        {"name": r.name, "code": r.code, "matcher": r.matcher, "accuracy": r.accuracy}
+        for r in Repo(session, tenant_id).promoted_scripts()
+    ]
+
+
+def restore_scripts(session, tenant_id, scripts: list[dict]) -> None:
+    import datetime as dt
+
+    from leo.db.repo import Repo
+
+    repo = Repo(session, tenant_id)
+    for s in scripts:
+        repo.add_extractor_script(**s, promoted_at=dt.datetime.now(dt.UTC))
+
+
+def extract_engines(session, tenant_id) -> dict[str, int]:
+    """How many documents each extract engine took, most first."""
+    from sqlalchemy import func, select
+
+    from leo.db.models import Job
+    from leo.worker import queue
+
+    rows = session.execute(
+        select(Job.processed_by, func.count())
+        .where(Job.tenant_id == tenant_id, Job.stage == queue.EXTRACT, Job.status == queue.DONE)
+        .group_by(Job.processed_by)
+        .order_by(func.count().desc(), Job.processed_by)
+    ).all()
+    return {str(engine): n for engine, n in rows}
 
 
 if __name__ == "__main__":

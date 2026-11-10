@@ -12,8 +12,8 @@ instead of getting a wrong extraction. The failure is kept in `records`.
 `ChainExtractor` returns the first extractor's answer that isn't None, the same order the
 worker's extract loop uses. The eval uses it for "scripts, then the LLM".
 
-The registry lives in code. Storing scripts in `extractor_script`, and generating or promoting
-them, is the design doc's script generation (Phase 4).
+The hand-written registry lives in code. Generated scripts are stored in `extractor_script`
+and loaded per tenant (`leo.scriptgen`, Phase 4).
 """
 
 import datetime
@@ -141,9 +141,14 @@ def _first_body_line(text: str) -> str:
     raise ParseError("empty body")
 
 
-def _from_address(doc: DocumentText) -> str:
-    sender = _header(doc.text, "From") or ""
+def sender_address(text: str) -> str:
+    """The From header's address, lower case; "" when there's none (a contract file)."""
+    sender = _header(text.replace("\r\n", "\n"), "From") or ""
     return email.utils.parseaddr(sender)[1].lower()
+
+
+def _from_address(doc: DocumentText) -> str:
+    return sender_address(doc.text)
 
 
 def _extraction(doc: DocumentText, script: str, vendor: str, fact: dict[str, Any]) -> Extraction:

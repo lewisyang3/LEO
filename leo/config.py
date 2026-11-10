@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     jev_api_key: str | None = None
     leo_model_extract: str = DEFAULT_MODEL
     leo_model_draft: str = DEFAULT_MODEL
+    # Script generation (Phase 4). Haiku like every stage, until evidence says the model is
+    # the bottleneck (e.g. no promotable script within the attempts).
+    leo_model_scriptgen: str = DEFAULT_MODEL
     leo_today: date | None = None
     # LLM response cache (ROADMAP B3). Offline: a cache miss raises instead of calling the API.
     leo_llm_cache_dir: Path = Path("data/llm_cache")

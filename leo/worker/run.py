@@ -259,7 +259,7 @@ class Worker:
         classification = Classification.model_validate(self._output(job, row, queue.CLASSIFY))
         doc = self._text(row, classification.doc_class)
         if job.stage == queue.EXTRACT:
-            return self._extract(doc)
+            return self._extract(repo, doc)
         if job.stage == queue.VALIDATE:
             extraction = Extraction.model_validate(self._output(job, row, queue.EXTRACT))
             return self._validate(repo, row, doc, extraction)
@@ -271,8 +271,13 @@ class Worker:
         nxt = None if c.doc_class == DocumentClass.noise else NEXT_STAGE[queue.CLASSIFY]
         return StageResult(c.model_dump(mode="json"), c.engine, nxt)
 
-    def _extract(self, doc: DocumentText) -> StageResult:
-        for extractor in self.pipeline.extractors:
+    def _extract(self, repo: Repo, doc: DocumentText) -> StageResult:
+        """The tenant's promoted generated scripts first (Phase 4), then the pipeline's
+        extractors in order."""
+        p = self.pipeline
+        stored = p.stored_scripts(repo) if p.stored_scripts is not None else None
+        chain = [*([stored] if stored is not None else []), *p.extractors]
+        for extractor in chain:
             if (x := extractor.extract(doc)) is not None:
                 return StageResult(x.model_dump(mode="json"), x.engine, NEXT_STAGE[queue.EXTRACT])
         raise Permanent("no extractor matched")

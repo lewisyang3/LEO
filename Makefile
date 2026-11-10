@@ -1,4 +1,4 @@
-.PHONY: setup up down migrate test lint api api-gmail api-pipeline web seed reset ingest eval bar e2e worker gmail-connect gmail-sync gmail-import
+.PHONY: setup up down migrate test lint api api-gmail api-pipeline web seed reset ingest eval bar e2e scriptgen worker gmail-connect gmail-sync gmail-import
 
 setup:
 	uv sync
@@ -66,6 +66,10 @@ eval:
 # The accuracy bar's extraction half (2.4), offline from the committed caches. With make e2e.
 bar:
 	LEO_LLM_OFFLINE=1 uv run python -m leo.eval --extractor script+llm --bar
+
+# Write scripts for formats the LLM keeps extracting (Phase 4). After make e2e.
+scriptgen:
+	uv run python -m leo.scriptgen $(ARGS)
 
 # Reset the dev DB, run the pipeline on the synthetic set, check it (2.2). ARGS=--offline: no network.
 e2e:

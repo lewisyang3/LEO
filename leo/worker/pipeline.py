@@ -36,6 +36,7 @@ from leo.pipeline.extract_llm import LLMExtractor
 from leo.pipeline.extract_script import script_extractor
 from leo.pipeline.validate import JevPriorComparer, RuleValidator
 from leo.reconcile.reconciler import RuleReconciler
+from leo.scriptgen.scripts import StoredScripts
 from leo.stubs import StubClassifier, StubDrafter, StubExtractor, StubReconciler, StubValidator
 from leo.types import ExtractedTerm, TermStatus
 
@@ -66,6 +67,8 @@ class Pipeline:
     vendors: Callable[[Repo], VendorResolver] = field(default=DbVendorResolver)
     prior_terms: PriorTerms = field(default=stored_prior_terms)
     transactions: TransactionSource | None = None  # synced at the start of each reconcile
+    # The tenant's promoted generated scripts (Phase 4), tried before `extractors`.
+    stored_scripts: Callable[[Repo], Extractor | None] | None = None
 
     @classmethod
     def default(
@@ -77,12 +80,14 @@ class Pipeline:
         transactions: Path | None = DEFAULT_TRANSACTIONS,
         sender: str = "",
         settings: Settings | None = None,
+        builtin_scripts: bool = True,
     ) -> "Pipeline":
         """The real components (2.1). `classifier`: `jev` (live, needs `JEV_API_KEY`) or
         `fixture` (the answer key's classes, by dataset path). `validator`: `rules` (no
         network, the same result every run) or `jev` (adds Jev's prior comparison).
         `drafter`: `llm` (B7, cached under `LEO_LLM_CACHE_DIR`) or `template`. Extraction is
-        B5's scripts, then B3's LLM extractor (cached)."""
+        the tenant's promoted generated scripts (Phase 4), B5's hand-written scripts (left out
+        with `builtin_scripts=False`), then B3's LLM extractor (cached)."""
         settings = settings or get_settings()
         cache = ResponseCache(settings.leo_llm_cache_dir)
         clf: Classifier
@@ -107,11 +112,15 @@ class Pipeline:
             raise ValueError(f"unknown drafter {drafter!r}")
         return cls(
             classifier=clf,
-            extractors=[script_extractor(), LLMExtractor(clock, cache, settings=settings)],
+            extractors=[
+                *([script_extractor()] if builtin_scripts else []),
+                LLMExtractor(clock, cache, settings=settings),
+            ],
             validator=val,
             reconciler=RuleReconciler(),
             drafter=drf,
             transactions=CsvTransactionSource(transactions) if transactions else None,
+            stored_scripts=StoredScripts(clock),
         )
 
     @classmethod

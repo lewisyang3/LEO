@@ -1,0 +1,29 @@
+{
+  "doc_hash": "aa6ed9acd3331e19345890deffd5b51cf45c2bd1e71bc7e4cbf7f68dfe3c8ccd",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "code": "def matches(text):\n    m = re_search(r\"^From: (.+)$\", text, MULTILINE)\n    if m is None:\n        return False\n    name, addr = parseaddr(m.group(1))\n    if addr.lower() != \"billing@kestrelcloud.example\":\n        return False\n    return all([\n        re_search(r\"^Invoice: INV-KCH-\\d+$\", text, MULTILINE) is not None,\n        re_search(r\"^Invoice date: \", text, MULTILINE) is not None,\n        re_search(r\"^Billing period: \", text, MULTILINE) is not None,\n        re_search(r\"^Total due: \\$\", text, MULTILINE) is not None,\n    ])\n\n\ndef parse(text):\n    parts = text.split(\"\\n\\n\", 1)\n    if len(parts) != 2:\n        raise ValueError(\"no body\")\n    body = parts[1]\n    vm = re_search(r\"^(Kestrel Cloud Hosting, LLC)$\", body, MULTILINE)\n    if vm is None:\n        raise ValueError(\"vendor line missing\")\n    vendor = vm.group(1)\n    im = re_search(r\"^Invoice: (INV-KCH-\\d+)$\", body, MULTILINE)\n    if im is None:\n        raise ValueError(\"invoice line missing\")\n    dm = re_search(r\"^Invoice date: ([A-Za-z]+ \\d{1,2}, \\d{4})$\", body, MULTILINE)\n    if dm is None:\n        raise ValueError(\"invoice date line missing\")\n    pm = re_search(r\"^Billing period: ([A-Za-z]+ \\d{1,2}, \\d{4}) - ([A-Za-z]+ \\d{1,2}, \\d{4})$\", body, MULTILINE)\n    if pm is None:\n        raise ValueError(\"billing period line missing\")\n    tm = re_search(r\"^Total due: \\$([\\d,]+\\.\\d{2})$\", body, MULTILINE)\n    if tm is None:\n        raise ValueError(\"total line missing\")\n    items = re_findall(r\"^(.+?)\\s{2,}\\$([\\d,]+\\.\\d{2})$\", body, MULTILINE)\n    if not items:\n        raise ValueError(\"no line items\")\n    total = Decimal(tm.group(1).replace(\",\", \"\"))\n    subtotal = Decimal(\"0\")\n    for desc, amt in items:\n        subtotal += Decimal(amt.replace(\",\", \"\"))\n    if subtotal != total:\n        raise ValueError(\"line items do not sum to total\")\n    invoice_date = datetime.strptime(dm.group(1), \"%B %d, %Y\").date()\n    start = datetime.strptime(pm.group(1), \"%B %d, %Y\").date()\n    end = datetime.strptime(pm.group(2), \"%B %d, %Y\").date()\n    if end < start:\n        raise ValueError(\"billing period reversed\")\n    quotes = [\n        im.group(0),\n        dm.group(0),\n        pm.group(0),\n        tm.group(0),\n    ]\n    return {\n        \"contacts\": [],\n        \"invoice_facts\": [\n            {\n                \"amount\": float(tm.group(1).replace(\",\", \"\")),\n                \"billing_period\": start.isoformat() + \"/\" + end.isoformat(),\n                \"invoice_date\": invoice_date.isoformat(),\n                \"invoice_number\": im.group(1),\n                \"quotes\": quotes,\n                \"seats_billed\": None,\n            }\n        ],\n        \"terms\": [],\n        \"vendor_name\": vendor,\n    }\n",
+    "notes": "Matches on the billing@kestrelcloud.example sender plus the invoice, invoice date, billing period and total labels. parse() extracts the invoice number, dates, and total, and raises ValueError if the line items do not sum to the stated total. Quotes are returned in body order; the second example lists them in a different order, so a comparison should treat quotes as an unordered set."
+  },
+  "prompt_version": "scriptgen-v1",
+  "request_id": "req_011Cgv2mzmHCJZfGN29s8krf",
+  "stage": "scriptgen",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "inference_geo": "global",
+    "input_tokens": 2518,
+    "output_tokens": 5208,
+    "output_tokens_details": {
+      "thinking_tokens": 3715
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

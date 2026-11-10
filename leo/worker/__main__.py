@@ -37,6 +37,11 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--tenant", help="only this tenant's jobs (slug); default every tenant")
     parser.add_argument("--stubs", action="store_true", help="A4's stub pipeline")
+    parser.add_argument(
+        "--no-builtin-scripts",
+        action="store_true",
+        help="leave out the hand-written scripts (B5); promoted generated ones still run",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -56,6 +61,7 @@ def main(argv: list[str] | None = None) -> None:
             transactions=Path(args.transactions) if args.transactions else None,
             sender=load_fixture().customer.name,
             settings=settings,
+            builtin_scripts=not args.no_builtin_scripts,
         )
     with get_sessionmaker()() as session:
         tenant_id = None

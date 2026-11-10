@@ -30,6 +30,7 @@ from leo.db.models import (
     ConnectedAccount,
     ContractTerm,
     DocumentLink,
+    ExtractorScript,
     Finding,
     FindingInvoiceFact,
     FindingTerm,
@@ -405,3 +406,54 @@ class Repo:
         stale = [r.id for r in rows if (r.document_id, r.linked_document_id) not in keep]
         if stale:
             self.session.execute(delete(DocumentLink).where(DocumentLink.id.in_(stale)))
+
+    # --- Extractor scripts (Phase 4) ---------------------------------------------------------
+
+    def add_extractor_script(
+        self,
+        name: str,
+        code: str,
+        matcher: str | None,
+        accuracy: float,
+        promoted_at: Any,
+    ) -> ExtractorScript:
+        """A new version of `name` (1, 2, ...), promoted or not: rejected candidates stay as
+        the test record."""
+        versions = self.session.scalars(
+            select(ExtractorScript.version).where(
+                ExtractorScript.tenant_id == self.tenant_id, ExtractorScript.name == name
+            )
+        ).all()
+        version = str(max((int(v) for v in versions if v.isdigit()), default=0) + 1)
+        row = ExtractorScript(
+            tenant_id=self.tenant_id,
+            name=name,
+            version=version,
+            matcher=matcher,
+            code=code,
+            accuracy=accuracy,
+            promoted_at=promoted_at,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return row
+
+    def promoted_scripts(self) -> list[ExtractorScript]:
+        """The latest promoted version per (name, matcher), by name then matcher. The matcher
+        is the sender, so two senders of one vendor (one name) each keep their script."""
+        rows = self.session.scalars(
+            select(ExtractorScript).where(
+                ExtractorScript.tenant_id == self.tenant_id,
+                ExtractorScript.promoted_at.is_not(None),
+            )
+        ).all()
+
+        def version(r: ExtractorScript) -> int:
+            return int(r.version) if r.version.isdigit() else 0
+
+        latest: dict[tuple[str, str], ExtractorScript] = {}
+        for r in rows:
+            key = (r.name, r.matcher or "")
+            if key not in latest or version(r) > version(latest[key]):
+                latest[key] = r
+        return [latest[k] for k in sorted(latest)]
