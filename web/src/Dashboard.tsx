@@ -117,6 +117,11 @@ export default function DashboardPage({ dash, version }: { dash: Dashboard | nul
         </tbody>
       </table>
 
+      <p className="export muted small">
+        Export CSV: <a href="/api/export/terms.csv" download>term record</a> ·{' '}
+        <a href="/api/export/findings.csv" download>findings</a>
+      </p>
+
       <Upload />
     </>
   )

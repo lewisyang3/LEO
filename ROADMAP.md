@@ -29,6 +29,8 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
+**Now (2026-11-10).** C4 (export) is done on `lewis/c4-export`, waiting for review. It branches from C3 (PR #14, in review).
+
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
 1. **Shared types first.** All three tracks code against one set of Python types (`leo/types.py`). Term values have one fixed shape per type, taken from the answer key.
@@ -185,6 +187,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - D3: monthly invoices stay separate.
     - D4: a two-plan vendor keeps separate price histories.
 - [ ] **A7 [should] Seed and reset.** `make seed` loads the synthetic tenant, and `make reset` reruns migrations and seed. Deterministic keys make this safe.
+  - `make seed` was built in C3 (`python -m leo.db.seed`). `make reset` is still to do.
 - [ ] **A8 [should] Gmail sync.**
   - Read-only OAuth into a seeded demo Gmail account.
   - Incremental sync by `historyId`.
@@ -410,7 +413,14 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - upload deduplication
     - the stats counts
   - **Not built yet:** the [should] corrections. `GET /api/documents?path=inbox/07_…_resynced.eml` is now a 404, because D1's copy is the original's row.
-- [ ] **C4 [should] Export** of the term record and findings to CSV.
+- [x] **C4 [should] Export** of the term record and findings to CSV.
+
+  Done, in `leo/api/export.py` (pure formatting) and `DbStore.export_terms`/`export_findings`. It reads through C3's `leo/db/read.py` and adds no new queries.
+  - **Endpoints.** `GET /api/export/terms.csv` and `GET /api/export/findings.csv` download as `leo-{terms|findings}-{today}.csv`. The dashboard links to both.
+  - **Term record.** One row per stored term, in every status, so supersessions and the price history show. Each term-value key gets its own column: the union of the `*Value` models' fields, taken from `model_fields`, blank where a type lacks the key. Rows sort by vendor, type and effective date (undated last).
+  - **Findings.** The dashboard's rows and order. `impact` and `computation` are `key=value; …` text, because their shapes differ by kind.
+  - **Formatting.** Decimals are exact (`str`, as stored), dates are ISO, and the file has a UTF-8 BOM for Excel. A text cell starting with `= + - @`, a tab or a CR gets a leading `'`, because quotes come from vendor emails. Numbers are never prefixed.
+  - **Tests** (`tests/test_api.py`): every key term exported, Kestrel's cap exact, superseded rows linked, findings in dashboard order with the key's `at_stake`, and the cell formatting.
 - [ ] **C5 [should] Vendor view.** A vendor's terms, price history (a query per the design doc, leaving out terms from linked duplicates) and matched transactions.
 
 ---

@@ -19,6 +19,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from leo.api.export import findings_csv, terms_csv
 from leo.api.schemas import (
     ActionEdit,
     ActionOut,
@@ -148,6 +149,11 @@ class DbStore:
 
     def summaries(self) -> list[FindingSummary]:
         _, findings, actions = self._view()
+        return self._sorted_summaries(findings, actions)
+
+    def _sorted_summaries(
+        self, findings: list[Finding], actions: dict[str, ActionOut]
+    ) -> list[FindingSummary]:
         out = [self._summary(f, actions[f.id], actions[f.id].vendor) for f in findings]
         return sorted(out, key=lambda s: (s.days_left is None, s.days_left or 0, -s.at_stake, s.id))
 
@@ -299,6 +305,17 @@ class DbStore:
         return self._update(
             action_id, ActionState.approved, "send", state=ActionState.sent, sent_at=func.now()
         )
+
+    # --- Export (C4) ------------------------------------------------------------------------
+
+    def export_terms(self) -> str:
+        """The term record as CSV: every stored term, in every status."""
+        return terms_csv(self._ledger())
+
+    def export_findings(self) -> str:
+        """The findings as CSV, in the dashboard's order."""
+        _, findings, actions = self._view()
+        return findings_csv(self._sorted_summaries(findings, actions), findings, actions)
 
     # --- Upload and stats -------------------------------------------------------------------
 
