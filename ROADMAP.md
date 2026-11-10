@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** A6 (duplicate linking) is done on `lewis/a6-duplicate-links`, in review against main. B5 (script extractors) is on main. A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** Next in Track A is A7 (seed and reset). A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -156,7 +156,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Loaders.** `ingest_folder` reads one folder in name order, skipping dotfiles, READMEs and subfolders, and stores `{folder}/{name}` paths. `ingest_folder(…, "contracts")` is the contracts loader, and `ingest_dataset` reads `inbox/` then `contracts/`.
   - **Seed.** `seed()` now goes through `ingest`, so it stores real raw copies (still 223 rows). `Repo.update_document` sets the key's class, vendor and notes once per row, so D1's copy still doesn't overwrite the original's.
   - **Tests.** Every test's `LEO_RAW_DIR` points at a temp folder (`tests/conftest.py`).
-  - **Not done here.** Queueing jobs on ingest (A4), and reading the text of binary attachments such as PDFs. Those are stored but not converted to text, and the dataset has none. Attached emails aren't parsed for their own headers or attachments. An attached email is stored re-serialized, so its bytes, and its key, differ from the same email loaded on its own. A6's fingerprint links the two.
+  - **Not done here.** Queueing jobs on ingest (A4), and reading the text of binary attachments such as PDFs. Those are stored but not converted to text, and the dataset has none. Attached emails aren't parsed for their own headers or attachments. An attached email is stored re-serialized, so its bytes, and its key, differ from the same email loaded on its own. A6's fingerprint gives the two the same value, but A6 links them only when one reads as a forward, so they usually stay unlinked.
 - [x] **A4 [must] Job queue and worker.**
   - Jobs are rows claimed with `FOR UPDATE SKIP LOCKED`.
   - The worker runs each item through the stage interfaces in `leo/interfaces.py`, using `leo/stubs.py` until B and C plug in.
@@ -571,7 +571,7 @@ From the design doc's Open Questions. Track B questions belong to Lewis and Omar
 | --- | --- | --- | --- |
 | Jev noise threshold | Lewis and Omar | Resolved 2026-11-05: 0.5, see B2 | B2 |
 | Ramp data: sandbox or synthetic | Lewis | Phase 0 | A5 (synthetic is the default) |
-| Where dedup runs: before or after triage | A owner (TBD) | Before A6 | A6 |
+| Where dedup runs: before or after triage | Lewis | Resolved 2026-11-10: after extraction, on the stored terms and invoice facts, see A6 | A6 |
 | Ambiguous vendor names (processor descriptor versus legal name) | A owner (TBD) | Resolved 2026-11-10: processor-prefix list, then trigram candidates on suffix-stripped names confirmed by a word check, see A5 | A5 |
 | Accuracy bar | All | Phase 2 start | 2.4 |
 | Inbox scopes and retention we promise | A owner (TBD) | Before A8 | A8, pitch |
