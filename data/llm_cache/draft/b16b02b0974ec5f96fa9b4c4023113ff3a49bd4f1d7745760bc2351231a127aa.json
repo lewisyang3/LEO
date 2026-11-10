@@ -1,0 +1,28 @@
+{
+  "doc_hash": "6f808b13f2d2418a672fb15ee42094abd1d510ce2874873c6b690bb3027a2a1e",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nThank you for your notice that the {plan} plan under {agreement} will increase from {old_price} to {new_price}, effective {effective_date}. The increase of {increase_pct}, or {monthly_increase} per month, is a significant change for our budget, and we would like to discuss it before it takes effect.\n\nWe ask that you keep our current rate of {old_price} for the {plan} plan. If that is not possible, please let us know what options are available, such as a different plan, a multi-year commitment, or a phased increase, so we can review them before {deadline}.\n\nPlease reply at your earliest convenience so we can confirm our next steps.\n\nKind regards,\n\n{sender}"
+  },
+  "prompt_version": "draft-v6",
+  "request_id": "req_011CguyLnhwa69oxmia5HGEE",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 807,
+    "inference_geo": "global",
+    "input_tokens": 356,
+    "output_tokens": 246,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

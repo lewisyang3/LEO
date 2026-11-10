@@ -45,6 +45,31 @@ def descriptor_display_name(descriptor: str) -> str:
     return clean_descriptor(descriptor).title()
 
 
+# Words a sender adds to a business's name: "Lumenpost Billing" is Lumenpost's billing desk.
+_DEPARTMENT = re.compile(
+    r"(?:[\s,-]+(?:billing|accounts receivable|accounts|support|team|invoicing|payments"
+    r"|notifications))+\s*$",
+    re.IGNORECASE,
+)
+_UPPER_SUFFIX = re.compile(r"\b(Llc|Llp|Lp)\b")
+
+
+def display_name(name: str) -> str:
+    """A new vendor's name as shown, from the name its first document gives (2.3):
+    "CORVANA, INC." -> "Corvana, Inc.", "Lumenpost Billing" -> "Lumenpost". An all-caps name of
+    two or more words is title-cased (LLC, LLP and LP stay capitals), and trailing department
+    words are dropped while a name remains. Lookups still go through the name as written,
+    which the resolver keeps as an alias."""
+    s = _SPACES.sub(" ", name).strip()
+    letters = [c for c in s if c.isalpha()]
+    if len(s.split()) >= 2 and letters and all(c.isupper() for c in letters):
+        s = _UPPER_SUFFIX.sub(lambda m: m.group(1).upper(), s.title())
+    shorter = _DEPARTMENT.sub("", s).strip()
+    if _LEGAL_SUFFIX.sub("", normalize_name(shorter)):  # more than a legal suffix is left
+        s = shorter
+    return s
+
+
 def _is_subsequence(short: str, long: str) -> bool:
     it = iter(long)
     return all(ch in it for ch in short)

@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** 2.2 (`make e2e`) is done: one command resets the database, runs the pipeline on the synthetic set and checks F1–F5, N1–N8 and D1–D5. Run it before every merge to main. 2.1 (wire the pipeline) is done too. Next is 2.3 (fix the end-to-end gaps). A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** 2.3 (fix the end-to-end gaps) is done: `make e2e` now also checks each finding's draft against the key, the vendors' names and that no draft fell back to the template, and passes 22/22 with all five drafts from the LLM. Next is 2.4 (accuracy bar). 2.2 (`make e2e`) is done: one command resets the database, runs the pipeline on the synthetic set and checks F1–F5, N1–N8 and D1–D5. Run it before every merge to main. 2.1 (wire the pipeline) is done too. A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -559,7 +559,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Not done here.**
     - Several workers: a validate that finishes while reconcile is running isn't seen until the next request. The worker-robustness items from PR #17 (`STALE_AFTER` heartbeat, `serve()` retry on database errors) still apply.
     - A document re-extracted with different quote spans leaves its old terms. The cached extraction always gives the same spans.
-    - Vendors are named by their first document, as written: `CORVANA, INC.` and `Lumenpost Billing` appear in titles and drafts.
+    - ~~Vendors are named by their first document, as written: `CORVANA, INC.` and `Lumenpost Billing` appear in titles and drafts.~~ Fixed in 2.3 (`display_name`).
     - Gmail mail is CRLF and keyed differently, so the LLM extract cache misses for it and the worker calls the API.
     - Contacts are keyed per vendor, email and purpose, so 01's and 02's shared contact is one row cited by the later document.
     - Each validate job loads the tenant's whole ledger for its prior terms. That's fine at demo scale.
@@ -582,14 +582,26 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - **Tests.** `tests/test_pipeline.py` runs every check offline on the synthetic set. A negative test (F1 hidden, a Halcyon seat finding injected) fails exactly F1, `extra` and N7. `tests/test_eval.py` covers the reconciler section.
     - **Result** (2026-11-10). Live (Jev classifying for real, run against a temporary database): 20/20 pass in 5s, with the pipeline step (54 jobs) taking 3.8s. Offline: 20/20 pass in 2s. Both give the same result, with 4 drafts from the LLM and F4 from the template.
     - **Not done here.**
-      - F4's LLM draft fails `check_body` from the cache every time, so it uses the template (2.3). Refilling the cache wouldn't change that.
+      - ~~F4's LLM draft fails `check_body` from the cache every time, so it uses the template (2.3).~~ Fixed in 2.3.
       - Nothing enforces "run it before every merge": there's no CI.
       - It resets the dev database, wiping local approvals and Gmail rows.
-      - `leo/pipeline/classify.py` still fails `ruff format --check` (from B6).
-- [ ] **2.3 [must] Fix the gaps** that only show up end to end:
+      - ~~`leo/pipeline/classify.py` still fails `ruff format --check` (from B6).~~ Formatted in 2.3.
+- [x] **2.3 [must] Fix the gaps** that only show up end to end:
   - vendor names from extraction not matching transactions
   - plan labels not lining up
   - terms that failed validation hiding a finding
+  - **The three listed gaps were already closed** by 2.1 and 2.2. On the pipeline tenant every charge has the key's vendor, Lumenpost's six charges carry the key's plan labels (`transaction_plan_map`), and no term or invoice fact is `needs_review`. F1–F5, N1–N8 and D1–D5 pass. What still showed up end to end was in the drafts and names, which the e2e didn't check.
+  - Done, in `leo/e2e/checks.py`, `leo/pipeline/extract_llm.py`, `leo/match/names.py`, `leo/match/vendors.py` and `leo/actions/draft.py`:
+    - **E2e checks the drafts.** F1–F5 score the finding's action against the key's `expected_action` with the eval's `score_draft`: type, alternative, recipient, pre-step and `must_include`. A new `vendors` check wants each key vendor stored under the key's name (Sunridge and Metro are found through their charges). A new `drafts` check, in `make e2e` only (tests use the template drafter), wants every draft from the LLM, so a template fallback fails the run. 22 checks.
+    - **F2's draft lacked `LP-204417`.** Lumenpost writes "Account ID: LP-204417" and Ferrolink "Account No. FL-77310-B", and the extract prompt asks for an agreement, order form or MSA number, so the LLM left `agreement_ref` empty and the draft said "our agreement". `labelled_ref` now fills a term without one from the document's single labelled agreement, order form, MSA, contract or account number (not invoice numbers; two different ids give nothing). It's code-side, so the extract cache stays valid. The eval's `agreement_ref` goes from 20/31 to 31/31.
+    - **Vendor names.** A new vendor is created under `display_name`: an all-caps name of two or more words is title-cased (LLC, LLP and LP kept), and trailing department words (Billing, Support, Accounts...) are dropped. `CORVANA, INC.` is now `Corvana, Inc.` and `Lumenpost Billing` is `Lumenpost`, as in the key. The name as written stays an alias, so lookups and reruns are unchanged.
+    - **F4's draft was always the template.** The model quoted `"{increase_requires}"` (no `_clause` to quote for a seat finding), then wrote "the invoice {invoices}" when the value is "the invoice dated October 5, 2026". Seat findings now get `{seat_clause}`, the seat term's quote about an increase, and the system prompt says not to repeat a placeholder's first words before it (`draft-v6`). The draft cache is re-recorded: the key's 5 and the pipeline's 5, with the stale `draft-v5` answers removed.
+    - `leo/pipeline/classify.py` formatted, so `make lint` passes.
+  - **Result** (2026-11-10). `make e2e` live (against a temporary database): 22/22 in 23s, all five drafts `llm:claude-haiku-5-5`. Offline: 22/22 in 2s from the cache alone. `make eval`: drafts 5/5 with no template fallback, `agreement_ref` 31/31, reconciler 5/5 right and 0 extra.
+  - **Not done here.**
+    - F2's draft cites "Agreement No. LP-204417", though Lumenpost calls it an account ID: `agreement_ref` has no label.
+    - `display_name` title-cases any all-caps name of two or more words, so an all-caps acronym in a longer name (`ACME IT SERVICES`) becomes `Acme It Services`.
+    - `labelled_ref` can give one document's terms a ref while the vendor's other documents keep `None` (2.3 review). `agreement_ref` is an exact-match key in `comparable` (`validate.py`), `load_price_history` (`read.py`) and the reconciler's joins, so those terms would stop being compared and split into separate price series. The model already fills the ref unevenly, so the risk isn't new in kind. The fix is to treat a missing ref as matching any, in all three places. The synthetic set isn't affected.
 - [ ] **2.4 [must] Accuracy bar.** Agree on the target and record the numbers from `make eval` and `make e2e`. Proposed target:
   - 100% of the planted findings
   - 0 false findings
@@ -613,6 +625,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - One-command reset.
   - A recorded backup video.
 - [ ] **3.3 [should] Live inbox.** If A8 is ready, show a new price-change email arriving in Gmail and becoming a finding.
+  - The demo email must carry the vendor's account line (e.g. "Account ID: LP-204417"). Otherwise its terms get no `agreement_ref`, split from the stored price history (all `LP-204417` since 2.3), and nothing supersedes.
 - [ ] **3.4 [should] Pitch.**
   - The Ramp tie-in: reminders track end dates, while LEO checks bills against terms and email.
   - The cost story.

@@ -1,0 +1,28 @@
+{
+  "doc_hash": "62acac63fe649f53da96bc5d7429bacf222afc7ee7b9e03fd84b3d278aa0cb07",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nThis is formal written notice that Brightwater Coffee Co. does not wish to renew {agreement}, and we are giving notice of non-renewal under its terms. The current term ends on {term_end}, and we ask that the agreement not renew at that time.\n\nThe agreement states: \"{notice_clause}\". We are providing this notice within that period, before {deadline}.\n\nPlease confirm in writing that you have received this notice of non-renewal and that {agreement} will end on {term_end} without renewal. Please also let us know if you need anything further from us to process this request.\n\nThank you for your attention to this matter.\n\nBest regards,\n{sender}"
+  },
+  "prompt_version": "draft-v6",
+  "request_id": "req_011CguyGdEZdABt1nsvvVPEE",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 807
+    },
+    "cache_creation_input_tokens": 807,
+    "cache_read_input_tokens": 0,
+    "inference_geo": "global",
+    "input_tokens": 378,
+    "output_tokens": 239,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -46,7 +46,7 @@ from leo.types import (
 )
 
 STAGE = "draft"
-PROMPT_VERSION = "draft-v5"
+PROMPT_VERSION = "draft-v6"
 EFFORT = "low"
 MAX_ATTEMPTS = 3
 MAX_TOKENS = 4000
@@ -135,11 +135,12 @@ def invoice_list(facts: Sequence[InvoiceFact]) -> str | None:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def clause(term: ExtractedTerm | None) -> str | None:
-    """The quote that states the rule: the first one with a percent sign, else the first."""
+def clause(term: ExtractedTerm | None, marker: str = "%") -> str | None:
+    """The quote that states the rule: the first one containing `marker` (a percent sign by
+    default), else the first."""
     if term is None:
         return None
-    return next((q for q in term.quotes if "%" in q), term.quotes[0])
+    return next((q for q in term.quotes if marker in q.lower()), term.quotes[0])
 
 
 # --- Facts -----------------------------------------------------------------------------------
@@ -260,6 +261,8 @@ def build_facts(finding: Finding, ledger: Ledger, sender: str = "") -> Facts:
                 "overcharged_to_date": money(finding.impact.overcharged_to_date),
                 "annualized": money(finding.impact.annualized),
                 "increase_requires": seats.value.increase_requires if seats else None,  # type: ignore[union-attr]
+                # A clause to quote, so the model doesn't quote `increase_requires` (2.3).
+                "seat_clause": clause(seats, "increase"),
                 "invoices": invoice_list(look.invoice_facts),
             }
             required += ["contracted_seats", "billed_seats", "overcharged_to_date"]
@@ -481,7 +484,9 @@ listed, and use every required one at least once.
 Placeholders ending in "_clause" are exact quotes from the agreement, sometimes only part of a \
 sentence. Put each one in double quotes after an introduction such as 'The agreement states:' \
 so the sentence still reads correctly, and don't name a section number. {invoices} already \
-includes each invoice's date, so don't repeat the date next to it. Only "_clause" placeholders \
+includes each invoice's date, so don't repeat the date next to it. A placeholder's value is \
+a complete phrase: don't write its first words before it (write 'on {invoices}', not 'on the \
+invoice {invoices}'). Only "_clause" placeholders \
 are quotes: never put any other placeholder in quotation marks or after 'The agreement states:'. \
 If there is no "_clause" placeholder, don't quote the agreement at all.
 

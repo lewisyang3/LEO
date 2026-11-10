@@ -15,7 +15,13 @@ from leo.db.models import new_uuid7
 from leo.db.repo import Repo, upsert_tenant
 from leo.db.seed import seed
 from leo.fixtures import load_fixture
-from leo.match.names import clean_descriptor, descriptor_display_name, match_form, words_agree
+from leo.match.names import (
+    clean_descriptor,
+    descriptor_display_name,
+    display_name,
+    match_form,
+    words_agree,
+)
 from leo.match.transactions import CsvTransactionSource
 from leo.match.vendors import DbVendorResolver
 
@@ -112,6 +118,23 @@ def test_words_disagree_on_a_shared_word_alone(a, b):
 def test_descriptor_display_name():
     assert descriptor_display_name("METRO WATER & POWER") == "Metro Water & Power"
     assert descriptor_display_name("SUNRIDGE COFFEE ROASTERS") == "Sunridge Coffee Roasters"
+
+
+@pytest.mark.parametrize(
+    ("name", "shown"),
+    [
+        ("CORVANA, INC.", "Corvana, Inc."),
+        ("KESTREL CLOUD HOSTING, LLC", "Kestrel Cloud Hosting, LLC"),
+        ("Lumenpost Billing", "Lumenpost"),
+        ("Acme Accounts Receivable", "Acme"),
+        ("Halcyon Payroll Services, Inc.", "Halcyon Payroll Services, Inc."),
+        ("Billing", "Billing"),  # nothing else to keep
+        ("Support Inc.", "Support Inc."),  # only a legal suffix would be left
+        ("IBM", "IBM"),  # one all-caps word may be an acronym
+    ],
+)
+def test_display_name(name, shown):
+    assert display_name(name) == shown
 
 
 def test_csv_source_reads_the_dataset(fixture):
@@ -250,6 +273,12 @@ def test_resolver_partitions_like_the_key(session, fixture, names_first):
     assert set(got) == {v.id for v in fixture.vendors}
     assert all(len(ids) == 1 for ids in got.values()), got
     assert len({next(iter(ids)) for ids in got.values()}) == 10
+    if names_first:  # 2.3: each vendor is named as the key names it
+        rows = session.execute(select(m.Vendor.id, m.Vendor.canonical_name))
+        names = {str(vid): name for vid, name in rows}
+        assert {k: names[next(iter(ids))] for k, ids in got.items()} == {
+            v.id: v.canonical_name for v in fixture.vendors
+        }
 
 
 def test_find_vendor_never_creates(session):

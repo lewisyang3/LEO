@@ -24,6 +24,7 @@ from leo.match.names import (
     LEGAL_SUFFIX_PATTERN,
     clean_descriptor,
     descriptor_display_name,
+    display_name,
     match_form,
     words_agree,
 )
@@ -87,7 +88,7 @@ class DbVendorResolver:
         return None if vid is None else str(vid)
 
     def vendor_for_name(self, name: str) -> str:
-        vid = self._find(name) or self.repo.upsert_vendor(name)
+        vid = self._find(name) or self.repo.upsert_vendor(display_name(name))
         self.repo.add_alias(vid, name)
         return str(vid)
 

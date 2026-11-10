@@ -1,0 +1,28 @@
+{
+  "doc_hash": "5220de8bc40fac3f83d082f5a31b5079328b55785ca7d0c208efaa4f6cb99c4e",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nWe are writing to dispute charges under {agreement} for our hosting services.\n\nThe agreement states: \"{cap_clause}\" Our monthly fee for the prior term was {prior_monthly}, so the most that could be billed for the renewal term is {max_allowed_monthly}.\n\nThe renewal raised our monthly fee to {charged_monthly}, an increase of {actual_increase_pct} that exceeds the {cap_pct} cap. The overcharge is {overcharge_monthly} per month, which totals {overcharged_to_date} on {invoices}.\n\nPlease take the following actions:\n\n1. Issue a credit for the full overcharged amount of {overcharged_to_date}.\n2. Reissue {invoices} at no more than {max_allowed_monthly} per month.\n3. Bill all future renewal-term invoices in line with the cap in the agreement.\n\nPlease confirm receipt of this dispute and let us know when the credit and corrected invoices will be issued.\n\nKind regards,\n{sender}"
+  },
+  "prompt_version": "draft-v6",
+  "request_id": "req_011CguyLyFwiKfcRoBUhrrSJ",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 807,
+    "inference_geo": "global",
+    "input_tokens": 511,
+    "output_tokens": 373,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

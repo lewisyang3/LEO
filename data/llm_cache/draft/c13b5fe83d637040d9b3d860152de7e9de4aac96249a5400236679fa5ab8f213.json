@@ -1,0 +1,28 @@
+{
+  "doc_hash": "b39e07384a15fccb90681bfe1f0d91f7e49de36fff54cc6a9ba3c746c2e4a676",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nI am writing to dispute charges on {agreement}. The increase to the Monthly Service Fee was applied earlier than the agreement allows.\n\nThe agreement states: \"{escalator_clause}\" The first permitted increase therefore takes effect on {first_application}, not on {applied_from}.\n\nHalcyon applied the increase beginning with invoice {invoices}. The contract rate is {contract_monthly} per month, but the amount billed was {charged_monthly} per month, an overcharge of {overcharge_monthly} per month. The total overcharged to date is {overcharged_to_date}.\n\nPlease issue a credit for {overcharged_to_date} and send a corrected invoice that bills the Monthly Service Fee at {contract_monthly} until {first_application}. Please also confirm that future invoices will apply any increase only from the date the agreement permits.\n\nThank you for your prompt attention to this matter. Please reply to confirm the credit and the corrected billing.\n\nKind regards,\n{sender}"
+  },
+  "prompt_version": "draft-v6",
+  "request_id": "req_011CguyHhybokazA15F6mVSy",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 807,
+    "inference_geo": "global",
+    "input_tokens": 462,
+    "output_tokens": 364,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

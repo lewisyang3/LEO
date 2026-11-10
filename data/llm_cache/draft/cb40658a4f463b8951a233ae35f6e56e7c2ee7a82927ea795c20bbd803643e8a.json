@@ -1,0 +1,28 @@
+{
+  "doc_hash": "eec28b021a22264008952dbaa26dcfbb1602884d5050e54635c583ccb7193bcf",
+  "effort": "low",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "body": "Dear {vendor} team,\n\nWe are writing to dispute the increased Monthly Service Fee applied under {agreement}. Our records show that the increase was applied from {applied_from}, before it was permitted under the agreement.\n\nThe agreement states: \"{escalator_clause}\" The agreement does not allow that increase to take effect until {first_application}, so the rate in effect before then should have remained {contract_monthly} per month.\n\nInstead, invoice {invoices} billed {charged_monthly} per month. The difference is {overcharge_monthly} per month, for a total overcharge of {overcharged_to_date} to date.\n\nPlease issue a credit for {overcharged_to_date} to our account. Please also correct the monthly fee on future invoices so that it reflects the agreed rate until {first_application}, and send us a corrected invoice for the affected period.\n\nThank you for your prompt attention to this matter. Please confirm once the credit and corrected billing have been processed.\n\nKind regards,\n{sender}"
+  },
+  "prompt_version": "draft-v6",
+  "request_id": "req_011CguyMPoKZoSVhJuNPAez3",
+  "stage": "draft",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 807,
+    "inference_geo": "global",
+    "input_tokens": 481,
+    "output_tokens": 352,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

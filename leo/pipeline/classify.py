@@ -82,9 +82,7 @@ class JevClassifier:
                     JEV_QUESTION: Choice(instructions=JEV_INSTRUCTIONS, criteria=JEV_CRITERIA)
                 },
             )
-            record_usage(
-                "jev", getattr(resp, "model", "jev-latest"), getattr(resp, "usage", None)
-            )
+            record_usage("jev", getattr(resp, "model", "jev-latest"), getattr(resp, "usage", None))
             probabilities = {
                 str(k): float(v) for k, v in resp.choices[JEV_QUESTION].probabilities.items()
             }

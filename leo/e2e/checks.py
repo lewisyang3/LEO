@@ -1,8 +1,10 @@
 """The end-to-end checks (ROADMAP 2.2): a pipeline run's rows against the answer key.
 
 `run_checks` reads one tenant after the worker has drained it and returns one `Check` per item
-of the key: the jobs, F1-F5, no extra finding, N1-N8 and D1-D4. `check_rerun` is D5: ingest
-the set again and reconcile again, and no ledger row may change.
+of the key: the jobs, F1-F5 (each with its draft scored against the key's `expected_action`), no
+extra finding, the vendors' names, N1-N8, D1-D4 and, for an LLM drafter, that no draft fell back
+to the template (2.3). `check_rerun` is D5: ingest the set again and reconcile again, and no
+ledger row may change.
 
 Key vendors are found through the documents the key gives them (a stored document's or term's
 vendor), and key charges through their date, descriptor and amount, because every stored id is
@@ -20,9 +22,10 @@ from sqlalchemy.orm import Session
 
 from leo.db import models as m
 from leo.db.read import load_findings, load_ledger
-from leo.fixtures import Fixture
+from leo.eval.scoring import score_draft
+from leo.fixtures import ExpectedAction, Fixture
 from leo.interfaces import Ledger
-from leo.types import Finding, FindingKind, TermStatus, TermType
+from leo.types import ActionDraft, Finding, FindingKind, TermStatus, TermType
 
 PROBABLE_DUPLICATE = "probable_duplicate"
 ADDON = "Transactional Email add-on"
@@ -187,11 +190,7 @@ def check_findings(r: _Run) -> list[Check]:
         want = (key.deadline, key.recommended_send_by, key.impact.headline_amount)
         if got != want:
             problems.append(f"(deadline, send by, impact) {got} != key {want}")
-        n_actions = r.s.scalar(
-            select(func.count()).where(m.Action.tenant_id == r.t, m.Action.finding_id == UUID(f.id))
-        )
-        if not n_actions:
-            problems.append("no drafted action")
+        problems += _draft_problems(r, f, x.expected_action)
         out.append(_check(key.id, problems, f"{f.title} (${f.impact.headline_amount:,})"))
     expected = {key_anchor_of(x.finding, r.fx) for x in r.fx.expected_findings}
     extra = [f for f in r.findings if anchor_of(f, r.ledger) not in expected]
@@ -203,6 +202,66 @@ def check_findings(r: _Run) -> list[Check]:
         )
     )
     return out
+
+
+def _actions(r: _Run, finding_id: str) -> list[m.Action]:
+    q = select(m.Action).where(m.Action.tenant_id == r.t, m.Action.finding_id == UUID(finding_id))
+    return list(r.s.scalars(q.order_by(m.Action.natural_key)))
+
+
+def _draft_problems(r: _Run, f: Finding, expected: ExpectedAction) -> list[str]:
+    """The finding's action of the key's type, scored like the eval's `--drafter`."""
+    actions = [a for a in _actions(r, f.id) if a.action_type == str(expected.type)]
+    if not actions:
+        return [f"no drafted {expected.type}"]
+    a = actions[0]
+    draft = ActionDraft(
+        finding=f.id,
+        type=a.action_type,
+        to=a.recipient,
+        subject=a.subject,
+        body=a.body,
+        pre_step=a.pre_step,
+        alternative=a.alternative,
+    )
+    s = score_draft(f.id, draft, expected)
+    problems = []
+    if not s.to_ok:
+        problems.append(f"draft to {a.recipient!r}, key {expected.to!r}")
+    if not s.alternative_ok:
+        problems.append(f"draft alternative {a.alternative}, key {expected.alternative}")
+    if not s.pre_step_ok:
+        problems.append("draft pre-step " + ("missing" if expected.pre_step else "unexpected"))
+    if s.missing:
+        problems.append("draft lacks " + ", ".join(repr(x) for x in s.missing))
+    return problems
+
+
+def check_vendors(r: _Run) -> Check:
+    """Each key vendor is stored under the key's name: found through its documents, or through
+    its charges for a vendor with none."""
+    problems = []
+    for v in r.fx.vendors:
+        ids = r.vendors(v.id)
+        if not ids:
+            txns = [t for t, kv in r.fx.transaction_vendor_map.items() if kv == v.id]
+            ids = {str(x.vendor_id) for t in txns if (x := r.txn(t)) and x.vendor_id}
+        names = sorted({r.vendor_names.get(i, i) for i in ids})
+        if names != [v.canonical_name]:
+            problems.append(f"{v.id}: {names or 'not found'}, key {v.canonical_name!r}")
+    return _check("vendors", problems, f"{len(r.fx.vendors)} vendors named as in the key")
+
+
+def check_drafts(r: _Run) -> Check:
+    """Every current finding's actions were written by the LLM, none by the fallback template."""
+    problems = []
+    for f in r.findings:
+        for a in _actions(r, f.id):
+            engine = (a.raw_model_output or {}).get("engine", "?")
+            if not engine.startswith("llm:"):
+                problems.append(f"{r.describe([f])}: {engine}")
+    n = sum(len(_actions(r, f.id)) for f in r.findings)
+    return _check("drafts", problems, f"{n} drafts, all the LLM's")
 
 
 def _value(t, name: str):
@@ -391,10 +450,16 @@ CHECKS: tuple[Callable[[_Run], Check], ...] = (
 )
 
 
-def run_checks(session: Session, tenant_id: UUID, fx: Fixture) -> list[Check]:
-    """Every check but D5, on one drained tenant."""
+def run_checks(
+    session: Session, tenant_id: UUID, fx: Fixture, llm_drafts: bool = False
+) -> list[Check]:
+    """Every check but D5, on one drained tenant. `llm_drafts` adds the `drafts` check, for a
+    run whose drafter is the LLM's."""
     r = _Run(session, tenant_id, fx)
-    return [check_jobs(r), *check_findings(r), *(c(r) for c in CHECKS)]
+    out = [check_jobs(r), *check_findings(r), check_vendors(r), *(c(r) for c in CHECKS)]
+    if llm_drafts:
+        out.append(check_drafts(r))
+    return out
 
 
 def check_rerun(session: Session, tenant_id: UUID, rerun: Callable[[], int]) -> Check:

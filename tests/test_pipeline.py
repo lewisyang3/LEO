@@ -405,7 +405,8 @@ def _rerun_reconcile(repo: Repo, w: Worker) -> None:
 
 @needs_cache
 def test_the_e2e_checks_pass_on_the_synthetic_set(synthetic):
-    """`make e2e`'s checks (2.2), offline: F1-F5, nothing extra, N1-N8 and D1-D5."""
+    """`make e2e`'s checks (2.2, 2.3), offline: F1-F5 with their drafts, nothing extra, the vendor
+    names, N1-N8 and D1-D5."""
     repo, w = synthetic
     s = repo.session
     checks = run_checks(s, repo.tenant_id, load_fixture())
@@ -419,7 +420,7 @@ def test_the_e2e_checks_pass_on_the_synthetic_set(synthetic):
 
     checks.append(check_rerun(s, repo.tenant_id, rerun))
     assert [c.id for c in checks] == [
-        "jobs", *(f"F{i}" for i in range(1, 6)), "extra",
+        "jobs", *(f"F{i}" for i in range(1, 6)), "extra", "vendors",
         *(f"N{i}" for i in range(1, 9)), *(f"D{i}" for i in range(1, 6)),
     ]  # fmt: skip
     assert [(c.id, c.detail) for c in checks if not c.ok] == []

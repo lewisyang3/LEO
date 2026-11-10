@@ -4,7 +4,8 @@ set, and check the result against the answer key (ROADMAP 2.2). Run it before ev
 1. `make reset`: drop, migrate, seed. This wipes every local approval and Gmail row.
 2. Ingest `data/synthetic` into the pipeline's tenant (`LEO_PIPELINE_TENANT`) and drain it,
    committed, so `make api-pipeline` shows the result afterwards.
-3. Check F1-F5, no extra finding, N1-N8 and D1-D4, then ingest and reconcile again (D5).
+3. Check F1-F5 (each with its draft), no extra finding, the vendor names, N1-N8, D1-D4 and
+   that no draft fell back to the template (2.3), then ingest and reconcile again (D5).
 
 Live by default: the Jev classifier (`JEV_API_KEY`), scripts then the cached LLM extractor,
 the rules validator and the cached LLM drafter. `--offline` uses the key's classes and sets
@@ -97,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"   ran {worker.drain()} jobs")
 
         with _step("checks"):
-            checks = run_checks(session, tenant_id, fx)
+            checks = run_checks(session, tenant_id, fx, llm_drafts=True)
 
             def rerun() -> int:
                 _, again = folder.load(session, DATA, slug, store)

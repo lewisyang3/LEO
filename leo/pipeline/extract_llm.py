@@ -219,6 +219,23 @@ def agreement_ref(ref: str | None) -> str | None:
     return ids[-1] if ids else (ref.strip() or None)
 
 
+_LABELLED_REF = re.compile(
+    r"\b(?:Agreement|Order\s+Form|MSA|Contract|Account)\s+(?:No\.?|Number|ID|#)\s*[:#]?\s*"
+    r"([A-Za-z0-9][A-Za-z0-9-]*\d[A-Za-z0-9-]*)",
+    re.IGNORECASE,
+)
+
+
+def labelled_ref(text: str) -> str | None:
+    """The document's one labelled agreement or account number ("Account ID: LP-204417"), for
+    terms the model gave no `agreement_ref` (2.3). The prompt asks for an agreement, order form
+    or MSA number, so the model leaves an account number out, and the draft then can't cite it.
+    Invoice numbers aren't labels here. None when the document has no such label, or two
+    different ids."""
+    ids = {m.group(1).rstrip("-") for m in _LABELLED_REF.finditer(text)}
+    return ids.pop() if len(ids) == 1 else None
+
+
 # --- Date helpers ----------------------------------------------------------------------------
 
 
@@ -441,6 +458,9 @@ class LLMExtractor:
                 terms.append(term)
 
         self._fill_derived_dates(terms)
+        if any(t.agreement_ref is None for t in terms) and (ref := labelled_ref(doc.text)):
+            for t in terms:
+                t.agreement_ref = t.agreement_ref or ref
 
         facts: list[InvoiceFact] = []
         for i, x in enumerate(output.get("invoice_facts") or []):

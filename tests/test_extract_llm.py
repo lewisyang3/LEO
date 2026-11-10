@@ -17,6 +17,7 @@ from leo.pipeline.extract_llm import (
     LLMExtractor,
     add_months,
     agreement_ref,
+    labelled_ref,
     merge_parts,
     normalize_billing_period,
 )
@@ -482,6 +483,29 @@ def test_agreement_ref_keeps_the_identifier_alone():
     assert agreement_ref("Master Agreement") == "Master Agreement"
     assert agreement_ref("  ") is None
     assert agreement_ref(None) is None
+
+
+def test_labelled_ref_finds_one_agreement_or_account_number():
+    assert labelled_ref("Plan: Growth\nAccount ID: LP-204417\n") == "LP-204417"
+    assert labelled_ref("Account No. FL-77310-B") == "FL-77310-B"
+    assert labelled_ref("Agreement No. CRV-2025-0418 ... Agreement No. CRV-2025-0418") == (
+        "CRV-2025-0418"
+    )
+    assert labelled_ref("Invoice No. INV-KCH-261001") is None  # an invoice isn't an agreement
+    assert labelled_ref("Accounts Payable team") is None
+    assert labelled_ref("Agreement No. A-1\nAccount ID: B-2") is None  # two ids: no guess
+
+
+def test_terms_without_a_ref_take_the_documents_labelled_one(tmp_path):
+    """2.3: Lumenpost writes "Account ID: LP-204417", which the model leaves out."""
+    out = _empty("Lumenpost")
+    out["terms"] = [
+        _price(339, plan="Growth", old=299),
+        {**_price(49, plan="Add-on", old=49), "agreement_ref": "Order No. ORD-9"},
+    ]
+    growth, addon = _run(tmp_path, out, text="Lumenpost\nAccount ID: LP-204417\n").terms
+    assert growth.agreement_ref == "LP-204417"
+    assert addon.agreement_ref == "ORD-9"  # the model's own ref is kept
 
 
 def test_cached_terms_of_a_vendor_agree_on_their_agreement_ref():
