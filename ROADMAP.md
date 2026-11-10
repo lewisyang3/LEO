@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** A7 (seed and reset) is done. The next task isn't chosen yet: A8 (Gmail sync) or 2.1 integration. A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** Next in Track A is A8 (Gmail sync). A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -134,7 +134,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - citations upsert by (owner, ordinal) and drop stale ordinals
     - an alias that already names another vendor raises `AliasConflict`
   - **Tenants.** `tenant.slug` is the tenant's natural key. The seed's slug is the dataset name.
-  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) came straight from the key. A5 replaced the vendors and mappings with matching, and A6 replaced the D2 link with a computed one. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. A7 wires this to `make seed`.
+  - **Seed.** `seed(session)` loads the answer key under one tenant: 223 rows. Vendors, transaction mappings and the D2 link (`document_link`, `probable_duplicate`) came straight from the key. A5 replaced the vendors and mappings with matching, and A6 replaced the D2 link with a computed one. A byte-identical copy (D1) reuses the original's row and doesn't overwrite its notes. `make seed` runs it (C3), and `make reset` wipes the schema and reseeds (A7).
   - **Not done here.** `.eml` header decoding with `email.policy.default` and a guarded date parse belong to A3 (done there). The read methods B and C need to switch over belong to C3.
 - [x] **A3 [must] Ingestion function.**
   - An `.eml` parser covering headers, text body, and attachments stored once by hash.
@@ -233,6 +233,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - **Reset.** `make reset` drops and recreates the `public` schema, runs `alembic upgrade head`, then seeds, all in one process. It drops the schema rather than running `alembic downgrade base`, so it doesn't depend on any downgrade working. The init migration recreates `pg_trgm`. A reseed keeps approvals and edits, but a reset brings every action back as an unapproved draft.
   - **Guards.** It refuses a database whose host isn't `localhost`, loopback or `db` unless `--force` is passed, and it prints the URL with the password hidden. The drop waits at most 5s for locks (`lock_timeout`). If the API or worker is mid-transaction, it stops and says to stop them first.
   - **Not done here.** `LEO_RAW_DIR` isn't emptied: it's content-addressed, and the seed rewrites the same files. Uploaded bytes stay there with no row pointing to them, which does no harm.
+    - Small follow-ups: `Config("alembic.ini")` is relative, so it only works from the repo root (as `make` runs it). A Unix-socket `DATABASE_URL` (no host) counts as non-local and needs `--force`.
   - **Tests** (`tests/test_reset.py`): the local-host check, and the refusal of a remote database without dropping anything. No test drops the dev schema, because `make test` shares it. The reset itself was checked by hand: two runs in a row give the same row counts, and an approval made before a reset is back to a draft afterwards.
 - [ ] **A8 [should] Gmail sync.**
   - Read-only OAuth into a seeded demo Gmail account.
