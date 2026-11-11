@@ -22,36 +22,6 @@ LEO reads a business's vendor contracts, emails and invoices, and records every 
 
 LEO also improves as it's used. When a reviewer corrects an extracted term, LEO shows Claude that correction on later extractions, so it learns from the mistake. When the LLM keeps extracting from the same sender, Claude writes a script for that format, and the script is promoted only if it reproduces the verified results.
 
-The whole flow, including the two feedback loops (dotted):
-
-```mermaid
-flowchart TD
-    gmail["Gmail inbox<br/>(read-only sync)"] --> queue
-    files["Contracts and uploads"] --> queue
-    queue[("Job queue<br/>(Postgres)")] --> classify
-
-    classify{"1 · Classify<br/>Jev"} -- noise --> stop(["Stop"])
-    classify -- "contract, notice, invoice" --> known
-
-    subgraph extract ["2 · Extract"]
-        known{"Known format?"} -- yes --> script["Script"]
-        known -- no --> claude["Claude"]
-    end
-
-    script --> validate
-    claude --> validate
-    validate{"3 · Validate<br/>rules + Jev"} -- fails --> dashboard
-    validate -- passes --> reconcile
-
-    charges["Card charges<br/>(transactions.csv)"] --> reconcile
-    reconcile["4 · Reconcile<br/>match vendors, compare<br/>terms with charges"] --> draft
-    draft["5 · Act<br/>Claude drafts the fix<br/>for each finding"] --> dashboard
-
-    dashboard[["Dashboard<br/>human review"]] -- approve --> send(["Send"])
-    dashboard -. "corrections become examples" .-> claude
-    claude -. "repeated sender: Claude writes a script,<br/>promoted if it reproduces the results" .-> script
-```
-
 Emails arrive through a read-only Gmail sync, and documents can also be uploaded. The demo runs on Brightwater Coffee Co., a fictional three-location coffee shop with five planted issues ([`data/synthetic/`](data/synthetic/), answer key in `expected.json`).
 
 ## Stack
