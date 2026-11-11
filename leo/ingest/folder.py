@@ -6,7 +6,7 @@ same every run, so the jobs run in the same order and the first document of each
 it. The tenant defaults to `LEO_PIPELINE_TENANT`, never the seed's, so the pipeline's rows
 don't mix with the answer key's. Re-running ingests nothing new. `--folder contracts` loads just
 that folder: the Gmail demo tenant gets its contracts this way and its emails from Gmail
-(`make demo-prep`, docs/DEMO.md).
+(`make demo-prep`).
 
 Then `make worker ARGS=--drain` runs the pipeline.
 """

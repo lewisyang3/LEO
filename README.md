@@ -20,7 +20,7 @@ LEO reads a business's vendor contracts, emails and invoices, keeps a record of 
 4. **Reconcile.** Vendor names are matched to messy card descriptors (`PAYWAVE* LUMENPOST`), and the terms are compared with the charges. LEO flags upcoming renewal deadlines, price increases, cap breaches, seat overages and early escalators, with the dollars at stake.
 5. **Act.** Claude drafts the fix for each finding: a cancellation notice, a negotiation email or a dispute. **Nothing is sent without human approval.**
 
-LEO also improves as it's used. When a reviewer corrects an extracted term, the correction becomes a few-shot example for future extractions. When the LLM keeps extracting from the same sender, Claude writes a script for that format, and the script is promoted only if it reproduces the verified results.
+LEO also improves as it's used. When a reviewer corrects an extracted term, LEO shows Claude that correction on later extractions, so it learns from the mistake. When the LLM keeps extracting from the same sender, Claude writes a script for that format, and the script is promoted only if it reproduces the verified results.
 
 Emails arrive through a read-only Gmail sync, and documents can also be uploaded. The demo runs on Brightwater Coffee Co., a fictional three-location coffee shop with five planted issues ([`data/synthetic/`](data/synthetic/), answer key in `expected.json`).
 
@@ -66,4 +66,4 @@ make api-pipeline                                   # serve the pipeline's resul
 
 `make test` runs the test suite (no API keys needed), and `make reset` wipes the database and reseeds it for a clean demo.
 
-More detail: [`docs/STACK.md`](docs/STACK.md) (the stack and the LLM policy), [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) and [`docs/DEMO.md`](docs/DEMO.md) (the demo video).
+More detail: [`docs/STACK.md`](docs/STACK.md) (the stack and the LLM policy) and [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) (the data model).

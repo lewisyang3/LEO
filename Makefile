@@ -60,7 +60,7 @@ gmail-sync:
 gmail-import:
 	uv run python scripts/seed_gmail.py $(ARGS)
 
-# The demo video's "before" state (docs/DEMO.md): reset (which reseeds LEO_TENANT, never the
+# The demo video's "before" state: reset (which reseeds LEO_TENANT, never the
 # Gmail tenant), the contracts as files, then Gmail connect (browser consent), sync and drain.
 DEMO_TENANT = $${LEO_GMAIL_TENANT:-gmail-demo}
 demo-prep:

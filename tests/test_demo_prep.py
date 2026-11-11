@@ -1,4 +1,4 @@
-"""The demo's loaders (docs/DEMO.md): contracts as files into the Gmail tenant, and a first
+"""The demo's loaders: contracts as files into the Gmail tenant, and a first
 Gmail import that holds back the email arriving live."""
 
 import importlib.util
