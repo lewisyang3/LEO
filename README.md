@@ -6,21 +6,51 @@
 
 ## The problem
 
-Small businesses pay dozens of software and service vendors, but the terms that cost them money are scattered across PDFs, shared drives and inboxes. Contracts auto-renew, mid-term price escalators kick in, and "our rates are changing" emails get archived unread. Checking each bill against what was actually agreed is a manual job of spreadsheets and email searches, so it rarely happens. By the time the higher charge lands, the window to cancel or renegotiate has closed.
+Small businesses pay dozens of software and service vendors, but the terms that cost them money are scattered across contracts and email threads. Contracts auto-renew, price escalators kick in mid-term, and rate-change notices get lost in the inbox. Checking each bill against what was actually agreed means digging through spreadsheets and old emails, so it rarely happens. By the time the higher charge lands, the window to cancel or renegotiate has closed.
 
-Renewal reminders exist, but they only track contract end dates. They miss price changes announced by email, and they can't tell you that a bill doesn't match the contract.
+Renewal reminders exist, but they only track contract end dates. They miss price changes announced by email, and they can't tell you when a bill doesn't match the contract.
 
 ## How LEO solves it
 
-LEO reads a business's vendor contracts, emails and invoices, keeps a record of every term the business agreed to (each with the exact quote it came from), and checks the card charges against those terms. It runs every document through a pipeline in which each stage is cheaper than the next, so most documents never reach the expensive one:
+LEO reads a business's vendor contracts, emails and invoices, and records every term the business agreed to, each linked to the exact quote it came from. Then it checks the card charges against those terms. It runs every document through five steps, with cheap checks before expensive ones: Jev filters out noise before any LLM call, and documents in a known format are parsed by scripts and never reach Claude.
 
 1. **Classify.** Jev (TypeSafe AI) labels each document (contract, order form, price notice, invoice, noise). Noise stops here.
-2. **Extract.** Known formats go to deterministic scripts. Everything else goes to Claude, which returns structured terms with their source quotes.
+2. **Extract.** Documents in a known format are parsed by deterministic scripts. The rest go to Claude, which returns structured terms with their source quotes.
 3. **Validate.** Rules and Jev check the output: dates parse, amounts are plausible and every quote really appears in the document.
 4. **Reconcile.** Vendor names are matched to messy card descriptors (`PAYWAVE* LUMENPOST`), and the terms are compared with the charges. LEO flags upcoming renewal deadlines, price increases, cap breaches, seat overages and early escalators, with the dollars at stake.
 5. **Act.** Claude drafts the fix for each finding: a cancellation notice, a negotiation email or a dispute. **Nothing is sent without human approval.**
 
 LEO also improves as it's used. When a reviewer corrects an extracted term, LEO shows Claude that correction on later extractions, so it learns from the mistake. When the LLM keeps extracting from the same sender, Claude writes a script for that format, and the script is promoted only if it reproduces the verified results.
+
+The whole flow, including the two feedback loops (dotted):
+
+```mermaid
+flowchart TD
+    gmail["Gmail inbox<br/>(read-only sync)"] --> queue
+    files["Contracts and uploads"] --> queue
+    queue[("Job queue<br/>(Postgres)")] --> classify
+
+    classify{"1 · Classify<br/>Jev"} -- noise --> stop(["Stop"])
+    classify -- "contract, notice, invoice" --> known
+
+    subgraph extract ["2 · Extract"]
+        known{"Known format?"} -- yes --> script["Script"]
+        known -- no --> claude["Claude"]
+    end
+
+    script --> validate
+    claude --> validate
+    validate{"3 · Validate<br/>rules + Jev"} -- fails --> dashboard
+    validate -- passes --> reconcile
+
+    charges["Card charges<br/>(transactions.csv)"] --> reconcile
+    reconcile["4 · Reconcile<br/>match vendors, compare<br/>terms with charges"] --> draft
+    draft["5 · Act<br/>Claude drafts the fix<br/>for each finding"] --> dashboard
+
+    dashboard[["Dashboard<br/>human review"]] -- approve --> send(["Send"])
+    dashboard -. "corrections become examples" .-> claude
+    claude -. "repeated sender: Claude writes a script,<br/>promoted if it reproduces the results" .-> script
+```
 
 Emails arrive through a read-only Gmail sync, and documents can also be uploaded. The demo runs on Brightwater Coffee Co., a fictional three-location coffee shop with five planted issues ([`data/synthetic/`](data/synthetic/), answer key in `expected.json`).
 
