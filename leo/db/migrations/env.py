@@ -13,7 +13,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# A1 sets this to the models' Base.metadata so autogenerate works.
+# Set to the models' Base.metadata so autogenerate works.
 target_metadata = Base.metadata
 
 DATABASE_URL = get_settings().database_url

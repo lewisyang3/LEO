@@ -13,7 +13,7 @@ instead of getting a wrong extraction. The failure is kept in `records`.
 worker's extract loop uses. The eval uses it for "scripts, then the LLM".
 
 The hand-written registry lives in code. Generated scripts are stored in `extractor_script`
-and loaded per tenant (`leo.scriptgen`, Phase 4).
+and loaded per tenant (`leo.scriptgen`).
 """
 
 import datetime

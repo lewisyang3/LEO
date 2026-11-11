@@ -1,5 +1,5 @@
 """`structured_call`: the default client keeps the SDK's retries, and every outbound call is
-recorded for B6, including one that fails."""
+recorded for analytics, including one that fails."""
 
 from decimal import Decimal
 

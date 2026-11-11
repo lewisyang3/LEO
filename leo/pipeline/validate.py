@@ -2,7 +2,7 @@
 
 `RuleValidator` runs deterministic checks on an extraction:
 - the vendor name is present and appears in the document (`vendor_ok`)
-- every quote appears in the document exactly (`leo.rules.locate_quote`, as A2's offsets do)
+- every quote appears in the document exactly (`leo.rules.locate_quote`, as the repository does)
 - dates are in range and billing periods are well formed
 - amounts, percentages, day counts and seat counts are plausible
 - no term conflicts with one of the vendor's prior terms
@@ -14,7 +14,7 @@ When `vendor_ok` is False, every term and invoice fact gets `needs_review` (fail
 A prior term is comparable with a new term only when it comes from a different document and
 has the same type, plan label, agreement ref and effective date (and, for notice and dispute
 windows, the same `applies_to`). A different effective date is a change over time, which the
-reconciler handles as supersession (C1), so it is never a conflict here.
+reconciler handles as supersession, so it is never a conflict here.
 """
 
 import datetime

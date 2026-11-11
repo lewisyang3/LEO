@@ -253,7 +253,7 @@ EXTRACTION_PARTS: dict[str, tuple[type[LLMModel], str]] = {
 }
 
 
-# --- Few-shot corrections (Phase 4, feedback loop) --------------------------------------------
+# --- Few-shot corrections (the feedback loop) --------------------------------------------
 #
 # A reviewer's correction is shown to the model in the part that extracts that kind of item,
 # and only for fields the model itself writes. Dates the mapper computes afterwards

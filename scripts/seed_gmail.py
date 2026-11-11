@@ -5,7 +5,7 @@
 Each `.eml` is imported with `messages.import`, so it lands in the Inbox as received mail,
 keeping its From, To, Subject and dates (`internalDateSource=dateHeader`). `--drip` imports one
 email every SECONDS, so they appear to arrive live while `make gmail-sync ARGS="--watch 10"`
-runs. `--only` imports a single email (the 3.3 live demo). `--skip` (repeatable) leaves files out,
+runs. `--only` imports a single email (the live demo). `--skip` (repeatable) leaves files out,
 so the demo's first import holds back the email that arrives live. `--live` (with
 `--only`) makes that email arrive as new: a fresh Message-ID, because Gmail otherwise matches an
 earlier copy (even one in Trash) and just moves it back to the Inbox, which sync doesn't read as

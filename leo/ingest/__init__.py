@@ -1,1 +1,1 @@
-"""Track A: .eml parsing, contracts loader and ingest() (A3, A8)."""
+"""`.eml` parsing, the folder loaders, Gmail sync and `ingest()`."""

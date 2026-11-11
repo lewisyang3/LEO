@@ -1,1 +1,1 @@
-"""Per-stage B6 analytics instrumentation."""
+"""Per-stage analytics instrumentation."""

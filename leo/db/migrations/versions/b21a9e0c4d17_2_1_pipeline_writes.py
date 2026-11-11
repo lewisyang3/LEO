@@ -1,4 +1,4 @@
-"""2.1 pipeline writes: fail-closed items and the per-tenant reconcile job
+"""pipeline writes: fail-closed items and the per-tenant reconcile job
 
 - `contract_term.vendor_id` and `invoice_fact.vendor_id` are nullable: an item whose vendor
   name failed validation is stored as `needs_review` with no vendor (`leo/interfaces.py`).

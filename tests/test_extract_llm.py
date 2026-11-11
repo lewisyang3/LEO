@@ -499,7 +499,7 @@ def test_labelled_ref_finds_one_agreement_or_account_number():
 
 
 def test_terms_without_a_ref_take_the_documents_labelled_one(tmp_path):
-    """2.3: Lumenpost writes "Account ID: LP-204417", which the model leaves out."""
+    """Lumenpost writes "Account ID: LP-204417", which the model leaves out."""
     out = _empty("Lumenpost")
     out["terms"] = [
         _price(339, plan="Growth", old=299),
@@ -512,7 +512,7 @@ def test_terms_without_a_ref_take_the_documents_labelled_one(tmp_path):
 
 def test_cached_terms_of_a_vendor_agree_on_their_agreement_ref():
     """The reconciler joins a vendor's terms on an exact agreement_ref (F3: the Kestrel cap and
-    renewal). The model once wrote the cap's as "MSA No. KCH-MSA-2209" (2.1 review)."""
+    renewal). The model once wrote the cap's as "MSA No. KCH-MSA-2209"."""
     settings = Settings(_env_file=None, leo_llm_offline=True)
     if not list((settings.leo_llm_cache_dir / "extract").glob("*.json")):
         pytest.skip("no committed extraction cache")
@@ -559,7 +559,7 @@ def test_cached_vendor_names_resolve():
         assert name and resolver.find_vendor(name) == FX.document(path).vendor, (path, name)
 
 
-# --- Few-shot corrections (Phase 4, F2) -------------------------------------------------------
+# --- Few-shot corrections -------------------------------------------------------
 
 
 def _shot(item="renewal", rejected=False, **kw):

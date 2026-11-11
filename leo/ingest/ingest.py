@@ -1,6 +1,6 @@
 """`ingest()`: one raw file in, one `source_document` row (plus its attachments) out.
 
-The upload endpoint (C3), the folder loaders and the seed all come through here, so a document
+The upload endpoint, the folder loaders and the seed all come through here, so a document
 is written one way. The raw bytes go to the `RawStore` and the row holds the reference.
 
 - Keys come from the bytes (`leo.db.keys.document_key`), never from `Message-ID` or other
@@ -82,11 +82,11 @@ def ingest(
     `filename` decides the kind (`.eml` is an email, anything else a file); only its bare name
     is kept. `path` defaults to `uploads/{filename}`.
 
-    With `enqueue`, each document (attachments too) gets a `classify` job for the worker (A4).
+    With `enqueue`, each document (attachments too) gets a `classify` job for the worker.
     A document that already has one keeps it, whatever its status, so re-ingesting requeues
     nothing. The seed passes `enqueue=False`: it writes the answer key's results itself.
 
-    A synced email (A8) passes its own `natural_key` (`v1:gmail:{account}:{message id}`),
+    A synced email passes its own `natural_key` (`v1:gmail:{account}:{message id}`),
     `source_kind` and `thread_id`. Its attachments still key on their bytes.
     """
     name = safe_filename(filename)

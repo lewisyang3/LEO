@@ -1,6 +1,6 @@
 # Held-out classification set (brightwater-holdout-v1)
 
-This folder has five extra documents for the same fictional customer (Brightwater Coffee Co.), written after B2's classifier was tuned. They are used to test the Jev classifier on documents it was never tuned on. `labels.json` holds each document's class and a one-line reason for it.
+This folder has five extra documents for the same fictional customer (Brightwater Coffee Co.), written after the classifier was tuned. They are used to test the Jev classifier on documents it was never tuned on. `labels.json` holds each document's class and a one-line reason for it.
 
 **Do not tune on this set.** Leave the classifier prompt, criteria and `NOISE_THRESHOLD` as they are after looking at these results. Otherwise the set stops being held out. To tune, add the documents to `data/synthetic/` and write a new holdout set.
 

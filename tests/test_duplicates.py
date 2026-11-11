@@ -1,4 +1,4 @@
-"""Duplicate linking (A6): D2 linked, D3 kept apart, D4 histories kept apart, reruns stable.
+"""Duplicate linking: D2 linked, D3 kept apart, D4 histories kept apart, reruns stable.
 
 The database tests need Postgres running and migrated (`make up && make migrate`), and run in
 the rolled-back `session` fixture from conftest.py.
@@ -217,7 +217,7 @@ def test_forwards_with_no_original_link_to_the_earliest(session, raw_store):
 
 
 def test_findings_still_load_when_they_cite_a_linked_duplicate(session, seeded):
-    """A finding written before its document was linked (2.1's worker order) still reads."""
+    """A finding written before its document was linked (the worker's order) still reads."""
     fwd = _docs(session, seeded)[FORWARD].id
     q = select(m.ContractTerm.id).where(
         m.ContractTerm.document_id == fwd, m.ContractTerm.plan_label == "Growth"

@@ -1,4 +1,4 @@
-"""Natural-key builders (A2). Pure: no database."""
+"""Natural-key builders. Pure: no database."""
 
 from leo.db import keys
 from leo.fixtures import DATA_DIR

@@ -195,7 +195,7 @@ def _example_quote(ex: "FewShot") -> str:
 
 
 def corrections_block(examples: Sequence["FewShot"]) -> str:
-    """A reviewer's corrections of earlier extractions, as few-shot examples (Phase 4)."""
+    """A reviewer's corrections of earlier extractions, as few-shot examples."""
     lines = [
         "<corrections>",
         "A reviewer corrected earlier extractions from other documents. Where this document says "
@@ -250,7 +250,7 @@ _REF_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*")
 def agreement_ref(ref: str | None) -> str | None:
     """The agreement's identifier alone: "MSA No. KCH-MSA-2209" becomes "KCH-MSA-2209". The
     reconciler joins terms on an exact `agreement_ref` (F3's cap and renewal), so a label the
-    model sometimes writes would split one agreement in two (2.1 review). The last token with
+    model sometimes writes would split one agreement in two. The last token with
     a digit is the identifier; a ref with none is kept as written, stripped."""
     if ref is None:
         return None
@@ -267,7 +267,7 @@ _LABELLED_REF = re.compile(
 
 def labelled_ref(text: str) -> str | None:
     """The document's one labelled agreement or account number ("Account ID: LP-204417"), for
-    terms the model gave no `agreement_ref` (2.3). The prompt asks for an agreement, order form
+    terms the model gave no `agreement_ref`. The prompt asks for an agreement, order form
     or MSA number, so the model leaves an account number out, and the draft then can't cite it.
     Invoice numbers aren't labels here. None when the document has no such label, or two
     different ids."""

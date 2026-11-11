@@ -6,7 +6,7 @@ from that job's `raw_model_output`, so a retry reruns one stage, not the chain. 
 is the engine that produced the output.
 
 Each stage also writes its results through `Repo`, in the same transaction that marks the job
-done (2.1, `leo.worker.writes`):
+done (`leo.worker.writes`):
 - classify: the document's class
 - validate: the vendor (created only on `vendor_ok`), terms, invoice facts and contacts; then
   it requests the tenant's reconcile (`queue.request_reconcile`), which waits until the
@@ -274,9 +274,9 @@ class Worker:
         return StageResult(c.model_dump(mode="json"), c.engine, nxt)
 
     def _extract(self, repo: Repo, row: DocumentRow, doc: DocumentText) -> StageResult:
-        """The tenant's promoted generated scripts first (Phase 4), then the pipeline's
+        """The tenant's promoted generated scripts first, then the pipeline's
         extractors in order. The LLM extractor also gets the tenant's reviewed items from
-        other documents as few-shot examples (F2), loaded only when it is reached."""
+        other documents as few-shot examples, loaded only when it is reached."""
         p = self.pipeline
         stored = p.stored_scripts(repo) if p.stored_scripts is not None else None
         chain = [*([stored] if stored is not None else []), *p.extractors]

@@ -1,4 +1,4 @@
-"""The Jev (TypeSafe AI) client, shared by the classifier (B2) and the validator (B4).
+"""The Jev (TypeSafe AI) client, shared by the classifier and the validator.
 
 The key comes from our `JEV_API_KEY` setting and is passed explicitly, because the SDK's own
 environment variable is `TYPESAFE_API_KEY`.

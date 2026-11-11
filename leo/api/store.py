@@ -2,7 +2,7 @@
 
 `DbStore` serves one tenant's findings, documents and actions from the database, through
 `leo.db.read`. It serves whatever findings and actions are stored: the seed's answer-key rows,
-or the pipeline's (2.1) in its own tenant. A draft's `engine` is `raw_model_output["engine"]`,
+or the pipeline's in its own tenant. A draft's `engine` is `raw_model_output["engine"]`,
 or `fixture` for the seed's drafts.
 
 Action decisions are rows, so they survive a restart and a reseed (`Repo.upsert_action` never
@@ -305,15 +305,14 @@ class DbStore:
 
     def _one_action(self, action_id: str) -> ActionOut:
         """Any action of the tenant, not just a current finding's primary one: a transition on
-        a second action, or on one whose finding was superseded, must not commit and then 404
-        (PR #14 review, 2.1 review)."""
+        a second action, or on one whose finding was superseded, must not commit and then 404."""
         ledger, _, _, every = self._view_all()
         a = next((x for x in [*every, *self._stale_actions(ledger)] if x.id == action_id), None)
         if a is None:
             raise NotFound(action_id)
         return a
 
-    # --- Vendors (C5) -----------------------------------------------------------------------
+    # --- Vendors -----------------------------------------------------------------------
 
     @staticmethod
     def _duplicate_paths(ledger: Ledger) -> set[str]:
@@ -504,7 +503,7 @@ class DbStore:
             action_id, ActionState.approved, "send", state=ActionState.sent, sent_at=func.now()
         )
 
-    # --- Corrections (feedback loop, Phase 4) ------------------------------------------------
+    # --- Corrections (the feedback loop) ------------------------------------------------
 
     def _feedback(self, kind: str, item_id: str, fn) -> CorrectionOut:
         """Run one correction or rejection in its own transaction."""
@@ -561,7 +560,7 @@ class DbStore:
             lambda i: [feedback.reject(self.session, self.tenant_id, self.approver, kind, i)],
         )
 
-    # --- Export (C4) ------------------------------------------------------------------------
+    # --- Export ------------------------------------------------------------------------
 
     def export_terms(self) -> str:
         """The term record as CSV: every stored term, in every status."""
@@ -575,7 +574,7 @@ class DbStore:
     # --- Upload and stats -------------------------------------------------------------------
 
     def upload(self, filename: str, raw: bytes) -> UploadOut:
-        """Ingest one file (A3), queue it for the worker (A4) and commit.
+        """Ingest one file, queue it for the worker and commit.
 
         The path is `uploads/{sha8}-{name}`, so two different files with one name don't share
         a path. Bytes already ingested keep their row and its first path."""

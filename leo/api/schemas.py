@@ -77,7 +77,7 @@ class CorrectionOut(LeoModel):
     kind: Literal["term", "invoice_fact"]
     status: str
     changed: list[str]  # the fields that changed ("value.early_termination_fee", "amount", ...)
-    demoted: str | None = None  # the generated script ("name@version") now demoted (F3)
+    demoted: str | None = None  # the generated script ("name@version") now demoted
 
 
 class ActionOut(LeoModel):
@@ -119,7 +119,7 @@ class FindingSummary(LeoModel):
     recommended_send_by: datetime.date | None
     days_left: int | None  # to the send-by date (else the deadline); None without a deadline
     at_stake: Money
-    action_id: str | None  # None until the pipeline drafts one (2.1)
+    action_id: str | None  # None until the pipeline drafts one
     action_state: ActionState | None
 
 
@@ -167,7 +167,7 @@ class JobCount(LeoModel):
 
 
 class Stats(LeoModel):
-    """Counts from the database. Cost numbers come with B6."""
+    """Counts from the database."""
 
     documents: int
     documents_by_class: dict[str, int]  # "unclassified" when not yet classified

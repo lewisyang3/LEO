@@ -250,7 +250,7 @@ def _have_caches() -> bool:
 needs_cache = pytest.mark.skipif(not _have_caches(), reason="no committed extract/scriptgen cache")
 
 # The committed answer for `gen-kestrel-cloud-hosting@1` (05 and 06 as the LLM extracted them).
-# Other committed scriptgen entries are F3's rewrite after a reviewer's corrections.
+# Other committed scriptgen entries are the rewrite after a reviewer's corrections.
 KESTREL_V1 = "470368dbf6944069185163590704bdde26ea5e4c721413dbd25daa89ad3abc3a.json"
 
 
@@ -484,7 +484,7 @@ def test_the_prompt_is_the_same_for_the_same_group_and_carries_failures():
     assert "a: parse() raised X" in p and "rejected" in p
 
 
-# --- F3: a reviewer's correction demotes a generated script; the rewrite follows it ----------
+# --- A reviewer's correction demotes a generated script; the rewrite follows it ----------
 
 
 KESTREL_05 = "inbox/05_kestrel_invoice_2026_09.eml"

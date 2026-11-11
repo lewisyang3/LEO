@@ -139,7 +139,7 @@ def match_invoice_facts(repo: Repo) -> None:
             (abs((x.date - f.invoice_date).days), x.date, x.id)
             for x in txns
             if x.id not in claimed
-            and f.vendor_id is not None  # a failed-closed fact has no vendor (2.1)
+            and f.vendor_id is not None  # a failed-closed fact has no vendor
             and x.vendor_id == f.vendor_id
             and x.amount == f.amount
             and abs((x.date - f.invoice_date).days) <= INVOICE_MATCH_DAYS

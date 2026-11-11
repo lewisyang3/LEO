@@ -1,4 +1,4 @@
-"""Transactions, vendors and matching (A5). The answer key is used only to check results.
+"""Transactions, vendors and matching. The answer key is used only to check results.
 
 The database tests need Postgres running and migrated (`make up && make migrate`), and run in
 the rolled-back `session` fixture from conftest.py.
@@ -273,7 +273,7 @@ def test_resolver_partitions_like_the_key(session, fixture, names_first):
     assert set(got) == {v.id for v in fixture.vendors}
     assert all(len(ids) == 1 for ids in got.values()), got
     assert len({next(iter(ids)) for ids in got.values()}) == 10
-    if names_first:  # 2.3: each vendor is named as the key names it
+    if names_first:  # each vendor is named as the key names it
         rows = session.execute(select(m.Vendor.id, m.Vendor.canonical_name))
         names = {str(vid): name for vid, name in rows}
         assert {k: names[next(iter(ids))] for k, ids in got.items()} == {
@@ -303,7 +303,7 @@ def test_aliases_grow_and_rerun_is_stable(session):
 
 
 def test_a_shared_word_alone_never_merges(session, fixture):
-    """Lookalikes of the dataset's vendors stay separate vendors (review of A5)."""
+    """Lookalikes of the dataset's vendors stay separate vendors."""
     repo = Repo(session, upsert_tenant(session, f"test-{new_uuid7()}", "Resolver test"))
     resolver = DbVendorResolver(repo)
     for name in AS_WRITTEN:

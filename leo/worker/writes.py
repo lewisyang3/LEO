@@ -117,7 +117,7 @@ def store_reconciliation(repo: Repo, rec: Reconciliation) -> tuple[list[Finding]
 
 def _raw(engine: str, record: dict[str, Any] | None) -> dict[str, Any]:
     """The action's `raw_model_output`. An LLM draft that fell back to the template records
-    `engine: template`, as the approval queue expects (C2)."""
+    `engine: template`, as the approval queue expects."""
     if not record:
         return {"engine": engine}
     return {**record, "engine": "template" if record.get("fallback") else engine}

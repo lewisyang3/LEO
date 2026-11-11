@@ -1,1 +1,1 @@
-"""Track C: the FastAPI app on Postgres (C2 UI routes, C3 store, upload and stats)."""
+"""The FastAPI app on Postgres: the UI routes, the store, upload and stats."""

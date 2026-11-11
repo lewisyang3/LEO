@@ -1,8 +1,8 @@
 """`python -m leo.eval.holdout`: the classifier on the held-out set in `data/holdout/`.
 
-The set is five documents written after B2 was tuned, with their classes in `labels.json`. It
-has no planted findings, so a document "matters" when its key class isn't noise. Don't tune the
-classifier on it (see `data/holdout/README.md`).
+The set is five documents written after the classifier was tuned, with their classes in
+`labels.json`. It has no planted findings, so a document "matters" when its key class isn't
+noise. Don't tune the classifier on it (see `data/holdout/README.md`).
 
 Only the classifier runs. Engines are `jev` and `stub` from `leo.eval.runner.CLASSIFIERS`;
 `fixture` reads `expected.json`, so it can't classify these documents.

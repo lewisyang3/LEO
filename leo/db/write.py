@@ -1,4 +1,4 @@
-"""Writing extracted items through `Repo`: shared by the seed (A2) and the worker (2.1).
+"""Writing extracted items through `Repo`: shared by the seed and the worker.
 
 Keys are `keys.term(doc_key, type, span)` and `keys.invoice_fact(doc_key, span)`, with the
 span from the item's first quote (`leo.rules.span_key`) in the document's stored text, so a

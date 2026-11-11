@@ -13,7 +13,7 @@ from leo import types as t
 DATA = Path(__file__).resolve().parent.parent / "data" / "synthetic"
 KEY = json.loads((DATA / "expected.json").read_text())
 
-# Answer-key-only finding fields. The 0.6 loader owns these.
+# Answer-key-only finding fields. The fixture loader owns these.
 KEY_ONLY_FINDING_FIELDS = {"days_until_deadline", "why_planted", "expected_action"}
 
 VALUE_CLASS = {

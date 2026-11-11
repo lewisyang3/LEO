@@ -55,7 +55,7 @@ _UPPER_SUFFIX = re.compile(r"\b(Llc|Llp|Lp)\b")
 
 
 def display_name(name: str) -> str:
-    """A new vendor's name as shown, from the name its first document gives (2.3):
+    """A new vendor's name as shown, from the name its first document gives:
     "CORVANA, INC." -> "Corvana, Inc.", "Lumenpost Billing" -> "Lumenpost". An all-caps name of
     two or more words is title-cased (LLC, LLP and LP stay capitals), and trailing department
     words are dropped while a name remains. Lookups still go through the name as written,

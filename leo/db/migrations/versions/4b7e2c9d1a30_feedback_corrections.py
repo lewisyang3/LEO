@@ -1,4 +1,4 @@
-"""feedback loop: corrections and rejections (Phase 4)
+"""feedback loop: corrections and rejections
 
 - `contract_term.corrected_at`, `invoice_fact.corrected_at`: a reviewer's correction or
   rejection, which re-extraction never overwrites.

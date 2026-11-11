@@ -376,7 +376,7 @@ def test_missing_jev_key_fails_fast(key):
         jev_client(Settings(_env_file=None, jev_api_key=key))
 
 
-# --- The answer key and B3's cache pass clean ------------------------------------------------
+# --- The answer key and the LLM cache pass clean --------------------------------------------
 
 NON_NOISE = [d.path for d in FX.documents if d.doc_class != DocumentClass.noise]
 

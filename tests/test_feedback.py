@@ -439,7 +439,7 @@ def test_a_value_correction_records_only_the_keys_sent(repo, acme):
     assert [e.field for e in events] == ["value.amount"]
 
 
-# --- F2: corrections as few-shot examples -------------------------------------------------------
+# --- Corrections as few-shot examples -----------------------------------------------------------
 
 
 @pytest.fixture

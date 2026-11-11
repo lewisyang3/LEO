@@ -35,19 +35,19 @@ def main(argv: list[str] | None = None) -> int:
         "--validator",
         choices=sorted(VALIDATORS),
         default=DEFAULT_VALIDATOR,
-        help="validate each extraction before scoring (B4); jev needs JEV_API_KEY",
+        help="validate each extraction before scoring; jev needs JEV_API_KEY",
     )
     parser.add_argument(
         "--drafter",
         choices=sorted(DRAFTERS),
         default=DEFAULT_DRAFTER,
-        help="draft an action for each of the key's findings (B7)",
+        help="draft an action for each of the key's findings",
     )
     parser.add_argument(
         "--reconciler",
         choices=sorted(RECONCILERS),
         default=DEFAULT_RECONCILER,
-        help="run C1 on the key's ledger and score its findings against F1-F5 (2.2)",
+        help="run the reconciler on the key's ledger and score its findings against F1-F5",
     )
     parser.add_argument(
         "--doc",

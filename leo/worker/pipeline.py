@@ -1,7 +1,7 @@
 """The components the worker runs.
 
 Tenant-scoped parts are built per job from the job's `Repo`: the vendor resolver, and the
-prior terms validation compares with. `Pipeline.stubs()` keeps the A4 stubs for the stages
+prior terms validation compares with. `Pipeline.stubs()` keeps the stubs for the stages
 but resolves vendors in the database, because vendor ids are stored as UUIDs.
 """
 
@@ -67,9 +67,9 @@ class Pipeline:
     vendors: Callable[[Repo], VendorResolver] = field(default=DbVendorResolver)
     prior_terms: PriorTerms = field(default=stored_prior_terms)
     transactions: TransactionSource | None = None  # synced at the start of each reconcile
-    # The tenant's promoted generated scripts (Phase 4), tried before `extractors`.
+    # The tenant's promoted generated scripts, tried before `extractors`.
     stored_scripts: Callable[[Repo], Extractor | None] | None = None
-    # Reviewers' corrections as few-shot examples for the LLM extractor (Phase 4, F2).
+    # Reviewers' corrections as few-shot examples for the LLM extractor.
     few_shots: bool = True
 
     @classmethod
@@ -84,12 +84,12 @@ class Pipeline:
         settings: Settings | None = None,
         builtin_scripts: bool = True,
     ) -> "Pipeline":
-        """The real components (2.1). `classifier`: `jev` (live, needs `JEV_API_KEY`) or
+        """The real components. `classifier`: `jev` (live, needs `JEV_API_KEY`) or
         `fixture` (the answer key's classes, by dataset path). `validator`: `rules` (no
         network, the same result every run) or `jev` (adds Jev's prior comparison).
-        `drafter`: `llm` (B7, cached under `LEO_LLM_CACHE_DIR`) or `template`. Extraction is
-        the tenant's promoted generated scripts (Phase 4), B5's hand-written scripts (left out
-        with `builtin_scripts=False`), then B3's LLM extractor (cached)."""
+        `drafter`: `llm` (cached under `LEO_LLM_CACHE_DIR`) or `template`. Extraction is
+        the tenant's promoted generated scripts, the hand-written scripts (left out
+        with `builtin_scripts=False`), then the LLM extractor (cached)."""
         settings = settings or get_settings()
         cache = ResponseCache(settings.leo_llm_cache_dir)
         clf: Classifier

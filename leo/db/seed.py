@@ -1,15 +1,15 @@
 """Load the synthetic answer key into the database through the repository.
 
 Terms, invoice facts, contacts and findings come from the key, the way the fixture stages in
-`leo.fixtures` serve them. Vendors and matches don't (A5): each document's vendor name, as
+`leo.fixtures` serve them. Vendors and matches don't: each document's vendor name, as
 `FixtureExtractor` reports it, goes through `DbVendorResolver`; transactions come from
 `transactions.csv` and resolve by descriptor; plans and invoice-to-charge links are matched
 from the stored terms. A forward (D2) gets its own copy of its original's terms and invoice
-facts, cited in its own text, as an extractor would give it; `link_duplicates` (A6) then links
+facts, cited in its own text, as an extractor would give it; `link_duplicates` then links
 it from the stored items, never from the key. Every write is an upsert on a natural key, so
 seeding twice changes nothing. Documents go through
-`leo.ingest.ingest` (A3), which stores real raw copies. `make seed` runs `main()` (C3);
-`make reset` (A7) wipes the schema and reseeds.
+`leo.ingest.ingest`, which stores real raw copies. `make seed` runs `main()`;
+`make reset` wipes the schema and reseeds.
 
 Fixture ids (`lp_growth_price_v1`, `F2`, `txn_0001`) live only in this module's maps; the
 database keys rows on natural keys and UUIDs.

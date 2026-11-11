@@ -1,4 +1,4 @@
-"""add B6 analytics tables
+"""add analytics tables
 
 Revision ID: 985708103b25
 Revises: b21a9e0c4d17

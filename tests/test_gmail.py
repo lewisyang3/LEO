@@ -1,4 +1,4 @@
-"""Gmail sync (A8), against an in-memory `FakeGmail`: no network, no Google account.
+"""Gmail sync, against an in-memory `FakeGmail`: no network, no Google account.
 
 Needs Postgres running and migrated (`make up && make migrate`).
 """

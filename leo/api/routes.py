@@ -89,7 +89,7 @@ def vendors(store: Store) -> list[VendorSummary]:
 
 @router.get("/vendors/{vendor_id}")
 def vendor(vendor_id: str, store: Store) -> VendorDetail:
-    """Findings, price history, terms and matched transactions (C5)."""
+    """Findings, price history, terms and matched transactions."""
     try:
         return store.vendor(vendor_id)
     except NotFound:
@@ -107,7 +107,7 @@ def document(path: str, store: Store) -> DocumentOut:
 
 @router.post("/documents")
 def upload_document(file: UploadFile, store: Store) -> UploadOut:
-    """Store one file (`ingest`, A3) and queue it. The worker (A4) processes it."""
+    """Store one file (`ingest`) and queue it. The worker processes it."""
     raw = file.file.read()
     try:
         return store.upload(file.filename or "", raw)
@@ -182,7 +182,7 @@ def analytics_job(job_id: str, store: Store) -> dict:
 
 @router.get("/analytics/summary")
 def analytics_summary(store: Store) -> dict:
-    """Tenant-scoped B6 funnel, per-provider spend, and stage outcome counts.
+    """Tenant-scoped pipeline funnel, per-provider spend, and stage outcome counts.
 
     Reached counts distinct jobs, not retry attempts. API counts include failed
     outbound calls; costs are partial if provider rates or usage are unavailable.
@@ -323,7 +323,7 @@ def send_action(action_id: str, store: Store) -> ActionOut:
     return _act(action_id, lambda: store.send(action_id))
 
 
-# --- Corrections (feedback loop, Phase 4) ----------------------------------------------------
+# --- Corrections (the feedback loop) ----------------------------------------------------
 
 
 def _fix(what: str, item_id: str, fn) -> CorrectionOut:

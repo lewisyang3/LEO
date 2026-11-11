@@ -274,7 +274,7 @@ def test_drain_does_not_spin_on_a_reconcile_blocked_by_a_running_job(
     repo, raw_store, session, deadline
 ):
     """A retried reconcile is due, but another worker is running one of the tenant's jobs: claim
-    refuses the reconcile, so the drain must not wait for it (2.1 review)."""
+    refuses the reconcile, so the drain must not wait for it."""
     ingest(repo, raw_store, CONTRACT, "msa.md")
     queue.request_reconcile(session, repo.tenant_id)
     session.execute(
@@ -405,7 +405,7 @@ def _rerun_reconcile(repo: Repo, w: Worker) -> None:
 
 @needs_cache
 def test_the_e2e_checks_pass_on_the_synthetic_set(synthetic):
-    """`make e2e`'s checks (2.2, 2.3), offline: F1-F5 with their drafts, nothing extra, the vendor
+    """`make e2e`'s checks, offline: F1-F5 with their drafts, nothing extra, the vendor
     names, N1-N8 and D1-D5."""
     repo, w = synthetic
     s = repo.session
@@ -488,7 +488,7 @@ def test_an_existing_action_is_never_redrafted(synthetic):
 @needs_cache
 def test_an_unedited_draft_follows_its_finding_and_a_decided_one_does_not(synthetic):
     """Each reconcile redrafts unedited drafts, so a recomputed finding's figures reach its
-    draft; an approved action keeps what was approved (2.1 review)."""
+    draft; an approved action keeps what was approved."""
     repo, w = synthetic
     s = repo.session
     first, second = s.scalars(

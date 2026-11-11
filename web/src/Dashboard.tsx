@@ -65,7 +65,7 @@ function Funnel({ version }: { version: number }) {
   )
 }
 
-/** Upload one document. It is stored now; processing it arrives with the worker (A4). */
+/** Upload one document. The worker processes it. */
 function Upload() {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null)

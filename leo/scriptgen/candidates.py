@@ -2,7 +2,7 @@
 
 A format is a sender address. Its examples are the tenant's documents from that sender that
 the LLM extracted and that passed validation (`vendor_ok`, no item `needs_review`): the past
-verified results a script must reproduce. Documents linked as probable duplicates (A6) don't
+verified results a script must reproduce. Documents linked as probable duplicates don't
 count, and a resynced copy is already the same row, so each example is a distinct document.
 A sender with at least `threshold` examples is a candidate, unless a promoted stored script
 already covers it (its `matcher` is the sender). Hand-written scripts don't count: a run made
@@ -13,7 +13,7 @@ that reproduced it would be rejected, so no attempt could pass.
 
 A document with no sender (a contract file) is never an example.
 
-Reviewers' corrections (F3). A correction on a generated script's output demotes the script
+Reviewers' corrections. A correction on a generated script's output demotes the script
 (`leo.feedback`), so its sender isn't covered any more. The rewrite's examples are then:
 - every document the demoted script extracted, its base output the old script's own `parse`
   (run in the sandbox again), whether or not a reviewer touched it
@@ -63,7 +63,7 @@ class StoredDocument:
     verified: Extraction | None  # the validated extraction, when it passed validation
     llm_output: dict[str, Any] | None  # the LLM's merged answer, when the LLM extracted it
     # What a script's parse(text) must return: the LLM's answer, or with reviewers'
-    # corrections the rebuilt output (F3). None when the document can't be an example.
+    # corrections the rebuilt output. None when the document can't be an example.
     expected: dict[str, Any] | None = None
     note: str | None = None  # why a reviewed document isn't an example
 
@@ -124,7 +124,7 @@ def load_documents(
     session: Session, tenant_id: UUID, raw: RawStore, clock: Clock | None = None
 ) -> list[StoredDocument]:
     """Every document of the tenant, by path, with its extract and validate results, and
-    reviewers' corrections applied (F3). `clock` dates the rebuilt extractions (the derived
+    reviewers' corrections applied. `clock` dates the rebuilt extractions (the derived
     deadlines); the configured clock by default."""
     rows = session.scalars(
         select(DocumentRow).where(DocumentRow.tenant_id == tenant_id).order_by(DocumentRow.path)
@@ -173,7 +173,7 @@ def load_documents(
     return out
 
 
-# --- Reviewers' corrections (F3) ---------------------------------------------------------------
+# --- Reviewers' corrections ---------------------------------------------------------------
 
 # Filled only when the document states them, else derived by code: a correction that sets one
 # the base output left null can't be reproduced from the text.

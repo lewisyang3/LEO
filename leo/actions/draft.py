@@ -261,7 +261,7 @@ def build_facts(finding: Finding, ledger: Ledger, sender: str = "") -> Facts:
                 "overcharged_to_date": money(finding.impact.overcharged_to_date),
                 "annualized": money(finding.impact.annualized),
                 "increase_requires": seats.value.increase_requires if seats else None,  # type: ignore[union-attr]
-                # A clause to quote, so the model doesn't quote `increase_requires` (2.3).
+                # A clause to quote, so the model doesn't quote `increase_requires`.
                 "seat_clause": clause(seats, "increase"),
                 "invoices": invoice_list(look.invoice_facts),
             }

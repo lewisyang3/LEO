@@ -5,14 +5,14 @@ set, and check the result against the answer key. Run it before every merge.
 2. Ingest `data/synthetic` into the pipeline's tenant (`LEO_PIPELINE_TENANT`) and drain it,
    committed, so `make api-pipeline` shows the result afterwards.
 3. Check F1-F5 (each with its draft), no extra finding, the vendor names, N1-N8, D1-D4 and
-   that no draft fell back to the template (2.3), then ingest and reconcile again (D5).
+   that no draft fell back to the template, then ingest and reconcile again (D5).
 
 Live by default: the Jev classifier (`JEV_API_KEY`), scripts then the cached LLM extractor,
 the rules validator and the cached LLM drafter. `--offline` uses the key's classes and sets
 `LEO_LLM_OFFLINE=1`, so a cache miss fails instead of calling the API. The clock is pinned to
 the key's today. Exits 1 if any check fails.
 
-Script generation (Phase 4): `--no-builtin-scripts` leaves out the hand-written scripts, so
+Script generation: `--no-builtin-scripts` leaves out the hand-written scripts, so
 their formats go to the LLM. `--keep-scripts` carries the pipeline tenant's promoted generated
 scripts (`make scriptgen`) across the reset, so the run extracts with them.
 """
@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-builtin-scripts",
         action="store_true",
-        help="leave out the hand-written scripts (B5)",
+        help="leave out the hand-written scripts",
     )
     parser.add_argument(
         "--keep-scripts",

@@ -1,4 +1,4 @@
-"""The held-out classification set (B2). No network: a fake client stands in for Jev."""
+"""The held-out classification set. No network: a fake client stands in for Jev."""
 
 from types import SimpleNamespace
 

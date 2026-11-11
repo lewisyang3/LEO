@@ -6,9 +6,8 @@ documents into the shared types with no field mapping. The key's answer-only fie
 `ExpectedFinding`, so `Finding` stays the shared type.
 
 The `Fixture*` stages implement the interfaces in `leo.interfaces` by returning the key's
-answers, so the worker (A4) and the UI (C2) run on realistic data before Track B and Track C
-plug in. They record `engine="fixture"`. Use `StaticTransactionSource(fixture.transactions)`
-for transactions.
+answers, so the worker and the UI run on realistic data without the real stages. They record
+`engine="fixture"`. Use `StaticTransactionSource(fixture.transactions)` for transactions.
 """
 
 import csv

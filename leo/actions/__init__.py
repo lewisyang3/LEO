@@ -1,1 +1,1 @@
-"""Track B: action drafting (B7)."""
+"""Action drafting."""

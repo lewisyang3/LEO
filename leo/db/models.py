@@ -42,7 +42,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from leo.types import ActionState, ActionType, FindingKind, TermStatus, TermType
 
-# Finding statuses have no shared enum yet. C1 recomputes findings; the user's decision
+# Finding statuses have no shared enum yet. The reconciler recomputes findings; the user's decision
 # lives on action.state.
 FINDING_STATUSES = ("current", "superseded")
 INVOICE_STATUSES = (TermStatus.current, TermStatus.needs_review, TermStatus.rejected)
@@ -54,7 +54,7 @@ INVOICE_PERIOD_CHECK = (
     " OR billing_period ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
     " OR billing_period ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
 )
-# Only the per-tenant reconcile job has no document (2.1).
+# Only the per-tenant reconcile job has no document.
 JOB_DOCUMENT_CHECK = "document_id IS NOT NULL OR stage = 'reconcile'"
 
 
@@ -177,7 +177,7 @@ class SourceDocument(NaturalKeyRow):
     filename: Mapped[str | None] = mapped_column(Text)
     path: Mapped[str] = mapped_column(Text, nullable=False)  # source document path in shared types
     notes: Mapped[str | None] = mapped_column(Text)
-    context_fingerprint: Mapped[str | None] = mapped_column(Text)  # duplicate signal (A6)
+    context_fingerprint: Mapped[str | None] = mapped_column(Text)  # duplicate signal
     content_sha256: Mapped[str | None] = mapped_column(String(64))
     storage_path: Mapped[str] = mapped_column(Text, nullable=False)
     classification_raw: Mapped[dict | None] = mapped_column(JSONB)
@@ -211,7 +211,7 @@ class Transaction(NaturalKeyRow):
 
 class ContractTerm(NaturalKeyRow):
     __tablename__ = "contract_term"
-    # NULL when validation failed closed (no vendor created, item needs_review; 2.1)
+    # NULL when validation failed closed (no vendor created, item needs_review)
     vendor_id: Mapped[UUID | None]
     document_id: Mapped[UUID] = mapped_column(nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -241,7 +241,7 @@ class ContractTerm(NaturalKeyRow):
 
 class InvoiceFact(NaturalKeyRow):
     __tablename__ = "invoice_fact"
-    vendor_id: Mapped[UUID | None]  # NULL when validation failed closed (2.1)
+    vendor_id: Mapped[UUID | None]  # NULL when validation failed closed
     document_id: Mapped[UUID] = mapped_column(nullable=False)
     # YYYY-MM or YYYY-MM-DD/YYYY-MM-DD
     billing_period: Mapped[str] = mapped_column(Text, nullable=False)
@@ -441,8 +441,8 @@ class Action(NaturalKeyRow):
     state: Mapped[str] = mapped_column(String(24), nullable=False, default=ActionState.draft)
     approver: Mapped[str | None] = mapped_column(Text)
     decided_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
-    edited_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # C3
-    sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # C3
+    edited_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     raw_model_output: Mapped[dict | None] = mapped_column(JSONB)
     __table_args__ = (
         _tenant_id_key("action"),
@@ -469,7 +469,7 @@ class ExtractorScript(Row):
     code: Mapped[str] = mapped_column(Text, nullable=False)
     accuracy: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     promoted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
-    # Set when a reviewer's correction drops a promoted script's accuracy below 1.0 (F3).
+    # Set when a reviewer's correction drops a promoted script's accuracy below 1.0.
     demoted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         _tenant_id_key("extractor_script"),
@@ -513,7 +513,7 @@ class FeedbackEvent(Row):
 
 
 class Job(NaturalKeyRow):
-    """A queue row, claimed with FOR UPDATE SKIP LOCKED (A4)."""
+    """A queue row, claimed with FOR UPDATE SKIP LOCKED."""
 
     __tablename__ = "job"
     document_id: Mapped[UUID | None]  # NULL for the per-tenant reconcile job
@@ -530,7 +530,7 @@ class Job(NaturalKeyRow):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     claimed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
-    # A retried job waits until then; NULL means it can run now (A4).
+    # A retried job waits until then; NULL means it can run now.
     run_after: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         _tenant_id_key("job"),
@@ -543,7 +543,7 @@ class Job(NaturalKeyRow):
 
 
 class StageExecution(Row):
-    """Tracks each execution of a pipeline stage for B6 analytics."""
+    """Records each execution of a pipeline stage, for analytics."""
 
     __tablename__ = "stage_execution"
 
@@ -577,7 +577,7 @@ class StageExecution(Row):
 
 
 class ModelUsage(Row):
-    """Tracks token consumption and cost for each API attempt."""
+    """Records token use and cost for each API attempt."""
 
     __tablename__ = "model_usage"
 
@@ -629,7 +629,7 @@ class ModelUsage(Row):
 
 
 class ConnectedAccount(Row):
-    """A mailbox LEO syncs (A8). Its id, not the address, goes into document keys
+    """A mailbox LEO syncs. Its id, not the address, goes into document keys
     (`v1:gmail:{id}:{message id}`), and it upserts on the address, so a reconnect keeps it."""
 
     __tablename__ = "connected_account"
@@ -647,7 +647,7 @@ class ConnectedAccount(Row):
 
 class OAuthCredential(Row):
     """An account's OAuth token, encrypted (`leo.ingest.secrets`), and kept apart from the
-    extracted data: nothing in the read layer or the API touches this table (A8)."""
+    extracted data: nothing in the read layer or the API touches this table."""
 
     __tablename__ = "oauth_credential"
     account_id: Mapped[UUID] = mapped_column(nullable=False)

@@ -6,8 +6,8 @@ extractor quality.
 Extraction rules:
 - A document's expected items are the key's terms, invoice facts and contacts for it. A
   duplicate document (`probable_duplicate_of` or `exact_duplicate_of`) is scored against its
-  original's items: the extractor reads what is in the document, and linking duplicates is A6's
-  job. The key's quotes appear verbatim in both duplicates.
+  original's items: the extractor reads what is in the document, and linking duplicates is the
+  matcher's job. The key's quotes appear verbatim in both duplicates.
 - Predicted and key items are paired greedily by agreement within one document: terms within
   one term type, invoice facts within the document, contacts on email. Ids are never compared,
   because extraction ids are provisional (`leo.interfaces`).
@@ -93,7 +93,7 @@ class ItemMatch(LeoModel):
 class MissedItem(LeoModel):
     key_id: str
     type: str
-    fields: int = 0  # the fields the key item is scored on, all counted wrong (2.4)
+    fields: int = 0  # the fields the key item is scored on, all counted wrong
 
 
 class ExtraItem(LeoModel):
@@ -141,7 +141,7 @@ class ClassificationSummary(LeoModel):
     noise_false_pass: Rate  # key-noise documents predicted non-noise
     mean_confidence: float | None
     confusion: dict[str, dict[str, int]]  # key class -> predicted class ("error") -> count
-    # Only when the engine recorded probabilities (B2's threshold tuning).
+    # Only when the engine recorded probabilities (for threshold tuning).
     threshold_sweep: list[ThresholdPoint] = []
     # The lowest threshold that keeps every document that matters out of noise. A higher one
     # labels fewer documents noise, so it only adds false-passes. None if no threshold does.
@@ -149,7 +149,7 @@ class ClassificationSummary(LeoModel):
 
 
 class DocValidation(LeoModel):
-    """The validator's result for one document (B4). `needs_review` holds predicted ids."""
+    """The validator's result for one document. `needs_review` holds predicted ids."""
 
     engine: str | None = None
     vendor_ok: bool = False
@@ -178,7 +178,7 @@ class KindSummary(LeoModel):
     fields: dict[str, Rate] = {}
     quote_found: Rate  # over every predicted item, matched or not
     quote_matches_key: Rate  # over matched items
-    # Every field of every key item: matched items' fields, plus a missed item's all wrong (2.4).
+    # Every field of every key item: matched items' fields, plus a missed item's all wrong.
     field_accuracy: Rate = Field(default_factory=Rate)
 
 
@@ -448,7 +448,7 @@ def score_extraction(
         fs += _model_fields("value", key.value, pred.value)
         fs.append(_field("effective_date", key.effective_date, pred.effective_date))
         fs.append(_field("plan_label", key.plan_label, pred.plan_label))
-        # The reconciler joins terms on an exact agreement_ref (F3's cap and renewal; 2.1).
+        # The reconciler joins terms on an exact agreement_ref (F3's cap and renewal).
         fs.append(_field("agreement_ref", key.agreement_ref, pred.agreement_ref))
         if key.old_value is not None:
             fs += _model_fields("old_value", key.old_value, pred.old_value)
@@ -564,7 +564,7 @@ def summarize_extraction(fixture: Fixture, docs: Sequence[DocExtraction]) -> Ext
     )
 
 
-# --- Drafts (B7) -----------------------------------------------------------------------------
+# --- Drafts -----------------------------------------------------------------------------
 
 
 class DraftScore(LeoModel):
@@ -616,7 +616,7 @@ def score_draft(
 
 
 class FindingScore(LeoModel):
-    """One key finding against the reconciler's output (2.2): found on the key's kind and
+    """One key finding against the reconciler's output: found on the key's kind and
     anchor, and whether its deadline, send-by date and headline impact agree."""
 
     finding: str  # key id, F1-F5

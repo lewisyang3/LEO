@@ -1,12 +1,12 @@
 """Run stage engines over the synthetic dataset and report the scores.
 
-Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS`, `VALIDATORS` and `DRAFTERS`. B3
-registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `llm` drafters, and
-B2 registers the `jev` classifier. B5 registers the `script` extractor and `script+llm`, which
-tries the scripts first and sends the rest to the LLM. Each factory takes the `Fixture`.
+Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS`, `VALIDATORS` and `DRAFTERS`: the
+`jev` classifier; the `llm`, `script` and `script+llm` extractors (`script+llm` tries
+the scripts first and sends the rest to the LLM); the `rules` and `jev` validators; and the
+`template` and `llm` drafters. Each factory takes the `Fixture`.
 
-Drafters run on the key's findings and `fixture.ledger()`. The reconciler (C1, `RECONCILERS`)
-runs on `fixture.ledger()` at the key's today, and its findings are scored against F1-F5 (2.2).
+Drafters run on the key's findings and `fixture.ledger()`. The reconciler (`RECONCILERS`)
+runs on `fixture.ledger()` at the key's today, and its findings are scored against F1-F5.
 Its run on the pipeline's own ledger is `make e2e`.
 """
 
@@ -105,7 +105,7 @@ EXTRACTORS: dict[str, Callable[[Fixture], Extractor]] = {
     "script": lambda fixture: script_extractor(),
     "script+llm": lambda fixture: ChainExtractor([script_extractor(), _llm_extractor(fixture)]),
 }
-# "none" skips validation (B1's behavior).
+# "none" skips validation.
 VALIDATORS: dict[str, Callable[[Fixture], Validator] | None] = {
     "none": None,
     "stub": lambda fixture: StubValidator(),
@@ -171,7 +171,7 @@ def run(
     Its `prior_terms` are the terms extracted from every other document of the same key vendor,
     so the result doesn't depend on processing order (the worker passes only earlier ones).
     As in the worker, a prior carries its own validated status and a `needs_review` one isn't
-    compared: each extraction is first validated with no priors to get that status (2.1)."""
+    compared: each extraction is first validated with no priors to get that status."""
     clf = CLASSIFIERS[classifier](fixture)
     ext = EXTRACTORS[extractor](fixture)
     make_validator = VALIDATORS[validator]
@@ -423,7 +423,7 @@ def format_report(result: EvalResult) -> str:
 
 
 def _engine_summary(docs: list[DocExtraction]) -> list[str]:
-    """Which engine answered each document, and how many reached the LLM (B5)."""
+    """Which engine answered each document, and how many reached the LLM."""
     engines = Counter(d.engine or "no answer" for d in docs)
     llm = sum(n for e, n in engines.items() if e.startswith("llm:"))
     out = ["extraction engines"]

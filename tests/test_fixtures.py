@@ -112,7 +112,7 @@ def test_stage_satisfies_protocol(stage, protocol):
 
 
 def test_chain_reproduces_the_key():
-    """The 0.5 worker order over every non-noise document gives back the key's items."""
+    """The worker order over every non-noise document gives back the key's items."""
     classifier, extractor = FixtureClassifier(FX), FixtureExtractor(FX)
     resolver, validator = FixtureVendorResolver(FX), StubValidator()
     terms, facts = [], []

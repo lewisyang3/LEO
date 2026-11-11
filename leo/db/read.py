@@ -1,6 +1,6 @@
 """Reads from the database into the shared types.
 
-The API, and the worker's reconcile and draft stages (2.1), read stored rows through here. Reads are
+The API, and the worker's reconcile and draft stages, read stored rows through here. Reads are
 scoped to one tenant and never write. Ids are `str(uuid)`; document references are document
 paths, as in `leo.types`.
 

@@ -17,9 +17,9 @@ Contracts on extraction output:
   3. Otherwise no vendor is created. Every term and fact gets `vendor=""` and status
      `needs_review`, and the repository stores `""` as a NULL vendor id. The name as written stays
      in `Extraction.vendor_name` and the raw output, never in a vendor-id field.
-- Ids are provisional, unique within one extraction. The repository (A2) replaces them with
+- Ids are provisional, unique within one extraction. The repository replaces them with
   natural keys on write. Nothing downstream may parse an id.
-- Quote offsets, citation rows and span keys are computed by the repository (A2) from the stored
+- Quote offsets, citation rows and span keys are computed by the repository from the stored
   text, with `leo.rules.locate_quote` and `leo.rules.span_key`. The Validator only reports
   `quote_not_found`.
 
@@ -140,8 +140,8 @@ class Reconciliation(LeoModel):
 
 @runtime_checkable
 class Classifier(Protocol):
-    """Stage 1. Jev (B2). Raises when the engine gives no usable answer; the worker keeps that
-    document unclassified for review, never noise."""
+    """Stage 1, the classifier (Jev). Raises when the engine gives no usable answer; the worker
+    keeps that document unclassified for review, never noise."""
 
     def classify(self, doc: DocumentText) -> Classification: ...
 
@@ -158,7 +158,7 @@ class Extractor(Protocol):
 
 @runtime_checkable
 class Validator(Protocol):
-    """Stage 4 (B4)."""
+    """Stage 4, the validator."""
 
     def validate(
         self, doc: DocumentText, extraction: Extraction, prior_terms: Sequence[ExtractedTerm]
@@ -169,14 +169,14 @@ class Validator(Protocol):
 
 @runtime_checkable
 class TransactionSource(Protocol):
-    """Card and bill-pay charges: `transactions.csv` now, Ramp later (A5)."""
+    """Card and bill-pay charges: `transactions.csv` now, Ramp later."""
 
     def transactions(self) -> list[Transaction]: ...
 
 
 @runtime_checkable
 class VendorResolver(Protocol):
-    """Vendor ids from names. Aliases grow as matches are made (A5)."""
+    """Vendor ids from names. Aliases grow as matches are made."""
 
     def find_vendor(self, name: str) -> str | None:
         """Lookup only: never creates a vendor. Runs before validation."""
@@ -193,14 +193,14 @@ class VendorResolver(Protocol):
 
 @runtime_checkable
 class Reconciler(Protocol):
-    """Stage 5 rules (C1). Pure: the caller supplies `today` from a `Clock`."""
+    """Stage 5 rules. Pure: the caller supplies `today` from a `Clock`."""
 
     def reconcile(self, ledger: Ledger, today: datetime.date) -> Reconciliation: ...
 
 
 @runtime_checkable
 class Drafter(Protocol):
-    """Stage 5 drafting (B7). The ledger supplies cited terms, invoice facts and contacts."""
+    """Stage 5 drafting. The ledger supplies cited terms, invoice facts and contacts."""
 
     def draft(self, finding: Finding, ledger: Ledger) -> ActionDraft: ...
 

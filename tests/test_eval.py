@@ -108,7 +108,7 @@ def test_dropped_term_is_a_miss_and_breaks_coverage():
     d = _score(CORVANA, ex)
     assert [(m.key_id, m.type) for m in d.terms.missed] == [("crv_notice", "notice_window")]
     assert summarize_extraction(FX, [d]).finding_coverage == {"F1": ["crv_notice"]}
-    # Its fields count as wrong, so dropping a term can't raise field accuracy (2.4).
+    # Its fields count as wrong, so dropping a term can't raise field accuracy.
     [miss] = d.terms.missed
     assert miss.fields > 0
     acc = summarize_extraction(FX, [d]).terms.field_accuracy
@@ -288,7 +288,7 @@ def test_script_extractor_skips_the_llm():
     assert "reached the LLM                  0/17 documents" in report
 
 
-# --- The accuracy bar (2.4) -------------------------------------------------------------------
+# --- The accuracy bar -------------------------------------------------------------------
 
 
 def _failed(result) -> list[str]:

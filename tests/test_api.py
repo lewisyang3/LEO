@@ -232,7 +232,7 @@ def test_edit_approve_send(client, session):
 
 
 def test_a_finding_with_no_action_is_still_served(client, session, tenant):
-    """The worker writes a finding before its draft (2.1)."""
+    """The worker writes a finding before its draft."""
     fid = _by_kind(client, FindingKind.seats_over_commitment)["id"]
     session.execute(m.Action.__table__.delete().where(m.Action.finding_id == UUID(fid)))
     session.commit()
@@ -274,7 +274,7 @@ def test_a_second_action_of_a_finding_can_be_approved(client, session, tenant):
 
 def test_a_sent_action_stays_in_the_outbox_after_its_finding_is_superseded(client, session):
     """The worker supersedes a finding the reconciler no longer produces; the record that its
-    email was sent must stay (2.1 review)."""
+    email was sent must stay."""
     row = _by_kind(client, FindingKind.auto_renewal_deadline)
     aid = row["action_id"]
     client.post(f"/api/actions/{aid}/approve")
@@ -366,10 +366,10 @@ def test_stats_count_the_seed(client):
     assert sum(s["documents_by_class"].values()) == 21
     assert s["findings"] == 5
     assert s["actions_by_state"] == {"draft": 5}
-    assert s["jobs"] == []  # the worker (A4) writes jobs
+    assert s["jobs"] == []  # the worker writes jobs
 
 
-# --- Export (C4) ----------------------------------------------------------------------------
+# --- Export ----------------------------------------------------------------------------
 
 
 def _csv(client, name: str) -> list[dict[str, str]]:
@@ -423,7 +423,7 @@ def test_export_cell_formatting():
     assert _cell(FindingKind.price_cap_exceeded) == "price_cap_exceeded"
 
 
-# --- Vendors (C5) ---------------------------------------------------------------------------
+# --- Vendors ---------------------------------------------------------------------------
 
 LUMENPOST_FWD = "inbox/02_fw_lumenpost_price_change_notice.eml"
 
@@ -634,7 +634,7 @@ def test_vendor_from_another_tenant_404(client, session):
     assert client.get(f"/api/vendors/{vid}").status_code == 404
 
 
-# --- B6 analytics ------------------------------------------------------------------------
+# --- Analytics --------------------------------------------------------------------------
 
 
 def test_analytics_summary_and_job_report_spend(client, session, tenant):

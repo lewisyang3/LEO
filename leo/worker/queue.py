@@ -2,7 +2,7 @@
 
 There is one row per (document, stage), keyed `keys.job(doc_key, stage)`, except reconcile:
 one row per tenant (`keys.tenant_job`), requested again by each validated document and claimed
-only once the tenant has nothing else pending or running (2.1). So N documents give one
+only once the tenant has nothing else pending or running. So N documents give one
 reconcile round, not N. A job is `pending`
 until a worker claims it (`running`). It ends `done`, `failed` (an error retrying can't fix) or
 `parked` (out of retries, waiting for a person). A retried job goes back to `pending` with

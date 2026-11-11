@@ -1,4 +1,4 @@
-"""extractor_script.demoted_at: a reviewer's correction demotes a generated script (Phase 4, F3)
+"""extractor_script.demoted_at: a reviewer's correction demotes a generated script
 
 Revision ID: 5c8d3e1f2b40
 Revises: 4b7e2c9d1a30

@@ -124,7 +124,7 @@ def _finish(session: Session, row, events: list[FeedbackEvent]) -> None:
     _demote(session, row.tenant_id, events[0].engine)
 
 
-# --- Demoting a generated script (F3) ---------------------------------------------------------
+# --- Demoting a generated script ---------------------------------------------------------
 
 GENERATED = "script:gen-"
 
@@ -346,7 +346,7 @@ def _seats(v: Any) -> int | None:
     return int(v)
 
 
-# --- Few-shot examples for the extraction prompt (F2) ------------------------------------------
+# --- Few-shot examples for the extraction prompt ------------------------------------------
 
 FEW_SHOTS_PER_PART = 5
 

@@ -272,7 +272,7 @@ class InvoiceFact(LeoModel):
     invoice_number: str | None = None
     seats_billed: int | None = None
     matches_transaction: str | None = None
-    status: TermStatus = TermStatus.current  # needs_review when validation fails (0.5)
+    status: TermStatus = TermStatus.current  # needs_review when validation fails
     notes: str | None = None
 
 

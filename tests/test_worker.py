@@ -1,4 +1,4 @@
-"""The job queue and worker (A4).
+"""The job queue and worker.
 
 Needs Postgres running and migrated (`make up && make migrate`). Every worker call is scoped to
 the test's tenant, so jobs a dev worker or upload committed to the same database are untouched.
@@ -147,7 +147,7 @@ def test_drain_runs_every_stage_with_stubs(repo, raw_store):
         "classify": doc_id,
         "extract": doc_id,
         "validate": doc_id,
-        "reconcile": None,  # one per tenant (2.1)
+        "reconcile": None,  # one per tenant
     }
     assert jobs["reconcile"].natural_key == keys.tenant_job(str(repo.tenant_id), "reconcile")
     Classification.model_validate(jobs["classify"].raw_model_output)
@@ -156,7 +156,7 @@ def test_drain_runs_every_stage_with_stubs(repo, raw_store):
     out = jobs["reconcile"].raw_model_output
     assert out["today"] == TODAY.isoformat()
     assert (out["findings"], out["supersessions"], out["drafts"]) == ([], 0, [])
-    # 2.1: classify writes the class to the row.
+    # classify writes the class to the row.
     assert repo.session.get(SourceDocument, doc_id).doc_class == "contract"
 
 
@@ -365,7 +365,7 @@ def test_claim_skips_a_locked_row():
             cleanup.commit()
 
 
-# --- B6 analytics: one stage_execution per attempt, with its model_usage rows ----------------
+# --- Analytics: one stage_execution per attempt, with its model_usage rows ----------------
 
 
 class Metered(Flaky):

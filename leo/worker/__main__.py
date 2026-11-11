@@ -1,4 +1,4 @@
-"""`python -m leo.worker`: run the worker against `DATABASE_URL` with the real pipeline (2.1).
+"""`python -m leo.worker`: run the worker against `DATABASE_URL` with the real pipeline.
 
 `--drain` runs until no job is due, then exits. Without it the worker polls forever.
 Defaults: the Jev classifier (live, needs `JEV_API_KEY`), scripts then the cached LLM
@@ -36,11 +36,11 @@ def main(argv: list[str] | None = None) -> None:
         help="card charges synced at each reconcile ('' for none)",
     )
     parser.add_argument("--tenant", help="only this tenant's jobs (slug); default every tenant")
-    parser.add_argument("--stubs", action="store_true", help="A4's stub pipeline")
+    parser.add_argument("--stubs", action="store_true", help="the stub pipeline")
     parser.add_argument(
         "--no-builtin-scripts",
         action="store_true",
-        help="leave out the hand-written scripts (B5); promoted generated ones still run",
+        help="leave out the hand-written scripts; promoted generated ones still run",
     )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

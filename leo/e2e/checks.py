@@ -3,7 +3,7 @@
 `run_checks` reads one tenant after the worker has drained it and returns one `Check` per item
 of the key: the jobs, F1-F5 (each with its draft scored against the key's `expected_action`), no
 extra finding, the vendors' names, N1-N8, D1-D4 and, for an LLM drafter, that no draft fell back
-to the template (2.3). `check_rerun` is D5: ingest the set again and reconcile again, and no
+to the template. `check_rerun` is D5: ingest the set again and reconcile again, and no
 ledger row may change.
 
 Key vendors are found through the documents the key gives them (a stored document's or term's

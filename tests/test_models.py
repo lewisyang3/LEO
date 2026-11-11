@@ -1,4 +1,4 @@
-"""A1 schema tests. Need Postgres running and migrated: `make up && make migrate`.
+"""Schema tests. Need Postgres running and migrated: `make up && make migrate`.
 
 Each test gets the rolled-back `session` fixture from conftest.py, so nothing is left behind.
 """

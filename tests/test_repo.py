@@ -1,4 +1,4 @@
-"""Repository and seed (A2): every write is an upsert, so reruns change nothing.
+"""Repository and seed: every write is an upsert, so reruns change nothing.
 
 Needs Postgres running and migrated (`make up && make migrate`). Each test runs in the
 rolled-back `session` fixture from conftest.py.
@@ -37,7 +37,7 @@ UNSEEDED = {
     "oauth_credential",
     "stage_execution",
     "model_usage",
-}  # written by A4 and later (A8: Gmail, B6: worker analytics)
+}  # written by the worker, Gmail sync and analytics
 
 
 def _ids(s: Session) -> dict[str, list]:

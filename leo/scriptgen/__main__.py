@@ -10,7 +10,7 @@ promoted only when it reproduces every example and matches nothing else. Up to
 Promoted scripts run in the worker before the LLM. `make e2e ARGS="--no-builtin-scripts
 --keep-scripts"` carries them across the reset and shows which documents they took.
 
-A reviewer's correction on a generated script's output demotes it (F3): its sender becomes a
+A reviewer's correction on a generated script's output demotes it: its sender becomes a
 candidate again, and the new version must reproduce the corrected results.
 
 `--offline` (or `LEO_LLM_OFFLINE=1`) uses only cached answers (`data/llm_cache/scriptgen`).

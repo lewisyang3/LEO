@@ -1,6 +1,6 @@
 """Collect actual API invocations within a worker stage; never count cache hits as spend.
 
-A context variable scopes calls to the executing stage without modifying B2/B3/B4 interfaces.
+A context variable scopes calls to the executing stage without changing the stage interfaces.
 The worker persists collected calls even when the business transaction rolls back.
 No prices are guessed: configure per-million token rates in the environment, or cost is NULL.
 """

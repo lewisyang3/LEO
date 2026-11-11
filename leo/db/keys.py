@@ -60,7 +60,7 @@ def job(doc_key: str, stage: str) -> str:
 
 
 def tenant_job(tenant_id: str, stage: str) -> str:
-    """A job that runs over the whole tenant (2.1's reconcile), not one document."""
+    """A job that runs over the whole tenant (the reconcile), not one document."""
     return f"{PREFIX}:job:tenant:{tenant_id}:{stage}"
 
 

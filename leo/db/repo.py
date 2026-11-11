@@ -125,7 +125,7 @@ class Repo:
     ) -> UUID:
         return _upsert(self.session, model, key, {"tenant_id": self.tenant_id, **values}, **kw)
 
-    # --- Connected accounts (A8) -------------------------------------------------------------
+    # --- Connected accounts -------------------------------------------------------------
 
     def upsert_account(self, provider: str, email_address: str) -> UUID:
         """Upserts on the address, so a reconnect keeps the id (and every document key)."""
@@ -240,7 +240,7 @@ class Repo:
 
     def reset_supersessions(self) -> None:
         """Clear every supersession link, and set `superseded` terms back to `current`. The
-        reconcile stage (2.1) recomputes supersessions whole, then `mark_superseded`s them;
+        reconcile stage recomputes supersessions whole, then `mark_superseded`s them;
         `needs_review` is never touched."""
         t = ContractTerm
         self.session.execute(
@@ -285,7 +285,7 @@ class Repo:
     def action_pairs(self) -> set[tuple[str, str]]:
         """(finding natural key, action type) for every action that must not be redrafted: one
         the user decided (approved, sent, rejected) or edited. An unedited draft is redrafted on
-        each reconcile, so it follows its finding's current figures (2.1 review)."""
+        each reconcile, so it follows its finding's current figures."""
         rows = self.session.execute(
             select(Finding.natural_key, Action.action_type)
             .join(
@@ -406,7 +406,7 @@ class Repo:
 
     def prune_links(self, link_type: str, keep: set[tuple[UUID, UUID]]) -> None:
         """Delete this tenant's `link_type` links other than the (document, linked document)
-        pairs in `keep`. For links that are recomputed whole (A6's duplicates)."""
+        pairs in `keep`. For links that are recomputed whole (duplicate links)."""
         rows = self.session.execute(
             select(
                 DocumentLink.id, DocumentLink.document_id, DocumentLink.linked_document_id
@@ -416,7 +416,7 @@ class Repo:
         if stale:
             self.session.execute(delete(DocumentLink).where(DocumentLink.id.in_(stale)))
 
-    # --- Extractor scripts (Phase 4) ---------------------------------------------------------
+    # --- Extractor scripts ---------------------------------------------------------
 
     def add_extractor_script(
         self,
@@ -450,7 +450,7 @@ class Repo:
     def promoted_scripts(self) -> list[ExtractorScript]:
         """The latest promoted version per (name, matcher), by name then matcher. The matcher
         is the sender, so two senders of one vendor (one name) each keep their script. A
-        latest version that was demoted (F3) leaves its sender with none: an older version
+        latest version that was demoted leaves its sender with none: an older version
         never comes back."""
         rows = self.session.scalars(
             select(ExtractorScript).where(

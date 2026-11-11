@@ -129,7 +129,7 @@ def _fingerprints(repo: Repo) -> dict[UUID, str]:
 
 
 def _reviewed(repo: Repo) -> set[UUID]:
-    """Documents with a term or invoice fact a reviewer corrected or rejected (Phase 4)."""
+    """Documents with a term or invoice fact a reviewer corrected or rejected."""
     out: set[UUID] = set()
     for model in (ContractTerm, InvoiceFact):
         q = select(model.document_id).where(

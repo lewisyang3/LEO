@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { CorrectionOut, InvoiceFact, Term } from './api'
 import { humanize, patch, post } from './api'
 
-// The feedback loop (Phase 4): a reviewer corrects or rejects an extracted term or invoice.
+// The feedback loop: a reviewer corrects or rejects an extracted term or invoice.
 // The correction is kept (re-extraction never overwrites it) and feeds the extraction prompt.
 // Findings follow on the worker's next reconcile.
 
