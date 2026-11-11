@@ -1,4 +1,4 @@
-"""Stage 1: the classifier (ROADMAP B2). Jev only, with no LLM step.
+"""Stage 1: the classifier. Jev only, with no LLM step.
 
 `JevClassifier` makes one Jev call per document, as a choice over the six `DocumentClass` labels.
 Jev's probability for `noise` alone decides noise: at or above `NOISE_THRESHOLD` the document is
@@ -53,7 +53,7 @@ _CRITERIA: dict[DocumentClass, str] = {
     ),
 }
 JEV_CRITERIA: dict[str, str] = {k.value: v for k, v in _CRITERIA.items()}
-# Tuned 2026-11-05 (ROADMAP B2): every document that matters scored P(noise) ~0.00, and the
+# Tuned 2026-11-05: every document that matters scored P(noise) ~0.00, and the
 # lowest noise document 0.84, so any value in (0.00, 0.84] keeps 9/9 with 0/5 false-pass.
 # 0.5 leaves a wide margin on both sides.
 NOISE_THRESHOLD = 0.5

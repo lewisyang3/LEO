@@ -1,1 +1,1 @@
-"""The end-to-end test (ROADMAP 2.2): `python -m leo.e2e`, or `make e2e`."""
+"""The end-to-end test: `python -m leo.e2e`, or `make e2e`."""

@@ -1,4 +1,4 @@
-"""Run stage engines over the synthetic dataset and report the scores (ROADMAP B1).
+"""Run stage engines over the synthetic dataset and report the scores.
 
 Engines are chosen by name from `CLASSIFIERS`, `EXTRACTORS`, `VALIDATORS` and `DRAFTERS`. B3
 registers `llm`, B4 registers `rules` and `jev`, B7 registers `template` and `llm` drafters, and

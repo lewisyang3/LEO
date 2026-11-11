@@ -1,4 +1,4 @@
-"""Which source items each number on a finding comes from (ROADMAP C2: "click any number").
+"""Which source items each number on a finding comes from ("click any number").
 
 `finding_numbers` lists the deadline, send-by date and every `impact` and `computation` field.
 `SOURCES` maps a field to the linked items it is read from: a term type picks the finding's

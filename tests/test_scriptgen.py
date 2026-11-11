@@ -1,4 +1,4 @@
-"""Script generation (ROADMAP Phase 4): the sandbox, candidates, promotion and the worker.
+"""Script generation: the sandbox, candidates, promotion and the worker.
 
 The DB tests need Postgres running and migrated. Each works in its own tenant inside the
 session's rolled-back transaction. They run the synthetic set offline from the committed

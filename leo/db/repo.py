@@ -1,4 +1,4 @@
-"""The repository: every write is an upsert (ROADMAP A2).
+"""The repository: every write is an upsert.
 
 Each write is `INSERT ... ON CONFLICT DO UPDATE ... RETURNING id` on the row's natural key or
 unique constraint, so a rerun returns the existing id and never creates a duplicate. Ids are

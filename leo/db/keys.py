@@ -1,4 +1,4 @@
-"""Natural-key builders (ROADMAP A2; design doc "Keys and deduplication", docs/DATA_MODEL.md).
+"""Natural-key builders (docs/DATA_MODEL.md).
 
 Every key carries the `v1:` scheme prefix. Child keys embed the parent's key, so a wiped
 database rebuilds with the same keys. Email keys never use the Message-ID, sender, subject or

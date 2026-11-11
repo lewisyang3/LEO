@@ -1,4 +1,4 @@
-"""Testing a proposed script and promoting it (ROADMAP Phase 4).
+"""Testing a proposed script and promoting it.
 
 A candidate is promoted only if it matches past verified results:
 

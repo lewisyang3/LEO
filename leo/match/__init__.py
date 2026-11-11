@@ -1,1 +1,1 @@
-"""Vendor resolution and transaction matching (ROADMAP A5)."""
+"""Vendor resolution and transaction matching."""

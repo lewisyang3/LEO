@@ -1,4 +1,4 @@
-"""Reconciliation rules (ROADMAP C1), on the answer key's ledger."""
+"""Reconciliation rules, on the answer key's ledger."""
 
 import datetime
 from decimal import Decimal

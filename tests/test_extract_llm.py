@@ -1,4 +1,4 @@
-"""LLM extraction (ROADMAP B3). No network: a fake client stands in for the API."""
+"""LLM extraction. No network: a fake client stands in for the API."""
 
 import datetime
 import json

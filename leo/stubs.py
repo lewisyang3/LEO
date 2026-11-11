@@ -1,8 +1,7 @@
-"""Runnable placeholders for the interfaces in `leo.interfaces` (ROADMAP 0.5).
+"""Runnable placeholders for the interfaces in `leo.interfaces`.
 
-They return valid, empty results so the worker (A4) runs end to end before Track B and
-Track C plug in. `leo.fixtures` has fixture-backed versions that return the answer key's
-results (ROADMAP 0.6).
+They return valid, empty results, so the worker runs end to end without the real stages.
+`leo.fixtures` has fixture-backed versions that return the answer key's results.
 """
 
 import datetime

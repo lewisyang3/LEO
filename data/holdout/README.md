@@ -14,4 +14,4 @@ uv run python -m leo.eval.holdout                  # Jev, 5 calls (needs JEV_API
 uv run python -m leo.eval.holdout --json PATH      # also write the full result
 ```
 
-"Matters" here means the key class isn't noise, because this set has no planted findings. With five documents, the metrics are directional only. Results are in `results/` and in ROADMAP B2.
+"Matters" here means the key class isn't noise, because this set has no planted findings. With five documents, the metrics are directional only. Results are in `results/`.

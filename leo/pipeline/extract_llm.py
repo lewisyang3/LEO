@@ -1,4 +1,4 @@
-"""LLM extraction, stage 3 (ROADMAP B3).
+"""LLM extraction, stage 3.
 
 `LLMExtractor` sends one document to Claude (Haiku 5.5 by default, `LEO_MODEL_EXTRACT`) through
 the response cache in `leo.llm`. The API caps how large a structured-output schema may be, so it

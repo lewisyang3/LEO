@@ -1,4 +1,4 @@
-"""The answer key as a fixture (ROADMAP 0.6).
+"""The answer key as a fixture.
 
 `load_fixture()` reads `data/synthetic/expected.json`, `transactions.csv` and the source
 documents into the shared types with no field mapping. The key's answer-only fields

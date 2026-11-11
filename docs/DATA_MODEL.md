@@ -1,8 +1,8 @@
 # LEO Data-Model Rules
 
-This page records the decisions from ROADMAP task 0.4. They settle the schema gaps the answer key surfaced (`data/synthetic/README.md`, "Schema gaps"). Track A builds the schema from them (A1, A2), Track B validates against them (B4), and Track C computes deadlines with them (C1).
+This page records the data-model decisions that settle the schema gaps the answer key surfaced (`data/synthetic/README.md`, "Schema gaps"). The schema is built from them, the validator checks against them, and the reconciler computes deadlines with them.
 
-The rules that can be code live in `leo/rules.py`, and `tests/test_rules.py` checks them against the answer key. To change a rule, edit this page and `leo/rules.py` in one PR that all three teammates approve.
+The rules that can be code live in `leo/rules.py`, and `tests/test_rules.py` checks them against the answer key. To change a rule, edit this page and `leo/rules.py` together.
 
 ## Term types
 
@@ -64,7 +64,7 @@ Set by A3 (`leo/ingest/`). Every document is written by `leo.ingest.ingest`: upl
 - **Raw bytes** go to the raw store (`LEO_RAW_DIR`, default `var/raw`), under their content hash. `storage_path` is relative to that folder, and `content_sha256` is the hash of the bytes. Citation offsets index these stored bytes (`read_source_text`).
 - **`path`** is the display path: dataset-relative for folder loads (`inbox/01_….eml`, `contracts/….md`), and `uploads/{first 8 hex of the SHA-256}-{filename}` for API uploads (C3), so two different files with one name don't share a path. `ingest()` called with no `path` still defaults to `uploads/{filename}`. Like the other provenance columns, it keeps its first value, so D1's re-synced copy keeps the original's path.
 - **`source_kind`** is `eml`, `file`, `attachment` or `gmail` (A8).
-- **Attachments.** Each attachment is its own row. Its key comes from its bytes, so it is the same row as that file uploaded on its own (except an attached email, which is stored re-serialized; see ROADMAP A3). Its `path` is `{email path}#attachments/{filename}`. `parent_document_id` is the first email that carried it, and every email carrying it gets a `document_link` with `link_type = "attachment"` (`document_id` is the email, `linked_document_id` the attachment).
+- **Attachments.** Each attachment is its own row. Its key comes from its bytes, so it is the same row as that file uploaded on its own (except an attached email, which is stored re-serialized). Its `path` is `{email path}#attachments/{filename}`. `parent_document_id` is the first email that carried it, and every email carrying it gets a `document_link` with `link_type = "attachment"` (`document_id` is the email, `linked_document_id` the attachment).
 - **Headers** (`sender`, `recipient`, `subject`, `message_id`, `received_at`) are decoded attributes and never part of a key. `received_at` is timezone-aware, or null when the `Date` is missing or malformed.
 
 ## Gmail accounts

@@ -1,4 +1,4 @@
-"""Action drafting (ROADMAP B7). No network: a fake client stands in for the API."""
+"""Action drafting. No network: a fake client stands in for the API."""
 
 import json
 

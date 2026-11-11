@@ -1,4 +1,4 @@
-"""Reads from the database into the shared types (ROADMAP C3).
+"""Reads from the database into the shared types.
 
 The API, and the worker's reconcile and draft stages (2.1), read stored rows through here. Reads are
 scoped to one tenant and never write. Ids are `str(uuid)`; document references are document
@@ -46,7 +46,7 @@ class StoredCitation:
 
 @dataclass(frozen=True)
 class PriceSeries:
-    """One price history (ROADMAP C5): a vendor's price terms for one agreement and plan."""
+    """One price history: a vendor's price terms for one agreement and plan."""
 
     agreement_ref: str | None
     plan_label: str | None
@@ -285,7 +285,7 @@ def _duplicate_documents(tenant_id: UUID):
 
 
 def load_price_history(session: Session, tenant_id: UUID, vendor_id: UUID) -> list[PriceSeries]:
-    """The design doc's price history: a vendor's `price` terms, one series per agreement_ref
+    """The price history: a vendor's `price` terms, one series per agreement_ref
     and plan_label, by effective date. Terms from probable-duplicate documents are left out, and so
     are `needs_review` terms, which failed validation, and `rejected` ones (the reconciler ignores
     both)."""

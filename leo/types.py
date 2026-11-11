@@ -1,11 +1,9 @@
-"""Shared types every track codes against (ROADMAP 0.3).
+"""Shared types every stage codes against.
 
 The shapes are copied from the answer key, `data/synthetic/expected.json` (schema v2). They
 are documented in `data/synthetic/README.md` and enforced by `scripts/validate_answer_key.py`.
-The fixture loader (0.6) reads the key into these models with no field mapping, so field names
+The fixture loader reads the key into these models with no field mapping, so field names
 match the key exactly.
-
-Any change to this module needs all three teammates to agree (ROADMAP 0.7).
 
 Conventions:
 - Cross-references are string ids as in the key: vendor id, document path, term id, transaction
@@ -241,7 +239,7 @@ extracted_term_adapter: TypeAdapter[ExtractedTerm] = TypeAdapter(ExtractedTerm)
 
 
 class Citation(LeoModel):
-    """A quote located in its source. Offsets index the raw stored file text (ROADMAP 0.4)."""
+    """A quote located in its source. Offsets index the raw stored file text."""
 
     document: str
     quote: str

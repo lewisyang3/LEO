@@ -1,4 +1,4 @@
-"""`python -m leo.ingest.folder`: ingest a dataset's documents and queue them (ROADMAP 2.1).
+"""`python -m leo.ingest.folder`: ingest a dataset's documents and queue them.
 
 `ingest_dataset` (A3) loads ROOT's `inbox/` then `contracts/`, in name order, with paths
 relative to ROOT, and `ingest()` queues a `classify` job for each document. The order is the

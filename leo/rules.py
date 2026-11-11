@@ -1,4 +1,4 @@
-"""Data-model rules as pure functions (ROADMAP 0.4, documented in docs/DATA_MODEL.md)."""
+"""Data-model rules as pure functions, documented in docs/DATA_MODEL.md."""
 
 import datetime
 import hashlib

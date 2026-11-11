@@ -1,7 +1,7 @@
-"""`python -m leo.eval` (`make eval`): score stage engines against the answer key (ROADMAP B1).
+"""`python -m leo.eval` (`make eval`): score stage engines against the answer key.
 
 Exits 0 on a completed run. With `--bar` (`make bar`), it also checks the accuracy bar
-(ROADMAP 2.4, `leo.eval.bar`) and exits 1 if the bar is missed.
+(`leo.eval.bar`) and exits 1 if the bar is missed.
 """
 
 import argparse
@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--bar",
         action="store_true",
-        help="check the accuracy bar (ROADMAP 2.4) and exit 1 on a miss",
+        help="check the accuracy bar and exit 1 on a miss",
     )
     parser.add_argument("--json", type=Path, metavar="PATH", help="also write the full result")
     args = parser.parse_args(argv)

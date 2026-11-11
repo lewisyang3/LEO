@@ -1,4 +1,4 @@
-"""The shared types accept the answer key as-is (ROADMAP 0.3)."""
+"""The shared types accept the answer key as-is."""
 
 import csv
 import json

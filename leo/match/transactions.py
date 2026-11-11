@@ -1,4 +1,4 @@
-"""Transactions, plans and invoice matching (ROADMAP A5).
+"""Transactions, plans and invoice matching.
 
 - `CsvTransactionSource` reads `transactions.csv`. A Ramp connection would implement the same
   `TransactionSource` interface.

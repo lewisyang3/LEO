@@ -1,1 +1,1 @@
-"""Eval harness: score stage output against the answer key (ROADMAP B1)."""
+"""Eval harness: score stage output against the answer key."""

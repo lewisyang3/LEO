@@ -1,4 +1,4 @@
-"""Response models for the API (ROADMAP C2, C3). API-only: the shared types stay in `leo.types`."""
+"""Response models for the API. API-only: the shared types stay in `leo.types`."""
 
 import datetime
 from decimal import Decimal
@@ -167,7 +167,7 @@ class JobCount(LeoModel):
 
 
 class Stats(LeoModel):
-    """Counts from the database (ROADMAP C3). Cost numbers come with B6."""
+    """Counts from the database. Cost numbers come with B6."""
 
     documents: int
     documents_by_class: dict[str, int]  # "unclassified" when not yet classified
@@ -179,7 +179,7 @@ class Stats(LeoModel):
 
 
 class VendorSummary(LeoModel):
-    """One row of the vendor list (ROADMAP C5). Counts leave out linked duplicates' terms."""
+    """One row of the vendor list. Counts leave out linked duplicates' terms."""
 
     id: str
     canonical_name: str

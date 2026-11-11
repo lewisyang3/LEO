@@ -1,4 +1,4 @@
-"""Stage 4: the validator (ROADMAP B4).
+"""Stage 4: the validator.
 
 `RuleValidator` runs deterministic checks on an extraction:
 - the vendor name is present and appears in the document (`vendor_ok`)

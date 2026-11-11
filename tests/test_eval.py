@@ -1,4 +1,4 @@
-"""The eval harness (ROADMAP B1)."""
+"""The eval harness."""
 
 from decimal import Decimal
 

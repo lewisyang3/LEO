@@ -1,4 +1,4 @@
-"""`.eml` parsing (ROADMAP A3). Pure: no database, no storage.
+"""`.eml` parsing. Pure: no database, no storage.
 
 Headers are decoded with `email.policy.default` (RFC 2047 words become text) and the `Date`
 parse is guarded. The body text and headers are metadata only: citation offsets index the raw

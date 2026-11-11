@@ -1,4 +1,4 @@
-"""The API on Postgres (ROADMAP C2 routes, C3 store, C4 export, C5 vendors).
+"""The API on Postgres.
 
 Needs `make up && make migrate`. Each test seeds the answer key under its own random tenant
 slug, inside the rolled-back `session` from conftest.py. The dev database that `make seed`

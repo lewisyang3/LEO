@@ -1,4 +1,4 @@
-"""The end-to-end checks (ROADMAP 2.2): a pipeline run's rows against the answer key.
+"""The end-to-end checks: a pipeline run's rows against the answer key.
 
 `run_checks` reads one tenant after the worker has drained it and returns one `Check` per item
 of the key: the jobs, F1-F5 (each with its draft scored against the key's `expected_action`), no

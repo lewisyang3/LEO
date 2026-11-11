@@ -1,4 +1,4 @@
-"""Which formats deserve a script (ROADMAP Phase 4).
+"""Which formats deserve a script.
 
 A format is a sender address. Its examples are the tenant's documents from that sender that
 the LLM extracted and that passed validation (`vendor_ok`, no item `needs_review`): the past

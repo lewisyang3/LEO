@@ -1,4 +1,4 @@
-"""Raw-file storage (ROADMAP A3): files live in a local folder, the database holds references.
+"""Raw-file storage: files live in a local folder, the database holds references.
 
 Content-addressed: a file is stored at `{sha[:2]}/{sha}{suffix}` under the root, so the same
 bytes are written once however many emails, uploads or tenants carry them. Tenant isolation is

@@ -1,4 +1,4 @@
-"""Scoring stage output against the answer key (ROADMAP B1). Pure functions, no I/O.
+"""Scoring stage output against the answer key. Pure functions, no I/O.
 
 Classification and extraction are scored independently, so a classifier mistake doesn't hide
 extractor quality.
@@ -537,7 +537,7 @@ def _summarize_kind(docs: Sequence[DocExtraction], kind: str, by_type: bool) -> 
 def summarize_extraction(fixture: Fixture, docs: Sequence[DocExtraction]) -> ExtractionSummary:
     """Coverage counts a key item only when it was matched in its own document, not in a
     duplicate of it, with every field right (`COVERAGE_IGNORES` aside), and the validator
-    didn't set the match to needs_review (that would hide the finding, ROADMAP 2.3). A
+    didn't set the match to needs_review (that would hide the finding). A
     document the validator raised on covers nothing, since none of its items were validated.
     It checks only the items whose documents were scored, and leaves out a finding with none
     (a `--doc` run)."""

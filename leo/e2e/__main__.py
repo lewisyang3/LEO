@@ -1,5 +1,5 @@
 """`python -m leo.e2e` (`make e2e`): reset the dev database, run the pipeline on the synthetic
-set, and check the result against the answer key (ROADMAP 2.2). Run it before every merge.
+set, and check the result against the answer key. Run it before every merge.
 
 1. `make reset`: drop, migrate, seed. This wipes every local approval and Gmail row.
 2. Ingest `data/synthetic` into the pipeline's tenant (`LEO_PIPELINE_TENANT`) and drain it,

@@ -1,4 +1,4 @@
-"""The job queue (ROADMAP A4): rows in `job`, claimed with `FOR UPDATE SKIP LOCKED`.
+"""The job queue: rows in `job`, claimed with `FOR UPDATE SKIP LOCKED`.
 
 There is one row per (document, stage), keyed `keys.job(doc_key, stage)`, except reconcile:
 one row per tenant (`keys.tenant_job`), requested again by each validated document and claimed
@@ -65,7 +65,7 @@ def request_reconcile(session: Session, tenant_id: UUID) -> None:
 
     With one worker a request can't arrive while reconcile is running (the worker is busy
     with the job making the request). With several, a request made then is lost until the
-    next one (ROADMAP 2.1)."""
+    next one."""
     ins = insert(Job).values(
         id=new_uuid7(),
         tenant_id=tenant_id,

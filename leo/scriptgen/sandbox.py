@@ -1,4 +1,4 @@
-"""Checking and running generated script code (ROADMAP Phase 4).
+"""Checking and running generated script code.
 
 A generated script is model-written code that reads email text, so the email can try to steer
 what the model writes. The code is held to a small contract and run in a restricted namespace:

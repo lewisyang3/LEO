@@ -1,4 +1,4 @@
-"""Name cleanup for vendor matching (ROADMAP A5). Pure functions, no database.
+"""Name cleanup for vendor matching. Pure functions, no database.
 
 A card descriptor ("PAYWAVE* LUMENPOST", "KESTREL*CLOUD 844-555-0142") is cleaned before
 lookup. Names and aliases are compared in their `match_form`: `keys.normalize_name` without

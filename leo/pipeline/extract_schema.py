@@ -1,4 +1,4 @@
-"""The structured output the extraction LLM fills (ROADMAP B3).
+"""The structured output the extraction LLM fills.
 
 Kept separate from the shared types in `leo.types`: the model fills only what a document says.
 `leo.pipeline.extract_llm` maps these models to `ExtractedTerm`, `InvoiceFact` and `Contact`. That

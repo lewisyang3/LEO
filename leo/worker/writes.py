@@ -1,4 +1,4 @@
-"""What the worker stores at each stage (ROADMAP 2.1), always through `Repo`, in the same
+"""What the worker stores at each stage, always through `Repo`, in the same
 transaction that marks the job done.
 
 - validate: the document's vendor, and its terms, invoice facts and contacts

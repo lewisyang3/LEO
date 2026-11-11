@@ -1,9 +1,7 @@
-"""Interfaces between tracks (ROADMAP 0.5).
+"""Interfaces between pipeline stages.
 
-Each pipeline stage is a `Protocol`, with the models it takes and returns. Track A's worker
-calls these. Track B and Track C implement them. Until they do, `leo.stubs` stands in.
-
-Any change to this module needs all three teammates to agree (ROADMAP 0.7).
+Each pipeline stage is a `Protocol`, with the models it takes and returns. The worker calls
+these, and the stage modules implement them. `leo.stubs` has runnable placeholders.
 
 Contracts on extraction output:
 - `document` on every term, invoice fact and contact is `DocumentText.document.path`.

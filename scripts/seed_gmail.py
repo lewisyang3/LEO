@@ -1,4 +1,4 @@
-"""Fill a demo Gmail account with the synthetic inbox (ROADMAP A8).
+"""Fill a demo Gmail account with the synthetic inbox.
 
     uv run python scripts/seed_gmail.py [--folder DIR] [--drip SECONDS] [--only FILE] [--skip FILE]
 

@@ -1,4 +1,4 @@
-"""Load the synthetic answer key into the database through the repository (ROADMAP A2).
+"""Load the synthetic answer key into the database through the repository.
 
 Terms, invoice facts, contacts and findings come from the key, the way the fixture stages in
 `leo.fixtures` serve them. Vendors and matches don't (A5): each document's vendor name, as

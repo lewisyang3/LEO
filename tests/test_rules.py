@@ -1,4 +1,4 @@
-"""The data-model rules agree with the answer key (ROADMAP 0.4)."""
+"""The data-model rules agree with the answer key."""
 
 import datetime
 import json

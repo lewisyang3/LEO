@@ -1,4 +1,4 @@
-"""Encrypt OAuth tokens at rest (ROADMAP A8) with Fernet and `LEO_SECRET_KEY`."""
+"""Encrypt OAuth tokens at rest with Fernet and `LEO_SECRET_KEY`."""
 
 from cryptography.fernet import Fernet, InvalidToken
 

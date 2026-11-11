@@ -1,4 +1,4 @@
-"""The fixture loader and fixture-backed stages (ROADMAP 0.6)."""
+"""The fixture loader and fixture-backed stages."""
 
 import datetime
 import json

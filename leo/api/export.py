@@ -1,4 +1,4 @@
-"""CSV export of the term record and the findings (ROADMAP C4).
+"""CSV export of the term record and the findings.
 
 Pure formatting: `DbStore` loads the rows (through `leo.db.read`) and these functions turn them
 into CSV text. Both files start with a UTF-8 BOM so Excel reads non-ASCII text correctly.

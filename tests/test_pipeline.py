@@ -1,4 +1,4 @@
-"""The wired pipeline (ROADMAP 2.1): each stage's writes, the per-tenant reconcile, and a run
+"""The wired pipeline: each stage's writes, the per-tenant reconcile, and a run
 over the synthetic set.
 
 Needs Postgres running and migrated. Every test works in its own tenant, inside the session's

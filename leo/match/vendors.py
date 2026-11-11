@@ -1,4 +1,4 @@
-"""A `VendorResolver` backed by the store (ROADMAP A5).
+"""A `VendorResolver` backed by the store.
 
 Lookup is an exact match on the normalized name or an alias, then a fuzzy match in two steps:
 

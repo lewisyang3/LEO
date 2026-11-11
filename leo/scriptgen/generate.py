@@ -1,4 +1,4 @@
-"""Asking the model for a script (ROADMAP Phase 4).
+"""Asking the model for a script.
 
 One structured call per attempt, through `leo.llm.structured_call` and its cache (stage
 `scriptgen`, committed under `data/llm_cache/scriptgen/`), so a rerun gets the same code with

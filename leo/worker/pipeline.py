@@ -1,4 +1,4 @@
-"""The components the worker runs (ROADMAP A4, wired in 2.1).
+"""The components the worker runs.
 
 Tenant-scoped parts are built per job from the job's `Repo`: the vendor resolver, and the
 prior terms validation compares with. `Pipeline.stubs()` keeps the A4 stubs for the stages
@@ -48,7 +48,7 @@ def stored_prior_terms(
     session: Session, tenant_id: UUID, vendor_id: str, path: str
 ) -> list[ExtractedTerm]:
     """The vendor's stored terms from other documents, with their validated status. A
-    `needs_review` prior isn't compared (ROADMAP 2.1). Linked duplicates' terms are already
+    `needs_review` prior isn't compared. Linked duplicates' terms are already
     left out by `load_ledger`."""
     return [
         t

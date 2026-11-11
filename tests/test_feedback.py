@@ -1,4 +1,4 @@
-"""The feedback loop's corrections (ROADMAP Phase 4, F1): a reviewer corrects or rejects a term
+"""The feedback loop's corrections: a reviewer corrects or rejects a term
 or invoice fact, the event is recorded, re-extraction leaves the row alone, and the next
 reconcile follows it.
 

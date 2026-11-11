@@ -1,12 +1,12 @@
-"""Claude calls with structured output and a response cache (ROADMAP B3; B7 reuses it).
+"""Claude calls with structured output and a response cache (extraction and drafting share it).
 
 Why not `client.messages.parse`: in SDK 2.4.0 it validates the JSON inside the call, so a
 refusal, a truncated reply or one bad item raises before we can read `stop_reason` or keep the
 raw text. `structured_call` asks for the same JSON schema through `output_config.format`, checks
 `stop_reason`, and returns the decoded JSON. The caller validates it item by item.
 
-The cache makes reruns reproduce the same output (D5) and lets the demo run with no network
-(ROADMAP 3.2). Its key covers the whole request (system prompt, user prompt and schema), so any
+The cache makes reruns reproduce the same output (D5) and lets the demo run with no network.
+Its key covers the whole request (system prompt, user prompt and schema), so any
 change to what is sent misses the cache. Only complete answers (`end_turn` with valid JSON) are
 cached, so a failed call is retried on the next run. With `offline=True` a cache miss raises
 `LLMOfflineMiss` instead of calling the API.

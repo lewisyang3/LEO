@@ -86,11 +86,11 @@ A citation location is a pair of character offsets into the raw stored file text
 
 ## Schema gaps (resolved in v2)
 
-Writing the answer key surfaced gaps in the design doc's data model. Schema v2 resolves them:
+Writing the answer key surfaced gaps in the original data model. Schema v2 resolves them:
 
 1. **`price_cap`** is a term type (F3).
 2. **Multiple citations per term.** Each term has a list of quotes.
-3. **Invoice facts versus contract terms.** Invoice facts get their own table (see `ROADMAP.md` A1) and carry an `invoice_date`.
+3. **Invoice facts versus contract terms.** Invoice facts get their own table and carry an `invoice_date`.
 4. **`dispute_window`** is a term type (`kch_dispute`, `hps_dispute`), so the F3 and F5 deadlines follow from cited clauses.
 5. **Weekend deadlines.** Findings keep the contract deadline and add `recommended_send_by` (F1: Sunday Nov 15, so send by Friday Nov 13).
 

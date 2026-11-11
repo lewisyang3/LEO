@@ -1,4 +1,4 @@
-"""Stage 2 script extractors (ROADMAP B5)."""
+"""Stage 2 script extractors."""
 
 import pytest
 

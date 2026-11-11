@@ -1,6 +1,6 @@
 # LEO Stack
 
-This page records the decisions from ROADMAP task 0.1. To change any of them, edit this page in a PR that all three teammates (Lewis, Erik, Omar) approve.
+This page records LEO's stack and its LLM policy.
 
 ## Tools
 
@@ -52,7 +52,7 @@ This page records the decisions from ROADMAP task 0.1. To change any of them, ed
 
 ## Jev risk
 
-The design doc lists the risks: access is early, rate limits are unknown, and its speed, cost and accuracy claims haven't been verified.
+The risks: access is early, rate limits are unknown, and its speed, cost and accuracy claims haven't been verified.
 
 - **No LLM fallback.** Classification is Jev only. With no `JEV_API_KEY`, the Jev classifier stops at startup. A failed Jev call leaves that document unclassified for review, never noise.
 - **Threshold.** Jev's P(noise) alone decides noise (B2). The threshold is chosen from the eval's sweep over the labeled set, to keep 100% recall on the planted issues with the lowest false-pass. It is 0.5, which leaves margin on both sides. Every label keeps Jev's probabilities, and the eval lists the noise-labeled documents for a spot check.

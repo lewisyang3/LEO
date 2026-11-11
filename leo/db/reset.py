@@ -1,4 +1,4 @@
-"""`make reset` (ROADMAP A7): drop the schema, rerun the migrations, reseed.
+"""`make reset`: drop the schema, rerun the migrations, reseed.
 
 A reseed alone keeps every approval and edit, because upserts never write `action.state`,
 so a clean demo needs this. Dropping `public` (rather than `alembic downgrade base`) doesn't

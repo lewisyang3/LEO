@@ -1,4 +1,4 @@
-"""Reconciliation rules, stage 5 (ROADMAP C1).
+"""Reconciliation rules, stage 5.
 
 `RuleReconciler` turns a `Ledger` into findings and supersessions. It is pure: it never mutates
 the ledger and takes `today` from the caller. There is one rule per `FindingKind`:
@@ -96,7 +96,7 @@ def pct_change(old: Decimal, new: Decimal) -> Decimal:
 
 
 def finding_id(anchor: Anchor, kind: FindingKind) -> str:
-    """`v1:finding:{anchor term}:{anchor txn or -}:{kind}` (ROADMAP A2). Built from the
+    """`v1:finding:{anchor term}:{anchor txn or -}:{kind}`. Built from the
     ledger's ids, which are natural keys once the repository supplies them."""
     return f"v1:finding:{anchor.term}:{anchor.transaction or '-'}:{kind.value}"
 

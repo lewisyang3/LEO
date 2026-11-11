@@ -22,19 +22,19 @@ class Settings(BaseSettings):
     # the bottleneck (e.g. no promotable script within the attempts).
     leo_model_scriptgen: str = DEFAULT_MODEL
     leo_today: date | None = None
-    # LLM response cache (ROADMAP B3). Offline: a cache miss raises instead of calling the API.
+    # LLM response cache. Offline: a cache miss raises instead of calling the API.
     leo_llm_cache_dir: Path = Path("data/llm_cache")
     leo_llm_offline: bool = False
-    # Raw-file store (ROADMAP A3): ingested files, content-addressed. The DB holds references.
+    # Raw-file store: ingested files, content-addressed. The DB holds references.
     leo_raw_dir: Path = Path("var/raw")
-    # The API's tenant (ROADMAP C3): the seed's slug is the dataset name.
+    # The API's tenant: the seed's slug is the dataset name.
     leo_tenant: str = "brightwater-v1"
-    # The pipeline's tenant (ROADMAP 2.1): `make ingest` loads the dataset's documents here
+    # The pipeline's tenant: `make ingest` loads the dataset's documents here
     # and the worker fills it, so it never mixes with the seed's key-backed rows.
     leo_pipeline_tenant: str = "brightwater-pipeline"
     # Recorded as `action.approver` (no login yet; the schema requires an approver).
     leo_approver: str = "reviewer"
-    # Gmail sync (ROADMAP A8). The key encrypts OAuth tokens at rest (Fernet); the synced
+    # Gmail sync. The key encrypts OAuth tokens at rest (Fernet); the synced
     # mailbox gets its own tenant, so it never doubles the seeded one.
     leo_secret_key: str | None = None
     leo_gmail_tenant: str = "gmail-demo"

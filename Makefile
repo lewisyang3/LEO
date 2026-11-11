@@ -31,7 +31,7 @@ api:
 api-gmail:
 	LEO_TENANT=$${LEO_GMAIL_TENANT:-gmail-demo} uv run uvicorn leo.api.app:app --reload
 
-# The pipeline's tenant (ROADMAP 2.1): `make ingest`, then `make worker ARGS=--drain`.
+# The pipeline's tenant: `make ingest`, then `make worker ARGS=--drain`.
 api-pipeline:
 	LEO_TENANT=$${LEO_PIPELINE_TENANT:-brightwater-pipeline} uv run uvicorn leo.api.app:app --reload
 

@@ -1,4 +1,4 @@
-"""The classifier (ROADMAP B2). No network: a fake client stands in for Jev, except in the
+"""The classifier. No network: a fake client stands in for Jev, except in the
 opt-in live test."""
 
 import json

@@ -1,4 +1,4 @@
-"""The accuracy bar (ROADMAP 2.4), checked on an eval result by `make bar`.
+"""The accuracy bar, checked on an eval result by `make bar`.
 
 The bar is: every planted finding (F1-F5), no false finding, and at least 90% of the key's
 term fields right. `make bar` checks the extraction half here, on the script and cached LLM
@@ -64,7 +64,7 @@ def check_bar(result: EvalResult) -> list[BarCheck]:
 
 
 def format_bar(checks: list[BarCheck]) -> str:
-    out = ["", "== Accuracy bar (ROADMAP 2.4) =="]
+    out = ["", "== Accuracy bar =="]
     for c in checks:
         out.append(f" {'PASS' if c.ok else 'FAIL'}  {c.id:<16} {c.actual}  (target {c.target})")
     failed = [c.id for c in checks if not c.ok]

@@ -1,4 +1,4 @@
-"""The validator (ROADMAP B4). No network: a fake client stands in for Jev, except in the
+"""The validator. No network: a fake client stands in for Jev, except in the
 opt-in live test."""
 
 import datetime

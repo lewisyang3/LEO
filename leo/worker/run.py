@@ -1,4 +1,4 @@
-"""The worker (ROADMAP A4): claim a job, run its stage, record the result, queue the next stage.
+"""The worker: claim a job, run its stage, record the result, queue the next stage.
 
 Stages, one job each per document: classify -> extract -> validate, then one reconcile job per
 tenant. A noise document stops after classify. Each stage reads the previous stage's output
@@ -325,7 +325,7 @@ class Worker:
         return StageResult(v.model_dump(mode="json"), v.engine, NEXT_STAGE[queue.VALIDATE])
 
     def _reconcile(self, job: Job) -> StageResult:
-        """The whole tenant, in ROADMAP 2.1's order: transactions (after the documents' vendors,
+        """The whole tenant, in this order: transactions (after the documents' vendors,
         so names come from documents first, as in the seed), duplicate links, plan and invoice
         matching, then reconcile, findings, and a draft per new (finding, type)."""
         p = self.pipeline

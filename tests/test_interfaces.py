@@ -1,4 +1,4 @@
-"""The interfaces, stubs and clock between tracks (ROADMAP 0.5)."""
+"""The interfaces, stubs and clock between stages."""
 
 import datetime
 
@@ -41,7 +41,7 @@ def test_stub_satisfies_protocol(stub, protocol):
 def run_chain(
     extractor: stubs.StubExtractor, resolver: stubs.StubVendorResolver
 ) -> tuple[i.Validated, i.Reconciliation]:
-    """The worker's order (ROADMAP 2.1): classify, extract, look up the vendor, validate,
+    """The worker's order: classify, extract, look up the vendor, validate,
     then create the vendor only if its name checks out."""
     doc = doc_text()
     classification = stubs.StubClassifier().classify(doc)

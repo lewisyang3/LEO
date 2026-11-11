@@ -1,4 +1,4 @@
-"""Stage 2: script extractors (ROADMAP B5).
+"""Stage 2: script extractors.
 
 A script is a matcher and parser pair for one known document format, such as a vendor's
 invoice template. Scripts are deterministic and make no API call. The worker tries them before

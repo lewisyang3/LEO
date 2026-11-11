@@ -1,4 +1,4 @@
-"""The Postgres-backed store behind the API (ROADMAP C3).
+"""The Postgres-backed store behind the API.
 
 `DbStore` serves one tenant's findings, documents and actions from the database, through
 `leo.db.read`. It serves whatever findings and actions are stored: the seed's answer-key rows,

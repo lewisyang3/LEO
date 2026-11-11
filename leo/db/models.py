@@ -1,6 +1,6 @@
-"""SQLAlchemy 2 mappings for LEO (PostgreSQL 16), roadmap A1.
+"""SQLAlchemy 2 mappings for LEO (PostgreSQL 16).
 
-Columns follow docs/DATA_MODEL.md and the design doc's entity table. CHECK value lists come
+Columns follow docs/DATA_MODEL.md. CHECK value lists come
 from the enums in leo.types, so the schema and the shared types can't drift.
 
 Tenant isolation is enforced by the database: every table has `tenant_id` (FK to `tenant`)

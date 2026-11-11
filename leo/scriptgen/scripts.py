@@ -1,4 +1,4 @@
-"""Generated scripts as `Script`s the worker can run (ROADMAP Phase 4).
+"""Generated scripts as `Script`s the worker can run.
 
 `to_extraction` turns a script's output (the LLM extractor's merged JSON shape) into an
 `Extraction` through `LLMExtractor.to_extraction`, so dates, amounts, billing periods,

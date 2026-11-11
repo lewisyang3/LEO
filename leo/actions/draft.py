@@ -1,4 +1,4 @@
-"""Action drafting, stage 5 (ROADMAP B7).
+"""Action drafting, stage 5.
 
 Code decides everything that must be right, and the LLM writes only the prose:
 - `action_plan` picks the action type, alternative and pre-step from the finding's kind.

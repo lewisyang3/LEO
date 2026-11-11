@@ -1,4 +1,4 @@
-"""The feedback loop (ROADMAP Phase 4): a reviewer corrects or rejects an extracted item.
+"""The feedback loop: a reviewer corrects or rejects an extracted item.
 
 A correction changes the stored term or invoice fact, sets its `corrected_at` (so
 re-extraction never overwrites it, `Repo.upsert_term`) and writes one `feedback_event` per

@@ -1,4 +1,4 @@
-"""Gmail sync (ROADMAP A8): read-only, incremental by `historyId`, tokens encrypted at rest.
+"""Gmail sync: read-only, incremental by `historyId`, tokens encrypted at rest.
 
 - `connect` runs Google's installed-app consent with the read-only scope, then stores the
   account and its encrypted token under its own tenant (`LEO_GMAIL_TENANT`, default

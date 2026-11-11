@@ -1,4 +1,4 @@
-"""`ingest()`: one raw file in, one `source_document` row (plus its attachments) out (ROADMAP A3).
+"""`ingest()`: one raw file in, one `source_document` row (plus its attachments) out.
 
 The upload endpoint (C3), the folder loaders and the seed all come through here, so a document
 is written one way. The raw bytes go to the `RawStore` and the row holds the reference.

@@ -1,12 +1,12 @@
-"""Duplicate linking (ROADMAP A6).
+"""Duplicate linking.
 
 Each document stores a `context_fingerprint`: a hash of its stored terms and invoice facts
 (vendor, type, value, plan, agreement, effective date; invoice number, billing period, invoice
 date, amount). Quotes, offsets, ids, status and notes are left out, so a forward of the same
 notice fingerprints the same. A document with no items has no fingerprint.
 
-The fingerprint is never a key and never deletes anything. It only suggests links, per the
-design doc's table, narrowed because the dataset has no attachments:
+The fingerprint is never a key and never deletes anything. It only suggests links, by these rules,
+narrowed because the dataset has no attachments:
 
 - same fingerprint, and one side is a forward: the forward is a `probable_duplicate` of the other
 - same fingerprint, and the two emails carry the same attachment: the later is a

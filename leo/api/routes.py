@@ -1,5 +1,5 @@
-"""Findings, documents, the approval queue, upload, stats (ROADMAP C2, C3), CSV export (C4) and
-vendors (C5), from Postgres."""
+"""Findings, documents, the approval queue, upload, stats, CSV export and
+vendors, from Postgres."""
 
 from collections.abc import Iterator
 from typing import Annotated

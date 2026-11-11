@@ -1,4 +1,4 @@
-"""Clocks (ROADMAP 0.5). Code that needs "today" takes a `Clock` or a date, never `date.today()`."""
+"""Clocks. Code that needs "today" takes a `Clock` or a date, never `date.today()`."""
 
 import datetime
 from dataclasses import dataclass
