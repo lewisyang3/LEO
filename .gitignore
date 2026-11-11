@@ -1,6 +1,7 @@
 .DS_Store
 # Kept local only, not pushed
 LEO Design Doc.md
+ROADMAP.md
 
 # Secrets
 .env

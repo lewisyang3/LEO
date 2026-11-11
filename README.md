@@ -1,117 +1,69 @@
 # LEO
 
-LEO reads a business's vendor contracts, emails and invoices, records the terms they agree to (each with the quote it came from), and checks the transactions against those terms. It flags renewal deadlines, price increases, cap breaches, seat overages and early escalators, then drafts a fix for each one. Nothing is sent without human approval.
+**LEO** is a project for the **Ramp x UC Berkeley Business Society** hackathon. The prompt:
 
-- [`ROADMAP.md`](ROADMAP.md): the tasks, the tracks and who owns them
-- [`docs/STACK.md`](docs/STACK.md): the stack and the LLM policy
-- [`data/synthetic/`](data/synthetic/): the Brightwater demo dataset and its answer key (`expected.json`)
+> *Automate an outdated financial workflow using the newest AI tools.*
 
-## Prerequisites
+## The problem
 
-- Python 3.13 and [uv](https://docs.astral.sh/uv/)
-- Docker with Compose v2 (Docker Desktop must be running)
-- Node 22 or later, with npm
+Small businesses pay dozens of software and service vendors, but the terms that cost them money are scattered across PDFs, shared drives and inboxes. Contracts auto-renew, mid-term price escalators kick in, and "our rates are changing" emails get archived unread. Checking each bill against what was actually agreed is a manual job of spreadsheets and email searches, so it rarely happens. By the time the higher charge lands, the window to cancel or renegotiate has closed.
+
+Renewal reminders exist, but they only track contract end dates. They miss price changes announced by email, and they can't tell you that a bill doesn't match the contract.
+
+## How LEO solves it
+
+LEO reads a business's vendor contracts, emails and invoices, keeps a record of every term the business agreed to (each with the exact quote it came from), and checks the card charges against those terms. It runs every document through a pipeline in which each stage is cheaper than the next, so most documents never reach the expensive one:
+
+1. **Classify.** Jev (TypeSafe AI) labels each document (contract, order form, price notice, invoice, noise). Noise stops here.
+2. **Extract.** Known formats go to deterministic scripts. Everything else goes to Claude, which returns structured terms with their source quotes.
+3. **Validate.** Rules and Jev check the output: dates parse, amounts are plausible and every quote really appears in the document.
+4. **Reconcile.** Vendor names are matched to messy card descriptors (`PAYWAVE* LUMENPOST`), and the terms are compared with the charges. LEO flags upcoming renewal deadlines, price increases, cap breaches, seat overages and early escalators, with the dollars at stake.
+5. **Act.** Claude drafts the fix for each finding: a cancellation notice, a negotiation email or a dispute. **Nothing is sent without human approval.**
+
+LEO also improves as it's used. When a reviewer corrects an extracted term, the correction becomes a few-shot example for future extractions. When the LLM keeps extracting from the same sender, Claude writes a script for that format, and the script is promoted only if it reproduces the verified results.
+
+Emails arrive through a read-only Gmail sync, and documents can also be uploaded. The demo runs on Brightwater Coffee Co., a fictional three-location coffee shop with five planted issues ([`data/synthetic/`](data/synthetic/), answer key in `expected.json`).
+
+## Stack
+
+| Layer | Choice |
+| --- | --- |
+| Backend | Python 3.13, FastAPI, Pydantic v2, managed with [uv](https://docs.astral.sh/uv/) |
+| Database | PostgreSQL 16 (Docker Compose), SQLAlchemy 2 and Alembic |
+| Frontend | React, Vite and TypeScript |
+| Classification and validation | Jev (TypeSafe AI) |
+| LLM | Claude Haiku 5.5 through the `anthropic` SDK, for extraction, drafting and script generation, with structured outputs and a response cache |
+| Inbox | Gmail API (read-only), with OAuth tokens encrypted at rest |
+| Tests and lint | pytest and ruff |
 
 ## Quick start
+
+You need Python 3.13 with [uv](https://docs.astral.sh/uv/), Docker with Compose v2 (Docker Desktop must be running), and Node 22 or later with npm.
 
 ```sh
 make setup     # install Python and web dependencies, create .env from .env.example
 make up        # start Postgres 16 and wait until it's healthy
-make migrate   # apply Alembic migrations
-make test      # run pytest (includes the answer-key validator)
-make seed      # load the Brightwater demo tenant (the API and UI read it)
-make reset     # later: wipe the database and reseed, for a clean demo
+make migrate   # apply the database migrations
+make seed      # load the Brightwater demo data
 ```
 
 Then, in two terminals:
 
 ```sh
 make api       # FastAPI on http://localhost:8000 (check /api/health)
-make web       # Vite dev server; it proxies /api to the FastAPI app
+make web       # the dashboard on http://localhost:5173
 ```
 
-Put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env`. Never commit `.env`. The tests don't need either key. Ingested raw files go to `LEO_RAW_DIR` (default `var/raw`, gitignored). Tests use a temp folder instead.
+Open http://localhost:5173 to see the findings, their sources and the drafted fixes waiting for approval.
 
-## Make targets
-
-| Target | Does |
-| --- | --- |
-| `setup` | `uv sync`, create `.env` if missing, `npm install` in `web/` |
-| `up` / `down` | Start / stop Postgres (`docker compose`) |
-| `migration` | Autogenerate a migration from the models: `make migration msg="what changed"`. Add extensions by hand |
-| `migrate` | `alembic upgrade head` |
-| `test` | `pytest` (needs `make up` and `make migrate`) |
-| `lint` | `ruff check` and `ruff format --check` |
-| `api` | Run FastAPI with reload |
-| `web` | Run the Vite dev server |
-| `seed` | Load the answer key into the database as the demo tenant (`python -m leo.db.seed`). A reseed keeps approvals and edits |
-| `reset` | Drop the schema, migrate and seed, for a clean demo (`python -m leo.db.reset`). Stop the API and worker first. Refuses a non-local database without `--force` |
-| `eval` | Score the classifier, extractor, validator, reconciler and drafter against the answer key (`python -m leo.eval --help`). The held-out classifier set runs with `python -m leo.eval.holdout`. No database needed. The default fixture engines need no API keys |
-| `e2e` | The end-to-end test (`python -m leo.e2e`). **Run it before every merge to main.** It resets the dev database (wiping approvals and Gmail rows), runs the pipeline on the synthetic set into the pipeline's tenant, and checks F1–F5 (each with its draft), no extra finding, the vendor names, N1–N8, D1–D5 and that every draft is the LLM's. Live by default (`JEV_API_KEY`); `ARGS=--offline` needs no network. Exits 1 if a check fails |
-| `gmail-connect` | Connect a Gmail account, read-only (opens the browser). See [Gmail sync](#gmail-sync-optional) |
-| `gmail-sync` | Sync every connected account once, or `ARGS="--watch 10"` to poll |
-| `gmail-import` | Import `.eml` files into the demo Gmail account (`scripts/seed_gmail.py`; `ARGS="--drip 5"` or `ARGS="--only FILE"`) |
-| `api-gmail` | `make api` serving the Gmail tenant (`LEO_GMAIL_TENANT`) instead of the seeded one |
-| `ingest` | Load the synthetic documents into the pipeline's tenant (`LEO_PIPELINE_TENANT`, default `brightwater-pipeline`) and queue them (`python -m leo.ingest.folder`) |
-| `worker` | Run the pipeline on queued jobs, polling. `ARGS="--drain"` stops when nothing is due. See [Run the pipeline](#run-the-pipeline) |
-| `api-pipeline` | `make api` serving the pipeline's tenant instead of the seeded one |
-
-## Run the pipeline
-
-`make seed` serves the answer key's results. To have LEO find them itself, put the documents through the worker (ROADMAP 2.1). It writes to its own tenant, so the two never mix:
+`make seed` loads the answer key's results, so it needs no API keys. To have LEO find the issues itself, put your `ANTHROPIC_API_KEY` and `JEV_API_KEY` in `.env` (never commit it) and run the documents through the pipeline:
 
 ```sh
-make reset                                   # optional: a clean database
-make ingest                                  # 21 documents queued
+make ingest                                         # queue the 21 demo documents
 make worker ARGS="--drain --tenant brightwater-pipeline"
-make api-pipeline                            # then make web
+make api-pipeline                                   # serve the pipeline's results, then make web
 ```
 
-The worker classifies with Jev (live, `JEV_API_KEY`), extracts with the scripts and then the LLM, validates with rules, syncs `transactions.csv`, links duplicates, matches charges, reconciles and drafts each finding with the LLM. Extractions and drafts come from the committed caches (`data/llm_cache/`). `LEO_LLM_OFFLINE=1` turns a cache miss into an error instead of an API call. For a run with no network at all, add `--classifier fixture --drafter template`. `python -m leo.worker --help` lists the engines.
+`make test` runs the test suite (no API keys needed), and `make reset` wipes the database and reseeds it for a clean demo.
 
-## Gmail sync (optional)
-
-The demo never depends on this: the `.eml` path (`make seed`, uploads) is the fallback. Sync reads the inbox with the `gmail.readonly` scope and stores each new email through `ingest()`, which queues its `classify` job. Its tokens are encrypted at rest. It writes to its own tenant (`gmail-demo`), so it never doubles the seeded one.
-
-One-time setup:
-
-1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and enable the Gmail API.
-2. Configure the OAuth consent screen as **External**, in **Testing** mode, and add the demo Gmail account as a test user.
-3. Create an OAuth client of type **Desktop app**, download its JSON to `var/google_client_secret.json` (gitignored), or point `LEO_GOOGLE_CLIENT_SECRETS` at it.
-4. Generate `LEO_SECRET_KEY` and put it in `.env`:
-   `uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
-
-Then:
-
-```sh
-make gmail-connect                   # consent in the browser (read-only); stores the account
-make gmail-import ARGS="--drip 5"    # fill the demo inbox from data/synthetic/inbox (asks its own insert consent)
-make gmail-sync ARGS="--watch 10"    # poll the inbox; each new email is a document with a classify job
-make worker                          # run the jobs
-make api-gmail                       # the API on the Gmail tenant
-```
-
-- `gmail-import` isn't idempotent: a second run imports every email again under new Gmail ids, so use a fresh demo account or delete the emails first. Its insert token is never stored.
-- `make reset` drops the connected account and its token, so run `make gmail-connect` again afterwards.
-- Don't put `LEO_TENANT=gmail-demo` in `.env`: `make seed` and `make reset` read it too, and would seed the answer key into the Gmail tenant. `make api-gmail` sets it for the API only.
-
-## Layout
-
-| Path | Contents | Track |
-| --- | --- | --- |
-| `leo/config.py` | Settings from the environment and `.env` | Shared |
-| `leo/interfaces.py` | Stage protocols and the models passed between tracks | Shared |
-| `leo/stubs.py` | Placeholder stage implementations until the tracks plug in | Shared |
-| `leo/clock.py` | `Clock`: `LEO_TODAY`, or the system date | Shared |
-| `leo/fixtures.py` | The answer key as typed fixtures, plus fixture-backed stages | Shared |
-| `leo/db/` | Engine, models, Alembic migrations (`leo/db/migrations/`), repositories | A |
-| `leo/ingest/` | Raw-file store, `.eml` parser, `ingest()`, folder loaders, Gmail sync (A8) and token encryption | A |
-| `leo/pipeline/` | Classify, extract, validate | B |
-| `leo/eval/` | Eval harness: scores stage output against `expected.json` | B |
-| `leo/actions/` | Action drafting | B |
-| `leo/reconcile/` | Reconciliation rules and deadlines | C |
-| `leo/api/` | FastAPI app on Postgres: findings, documents, the approval queue, upload and stats (C3), CSV export (C4), and the vendor view (C5) | C |
-| `web/` | React + Vite + TypeScript UI | C |
-| `tests/` | pytest | All |
-| `scripts/validate_answer_key.py` | Checks `expected.json` against the dataset | All |
-| `scripts/seed_gmail.py` | Imports `.eml` files into the demo Gmail account (A8) | A |
+More detail: [`docs/STACK.md`](docs/STACK.md) (the stack and the LLM policy), [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) and [`docs/DEMO.md`](docs/DEMO.md) (the demo video).
