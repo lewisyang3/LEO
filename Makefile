@@ -1,4 +1,4 @@
-.PHONY: setup up down migrate test lint api api-gmail api-pipeline web seed reset ingest eval bar e2e scriptgen worker gmail-connect gmail-sync gmail-import
+.PHONY: setup up down migrate test lint api api-gmail api-pipeline web seed reset ingest eval bar e2e scriptgen worker gmail-connect gmail-sync gmail-import demo-prep
 
 setup:
 	uv sync
@@ -59,6 +59,17 @@ gmail-sync:
 
 gmail-import:
 	uv run python scripts/seed_gmail.py $(ARGS)
+
+# The demo video's "before" state (docs/DEMO.md): reset (which reseeds LEO_TENANT, never the
+# Gmail tenant), the contracts as files, then Gmail connect (browser consent), sync and drain.
+DEMO_TENANT = $${LEO_GMAIL_TENANT:-gmail-demo}
+demo-prep:
+	@if [ "$${LEO_TENANT}" = "$(DEMO_TENANT)" ]; then echo "LEO_TENANT must not be the Gmail tenant: reset would seed the answer key into it"; exit 1; fi
+	uv run python -m leo.db.reset
+	uv run python -m leo.ingest.folder --folder contracts --tenant $(DEMO_TENANT)
+	uv run python -m leo.ingest.gmail connect
+	uv run python -m leo.ingest.gmail sync
+	uv run python -m leo.worker --drain --tenant $(DEMO_TENANT)
 
 eval:
 	uv run python -m leo.eval

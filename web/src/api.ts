@@ -20,6 +20,20 @@ export type Dashboard = {
   pending_actions: number
 }
 
+export type JobCount = {
+  stage: string
+  processed_by: string | null
+  status: string
+  count: number
+}
+
+export type Stats = {
+  documents: number
+  documents_by_class: Record<string, number>
+  findings: number
+  jobs: JobCount[]
+}
+
 export type FindingSummary = {
   id: string
   kind: FindingKind

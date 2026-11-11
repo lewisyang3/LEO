@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Dashboard, FindingSummary } from './api'
+import type { Dashboard, FindingSummary, Stats } from './api'
 import { humanize, longDate, money, upload } from './api'
 import { findingHref, vendorHref } from './route'
 import { useFetch } from './useFetch'
@@ -24,6 +24,45 @@ export function DaysLeft({ days, long = false }: { days: number | null; long?: b
 export function StateBadge({ state }: { state: string | null }) {
   if (state === null) return <span className="badge">no draft</span>
   return <span className={`badge state-${state}`}>{state}</span>
+}
+
+/** The stage funnel: how many documents each stage let through, and which engine extracted
+ * them. Counts come from the jobs table, so cache hits count like live calls. */
+function Funnel({ version }: { version: number }) {
+  const { data: s } = useFetch<Stats>('/api/stats', version)
+  if (!s || s.documents === 0) return null
+  const noise = s.documents_by_class.noise ?? 0
+  const extracts = s.jobs.filter((j) => j.stage === 'extract' && j.status === 'done')
+  const scripts = new Map<string, number>()
+  let llm = 0
+  for (const j of extracts) {
+    const by = j.processed_by ?? ''
+    if (by.startsWith('script:')) {
+      const name = by.slice('script:'.length).replace(/@.*/, '')
+      scripts.set(name, (scripts.get(name) ?? 0) + j.count)
+    } else if (by.startsWith('llm:')) llm += j.count
+  }
+  const scripted = [...scripts.values()].reduce((a, b) => a + b, 0)
+  const step = (n: number, label: string, title?: string) => (
+    <div title={title}>
+      <strong>{n}</strong>
+      <span>{label}</span>
+    </div>
+  )
+  return (
+    <section className="funnel" aria-label="Stage funnel">
+      {step(s.documents, 'documents in')}
+      <span className="arrow">→</span>
+      {step(noise, 'stopped as noise')}
+      <span className="arrow">→</span>
+      {step(scripted, 'read by scripts', [...scripts].map(([n, c]) => `${n}: ${c}`).join(', '))}
+      <span className="arrow">+</span>
+      {step(llm, 'reached the LLM')}
+      {scripts.size > 0 && (
+        <p className="muted small">Scripts: {[...scripts.keys()].join(', ')}</p>
+      )}
+    </section>
+  )
 }
 
 /** Upload one document. It is stored now; processing it arrives with the worker (A4). */
@@ -80,6 +119,8 @@ export default function DashboardPage({ dash, version }: { dash: Dashboard | nul
           <span>drafts awaiting approval</span>
         </div>
       </section>
+
+      <Funnel version={version} />
 
       <table className="findings">
         <thead>

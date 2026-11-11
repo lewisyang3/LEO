@@ -1,0 +1,31 @@
+{
+  "doc_hash": "4e66172efc7c317b6d8575fdd0658fe8aead1afa30a6ce61e00ba3e41b894ecb",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "escalators": [],
+    "price_caps": [],
+    "seat_counts": [],
+    "vendor_name": "Driftwell Analytics"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgvCFdGXmAtHN4s1exhSn",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5125,
+    "inference_geo": "global",
+    "input_tokens": 743,
+    "output_tokens": 174,
+    "output_tokens_details": {
+      "thinking_tokens": 129
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "doc_hash": "2b1ea6bb1fbe58442c0df94b059cf81cb7627d7937b5fab5ea36d7f50ff12968",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "prices": [],
+    "renewals": [],
+    "vendor_name": "Halcyon Payroll Services, Inc."
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgvCEP6E7958vLh8LYtWf",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 4450,
+    "inference_geo": "global",
+    "input_tokens": 780,
+    "output_tokens": 235,
+    "output_tokens_details": {
+      "thinking_tokens": 194
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

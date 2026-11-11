@@ -29,7 +29,7 @@ How we get from the design doc (`LEO Design Doc.md`) to a working demo, and who 
 
 **Order.** Track B comes first, built by Lewis and Omar together. Once it is done, we decide who takes Track A and who takes Track C.
 
-**Now (2026-11-10).** Phase 4's script generation is done, ahead of 3.1: `make scriptgen` writes a script for a sender the LLM keeps extracting, with Haiku, and promotes it only if it reproduces every verified result and matches no other sender (see Phase 4). Next is 3.1 (demo script). 2.4 (accuracy bar) is done, so Phase 2 is complete. The bar is `make bar` and `make e2e` both passing: every planted finding, no false finding, and at least 90% of term fields right (today 262/263, 99.6%). Next is 3.1 (demo script). 2.3 (fix the end-to-end gaps) is done: `make e2e` now also checks each finding's draft against the key, the vendors' names and that no draft fell back to the template, and passes 22/22 with all five drafts from the LLM. 2.2 (`make e2e`) is done: one command resets the database, runs the pipeline on the synthetic set and checks F1–F5, N1–N8 and D1–D5. Run it before every merge to main. 2.1 (wire the pipeline) is done too. A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
+**Now (2026-11-10).** The demo video is scripted (3.1, with 3.4's points as voiceover) and the live Gmail inbox works (3.3): see `docs/DEMO.md`. There is no deck; the video shows only the product. Next is recording it (3.5), then PDF contracts. The feedback loop (Phase 4) is done. Phase 4's script generation is done, ahead of 3.1: `make scriptgen` writes a script for a sender the LLM keeps extracting, with Haiku, and promotes it only if it reproduces every verified result and matches no other sender (see Phase 4). Next is 3.1 (demo script). 2.4 (accuracy bar) is done, so Phase 2 is complete. The bar is `make bar` and `make e2e` both passing: every planted finding, no false finding, and at least 90% of term fields right (today 262/263, 99.6%). Next is 3.1 (demo script). 2.3 (fix the end-to-end gaps) is done: `make e2e` now also checks each finding's draft against the key, the vendors' names and that no draft fell back to the template, and passes 22/22 with all five drafts from the LLM. 2.2 (`make e2e`) is done: one command resets the database, runs the pipeline on the synthetic set and checks F1–F5, N1–N8 and D1–D5. Run it before every merge to main. 2.1 (wire the pipeline) is done too. A8's live Gmail run still waits on an OAuth client and a demo account. A8 (Gmail sync), A7 (seed and reset), A6 (duplicate linking), B5 (script extractors), A4 (job queue and worker, PR #17, replacing #13) and A5 (transactions, vendors and matching) are on main, and so are C3–C5 (PRs #14–#16).
 
 The tracks don't block each other, whatever order they run in, because of two decisions made in Phase 0:
 
@@ -251,7 +251,13 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - a synced email and its upload are separate rows
     - `sync_all` keeps going past a failing account
   - **Not done here.**
-    - The live run against a real account waits on a Google Cloud OAuth client and a demo Gmail account (README, "Gmail sync"): connect, import, a sync giving 16 then 0 new, a `--watch` pickup of one `--only` import, and a check that the stored ciphertext has no readable token.
+    - ~~The live run.~~ Done 2026-11-10 for 3.3 (docs/DEMO.md):
+      - Connect and import, then a sync giving 13 new and then 0.
+      - A `--watch` pickup of one `--only --live` import.
+      - The stored ciphertext has no readable token.
+      - Re-importing an email Gmail already holds, even in Trash, only moves it back to the Inbox (`labelAdded`, unread by sync). Hence `seed_gmail.py --live`, which gives the email a fresh Message-ID.
+      - Gmail adds `Received` headers to each import, so Gmail copies miss the `.eml` files' LLM cache. Their own entries are committed.
+    - Jev fails on a long HTML email (Google Cloud's welcome: `max_tokens_exceeded`), and the classify job parks. Not needed for the demo.
     - A message that gets the `INBOX` label after it arrives (`labelAdded`) isn't picked up.
     - 2.1 turns the queued jobs into terms.
     - A larger dataset belongs to its own task, because every new email changes the answer key. `seed_gmail.py --folder` takes any folder.
@@ -625,7 +631,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
 
 ## Phase 3: Demo (all three)
 
-- [ ] **3.1 [must] Demo script.** About 3 minutes, in this order:
+- [x] **3.1 [must] Demo script.** About 3 minutes, in this order:
   1. the problem
   2. live ingest
   3. the stage funnel ("16 emails in, N reached the LLM")
@@ -638,12 +644,19 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
   - Run from the committed LLM caches (B3, B7) so reruns give the same terms and drafts. Jev calls (B2, B4) are live and have no cache. That's fine because the demo is a recorded video, so it doesn't need to run offline.
   - One-command reset.
   - A recorded backup video.
-- [ ] **3.3 [should] Live inbox.** If A8 is ready, show a new price-change email arriving in Gmail and becoming a finding.
+- [x] **3.3 [should] Live inbox.** If A8 is ready, show a new price-change email arriving in Gmail and becoming a finding.
   - The demo email must carry the vendor's account line (e.g. "Account ID: LP-204417"). Otherwise its terms get no `agreement_ref`, split from the stored price history (all `LP-204417` since 2.3), and nothing supersedes.
-- [ ] **3.4 [should] Pitch.**
+- [x] **3.4 [should] Pitch.**
   - The Ramp tie-in: reminders track end dates, while LEO checks bills against terms and email.
   - The cost story.
   - The path to pooling vendor spend across multiple entities.
+
+  Done in `docs/DEMO.md`, a product-only video: no deck.
+  - **Demo tenant.** The tenant is `gmail-demo`. Contracts are loaded as files, emails come from Gmail, and charges from the CSV. `make demo-prep` builds the "before" state: 19 documents, 4 findings, $16,704.
+  - **Live email.** The live email is 01, held back from the first import with 02 and 07. Imported with `--live`, it becomes F2 in about 14s: 5 findings, $17,184.
+  - **Dashboard.** It has a stage funnel (20 documents in, 5 noise, 3 by scripts, 12 to the LLM) and refreshes every 5s.
+  - **Pitch points.** The 3.4 points (Ramp, the cost of about $0.02 a run, multi-entity) are said over product screens.
+  - **Feedback loop.** It's left out on camera: every term here is extracted correctly, so a correction would be staged.
 - [ ] **3.5 [must] Rehearse twice** on the demo machine.
 
 ## Phase 4: Stretch (only after the demo is green)
@@ -662,7 +675,7 @@ Track B goes first. Each track's tasks are in order. Items marked ⇄ are handof
     - automatic triggering from the worker
     - template fingerprints beyond the sender address. A format is a sender, so another template from the same sender is never a negative test.
     - the dedup script the design doc mentions
-- [ ] **[stretch] Feedback loop.** Corrections become few-shot examples in the extraction prompt, and they lower a script's accuracy until it is rewritten.
+- [x] **[stretch] Feedback loop.** Corrections become few-shot examples in the extraction prompt, and they lower a script's accuracy until it is rewritten.
 
   Three steps: F1 records corrections, F2 uses them as few-shot examples, F3 demotes and rewrites a generated script.
   - [x] **F1: record corrections.** `leo/feedback.py`, the API and the UI:

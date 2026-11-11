@@ -1,0 +1,47 @@
+{
+  "doc_hash": "6140f86c4dc723f20bc8866f37a98ed375eb1562015f6af21ab1dfec4c5a1e18",
+  "effort": "medium",
+  "model": "claude-haiku-5-5",
+  "output": {
+    "contacts": [],
+    "dispute_windows": [],
+    "invoice_facts": [],
+    "notice_windows": [
+      {
+        "agreement_ref": null,
+        "effective_date": null,
+        "plan_label": null,
+        "quotes": [
+          "Prices may change with at least 30 days' notice by email."
+        ],
+        "value": {
+          "applies_to": "vendor_price_change",
+          "days": 30,
+          "deliver_to": null,
+          "relative_to": "price_change"
+        }
+      }
+    ],
+    "vendor_name": "Lumenpost"
+  },
+  "prompt_version": "extract-v3",
+  "request_id": "req_011CgvCGZZ5ZoGPG1JAG2Vt8",
+  "stage": "extract",
+  "stop_reason": "end_turn",
+  "usage": {
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 5098,
+    "inference_geo": "global",
+    "input_tokens": 803,
+    "output_tokens": 850,
+    "output_tokens_details": {
+      "thinking_tokens": 701
+    },
+    "service_tier": "standard",
+    "speed": "standard"
+  }
+}

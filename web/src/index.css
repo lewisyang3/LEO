@@ -176,6 +176,37 @@ button.ghost {
   color: var(--muted);
 }
 
+.funnel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.funnel div {
+  display: flex;
+  flex-direction: column;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.funnel strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel span,
+.funnel .arrow {
+  color: var(--muted);
+}
+
+.funnel p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
