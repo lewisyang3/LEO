@@ -1,6 +1,6 @@
 # LEO
 
-**LEO** is a project for the **Ramp x UC Berkeley Business Society** hackathon. The prompt:
+**LEO** is a project for the **Berkeley Business Society x Ramp** hackathon. The prompt:
 
 > *Automate an outdated financial workflow using the newest AI tools.*
 
